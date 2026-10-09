@@ -30,15 +30,18 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 function SelectTrigger({
   className,
   size = "default",
+  variant = "default",
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default"
+  variant?: "default" | "game"
 }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
+      data-variant={variant}
       className={cn(
         "gap-1.5 px-3 py-2 text-sm data-[size=default]:h-8 data-[size=sm]:h-7 *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*='size-'])]:size-4 flex w-fit items-center justify-between rounded-2xl border border-transparent bg-input/50 whitespace-nowrap transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className
@@ -48,7 +51,10 @@ function SelectTrigger({
       {children}
       <SelectPrimitive.Icon
         render={
-          <ChevronDownIcon className="size-4 pointer-events-none text-muted-foreground" />
+          <ChevronDownIcon
+            data-slot="select-icon"
+            className="size-4 pointer-events-none text-muted-foreground"
+          />
         }
       />
     </SelectPrimitive.Trigger>
@@ -58,17 +64,19 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
+  variant = "default",
   side = "bottom",
-  sideOffset = 4,
+  sideOffset = variant === "game" ? 10 : 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  // The game popup drops below its sunk-in trigger instead of covering it.
+  alignItemWithTrigger = variant === "default",
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
-  >) {
+  > & { variant?: "default" | "game" }) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -81,6 +89,7 @@ function SelectContent({
       >
         <SelectPrimitive.Popup
           data-slot="select-content"
+          data-variant={variant}
           data-align-trigger={alignItemWithTrigger}
           className={cn(
             "min-w-36 shadow-lg data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover text-popover-foreground ring-1 ring-foreground/5 duration-100 data-[align-trigger=true]:animate-none dark:ring-foreground/10",

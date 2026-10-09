@@ -8,11 +8,16 @@
  * @module
  */
 
+import type * as artists from "../artists.js";
 import type * as catalog from "../catalog.js";
 import type * as collection from "../collection.js";
 import type * as crons from "../crons.js";
+import type * as enrichment from "../enrichment.js";
 import type * as playback from "../playback.js";
+import type * as rarity from "../rarity.js";
+import type * as releases from "../releases.js";
 import type * as songs__lib_audiometa from "../songs/_lib/audiometa.js";
+import type * as songs__lib_crawl from "../songs/_lib/crawl.js";
 import type * as songs__lib_dedupe from "../songs/_lib/dedupe.js";
 import type * as songs__lib_deezer from "../songs/_lib/deezer.js";
 import type * as songs__lib_rarity from "../songs/_lib/rarity.js";
@@ -25,11 +30,16 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  artists: typeof artists;
   catalog: typeof catalog;
   collection: typeof collection;
   crons: typeof crons;
+  enrichment: typeof enrichment;
   playback: typeof playback;
+  rarity: typeof rarity;
+  releases: typeof releases;
   "songs/_lib/audiometa": typeof songs__lib_audiometa;
+  "songs/_lib/crawl": typeof songs__lib_crawl;
   "songs/_lib/dedupe": typeof songs__lib_dedupe;
   "songs/_lib/deezer": typeof songs__lib_deezer;
   "songs/_lib/rarity": typeof songs__lib_rarity;

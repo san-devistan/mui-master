@@ -148,6 +148,15 @@
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-return": "off"
       }
+    },
+    {
+      "files": ["packages/ui/src/lib/game/**"],
+      "rules": {
+        "complexity": "off",
+        "max-lines": "off",
+        "max-lines-per-function": "off",
+        "max-params": "off"
+      }
     }
   ],
   "ignorePatterns": [

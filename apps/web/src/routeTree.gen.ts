@@ -9,50 +9,109 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as GameRouteImport } from './routes/_game'
+import { Route as GameIndexRouteImport } from './routes/_game.index'
+import { Route as GameCollectionRouteImport } from './routes/_game.collection'
+import { Route as GameProfileRouteImport } from './routes/_game.profile'
 
-const IndexRoute = IndexRouteImport.update({
+const GameRoute = GameRouteImport.update({
+  id: '/_game',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GameIndexRoute = GameIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => GameRoute,
+} as any)
+const GameCollectionRoute = GameCollectionRouteImport.update({
+  id: '/collection',
+  path: '/collection',
+  getParentRoute: () => GameRoute,
+} as any)
+const GameProfileRoute = GameProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => GameRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof GameIndexRoute
+  '/collection': typeof GameCollectionRoute
+  '/profile': typeof GameProfileRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/collection': typeof GameCollectionRoute
+  '/profile': typeof GameProfileRoute
+  '/': typeof GameIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_game': typeof GameRouteWithChildren
+  '/_game/collection': typeof GameCollectionRoute
+  '/_game/profile': typeof GameProfileRoute
+  '/_game/': typeof GameIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/collection' | '/profile'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/collection' | '/profile' | '/'
+  id: '__root__' | '/_game' | '/_game/collection' | '/_game/profile' | '/_game/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  GameRoute: typeof GameRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_game': {
+      id: '/_game'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof GameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_game/': {
+      id: '/_game/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof GameIndexRouteImport
+      parentRoute: typeof GameRoute
+    }
+    '/_game/collection': {
+      id: '/_game/collection'
+      path: '/collection'
+      fullPath: '/collection'
+      preLoaderRoute: typeof GameCollectionRouteImport
+      parentRoute: typeof GameRoute
+    }
+    '/_game/profile': {
+      id: '/_game/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof GameProfileRouteImport
+      parentRoute: typeof GameRoute
     }
   }
 }
 
+interface GameRouteChildren {
+  GameCollectionRoute: typeof GameCollectionRoute
+  GameProfileRoute: typeof GameProfileRoute
+  GameIndexRoute: typeof GameIndexRoute
+}
+
+const GameRouteChildren: GameRouteChildren = {
+  GameCollectionRoute: GameCollectionRoute,
+  GameProfileRoute: GameProfileRoute,
+  GameIndexRoute: GameIndexRoute,
+}
+
+const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  GameRoute: GameRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -4,9 +4,9 @@ import { internal } from "./_generated/api"
 
 const crons = cronJobs()
 
-crons.interval(
+crons.cron(
   "import audiometa songs",
-  { hours: 24 },
+  "0 0 1 * *",
   internal.catalog.startImport,
   {}
 )

@@ -8,7 +8,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server"
-import { drawRarity, rarityOrder } from "./songs/_lib/rarity"
+import { drawRarity, minSpotifyStreams, rarityOrder } from "./songs/_lib/rarity"
 import type { SongRarity } from "./songs/_lib/validators"
 
 const packSize = 5
@@ -27,7 +27,7 @@ function toSongCard(song: Doc<"songs">, copies: number) {
     artistNames: song.artistNames,
     imageUrl: song.imageUrl,
     spotifyStreams: song.spotifyStreams,
-    rarity: song.rarity,
+    rarity: song.rarity ?? "common",
     copies,
   }
 }
@@ -113,7 +113,9 @@ export const list = query({
 
     const page = await ctx.db
       .query("songs")
-      .withIndex("by_spotifyStreams")
+      .withIndex("by_spotifyStreams", (q) =>
+        q.gte("spotifyStreams", minSpotifyStreams)
+      )
       .order("desc")
       .paginate(args.paginationOpts)
     const copies = await ownedCopies(

@@ -22,7 +22,7 @@ export const Route = createRootRouteWithContext<{
       {
         title: "Musi Master",
       },
-      { name: "theme-color", content: "#111111" },
+      { name: "theme-color", content: "#d5c3f8" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "Musi Master" },
       {
@@ -51,12 +51,14 @@ export const Route = createRootRouteWithContext<{
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="game-backdrop-floor" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body className="min-h-svh bg-background text-foreground">
-        <ThemeProvider>{children}</ThemeProvider>
+      <body className="h-dvh overflow-hidden overscroll-none bg-lavender text-foreground antialiased">
+        <ThemeProvider defaultTheme="light" enableSystem={false}>
+          {children}
+        </ThemeProvider>
         <Scripts />
       </body>
     </html>

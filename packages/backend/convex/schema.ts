@@ -1,7 +1,12 @@
 import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
 
-import { songRarity } from "./songs/_lib/validators"
+import {
+  albumDetails,
+  artistDetails,
+  songDetails,
+  songRarity,
+} from "./songs/_lib/validators"
 
 export default defineSchema({
   songs: defineTable({
@@ -9,17 +14,29 @@ export default defineSchema({
     sourceId: v.string(),
     title: v.string(),
     artistNames: v.array(v.string()),
+    // Credited artists in order, lead first (same order as artistNames). Filled by imports and the artist backfill.
+    artistIds: v.optional(v.array(v.id("artists"))),
     imageUrl: v.optional(v.string()),
     previewUrl: v.optional(v.string()),
     isrc: v.optional(v.string()),
     spotifyStreams: v.number(),
-    rarity: songRarity,
+    rarity: v.optional(songRarity),
+    bpm: v.optional(v.number()),
+    // Earliest known release of the recording (YYYY, YYYY-MM or YYYY-MM-DD).
+    releaseDate: v.optional(v.string()),
+    // Web check (scripts/web-release-dates.mjs): false = not checked yet, true = releaseDate confirmed,
+    // null = no date found, to check by hand.
+    reviewed: v.union(v.boolean(), v.null()),
+    // Release date found by the web check (YYYY-MM-DD).
+    webDate: v.optional(v.string()),
+    details: v.optional(songDetails),
     randomKey: v.number(),
     syncedAt: v.number(),
   })
     .index("by_songKey", ["songKey"])
     .index("by_spotifyStreams", ["spotifyStreams"])
-    .index("by_rarity_and_randomKey", ["rarity", "randomKey"]),
+    .index("by_rarity_and_randomKey", ["rarity", "randomKey"])
+    .index("by_reviewed_and_spotifyStreams", ["reviewed", "spotifyStreams"]),
   songVersions: defineTable({
     sourceId: v.string(),
     songId: v.id("songs"),
@@ -36,7 +53,48 @@ export default defineSchema({
     releaseDate: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     artistNames: v.array(v.string()),
-  }).index("by_sourceId", ["sourceId"]),
+    artistIds: v.optional(v.array(v.id("artists"))),
+    // Set by the enrichment backfill (enrichment.ts); missing until then.
+    details: v.optional(albumDetails),
+    enrichedAt: v.optional(v.number()),
+  })
+    .index("by_sourceId", ["sourceId"])
+    .index("by_enrichedAt", ["enrichedAt"]),
+  artists: defineTable({
+    sourceId: v.string(),
+    name: v.string(),
+    // Set by the enrichment backfill (enrichment.ts); missing until then.
+    details: v.optional(artistDetails),
+    enrichedAt: v.optional(v.number()),
+  })
+    .index("by_sourceId", ["sourceId"])
+    .index("by_enrichedAt", ["enrichedAt"]),
+  songArtists: defineTable({
+    songId: v.id("songs"),
+    artistId: v.id("artists"),
+    // 0 = lead artist.
+    position: v.number(),
+  })
+    .index("by_songId_and_artistId", ["songId", "artistId"])
+    .index("by_artistId", ["artistId"]),
+  enrichmentRuns: defineTable({
+    status: v.union(
+      v.literal("running"),
+      v.literal("done"),
+      v.literal("failed")
+    ),
+    phase: v.union(
+      v.literal("tracks"),
+      v.literal("artists"),
+      v.literal("albums")
+    ),
+    cursor: v.union(v.string(), v.null()),
+    keyIndex: v.number(),
+    processed: v.number(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  }),
   songAlbums: defineTable({
     songId: v.id("songs"),
     albumId: v.id("albums"),
@@ -60,6 +118,10 @@ export default defineSchema({
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    bpm: v.optional(v.number()),
+    bpmStep: v.optional(v.number()),
+    toBpm: v.optional(v.number()),
+    keyIndex: v.optional(v.number()),
   }),
   collectors: defineTable({
     collectorId: v.string(),
