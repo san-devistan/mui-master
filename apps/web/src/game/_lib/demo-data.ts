@@ -1,7 +1,18 @@
 import type { GameSong } from "@workspace/ui/lib/game/theme"
 
+// What the showcase shows and links to, beyond the card itself.
+type ListenableSong = GameSong & {
+  bpm: number
+  releaseDate: string
+  isrc: string
+  spotifyId: string
+  deezerId: string
+  appleId?: string
+}
+
 // Snapshot from Convex dev songs, 2026-10-09. Replace with backend queries
-// when the game loop is built.
+// when the game loop is built. Deezer ids come from the ISRC, Apple ids from
+// the Deezer album's UPC; Taki Taki has no original on Apple Music.
 export const SONGS = [
   {
     id: "k5764jmczhfvq0yg8wmsg6qw5s8fp7t3",
@@ -11,6 +22,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273f85058b7e234523d2d2ef834",
     streams: 3188699803,
     rank: 48,
+    bpm: 105,
+    releaseDate: "2024-01-18",
+    isrc: "USWB12307016",
+    spotifyId: "3OD3UsYexvqEH6UHEFHrZu",
+    deezerId: "2610711672",
+    appleId: "1724488124",
     rarity: "legendary",
   },
   {
@@ -21,6 +38,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2739aa37e5baca62ca6cc98d056",
     streams: 2191656413,
     rank: 199,
+    bpm: 120,
+    releaseDate: "1991-09-24",
+    isrc: "USGF19942503",
+    spotifyId: "2RsAajgo0g7bMCHxwH3Sk0",
+    deezerId: "13693499",
+    appleId: "1440783636",
     rarity: "legendary",
   },
   {
@@ -31,6 +54,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b27322c1b2b58a23408632527ab7",
     streams: 2573698443,
     rank: 105,
+    bpm: 139,
+    releaseDate: "2005-05-09",
+    isrc: "GBAYE0500172",
+    spotifyId: "35SJAMEdYx6YNqCaFPInIp",
+    deezerId: "3129407",
+    appleId: "850571371",
     rarity: "legendary",
   },
   {
@@ -41,6 +70,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b27356ac7b86e090f307e218e9c8",
     streams: 2940301935,
     rank: 67,
+    bpm: 140,
+    releaseDate: "2019-01-18",
+    isrc: "USUM71900110",
+    spotifyId: "6ocbgoVGwYJhOv1GgI9NsF",
+    deezerId: "629899842",
+    appleId: "1450334168",
     rarity: "legendary",
   },
   {
@@ -51,6 +86,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273307910d4242c0d6b1fedf955",
     streams: 1582469672,
     rank: 435,
+    bpm: 125,
+    releaseDate: "2017-10-25",
+    isrc: "USUM71712103",
+    spotifyId: "0tBbt8CrmxbjRP0pueQkyU",
+    deezerId: "420355352",
+    appleId: "1445055017",
     rarity: "epic",
   },
   {
@@ -61,6 +102,11 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273e105c410a7b390c61a58cbf8",
     streams: 1884866333,
     rank: 298,
+    bpm: 96,
+    releaseDate: "2018-10-04",
+    isrc: "USUG11801723",
+    spotifyId: "4w8niZpiMy6qz1mntFA5uM",
+    deezerId: "2032499827",
     rarity: "epic",
   },
   {
@@ -71,6 +117,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273cc2cf912462d8ae4ef856434",
     streams: 1427929649,
     rank: 546,
+    bpm: 120,
+    releaseDate: "2014-11-10",
+    isrc: "USUM71416307",
+    spotifyId: "2GiJYvgVaD2HtM8GqD9EgQ",
+    deezerId: "89359729",
+    appleId: "1445291884",
     rarity: "epic",
   },
   {
@@ -81,6 +133,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2735d4bd2c345c95e847b586403",
     streams: 1358112211,
     rank: 602,
+    bpm: 89,
+    releaseDate: "2003-04-28",
+    isrc: "USJI10300075",
+    spotifyId: "0M955bMOoilikPXwKLYpoi",
+    deezerId: "541012",
+    appleId: "298376639",
     rarity: "epic",
   },
   {
@@ -91,6 +149,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2731d883d3f10af481faa3c7e04",
     streams: 758363980,
     rank: 1594,
+    bpm: 124,
+    releaseDate: "2016-12-09",
+    isrc: "GBUM71606456",
+    spotifyId: "1rFMYAZxBoAKSzXI54brMu",
+    deezerId: "137728875",
+    appleId: "1445027580",
     rarity: "rare",
   },
   {
@@ -101,6 +165,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2739f7ce2227875fd3d645fb5d6",
     streams: 786883367,
     rank: 1509,
+    bpm: 107,
+    releaseDate: "2015-07-31",
+    isrc: "USUM71510633",
+    spotifyId: "2Gyc6e2cLxA5hoX1NOvYnU",
+    deezerId: "130414940",
+    appleId: "1443126796",
     rarity: "rare",
   },
   {
@@ -111,6 +181,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b27395e2fd1accb339fa14878190",
     streams: 482263693,
     rank: 2894,
+    bpm: 115,
+    releaseDate: "2017-07-21",
+    isrc: "GBUM71702622",
+    spotifyId: "6eygbzyL6hY8jFQTARDuo9",
+    deezerId: "383962101",
+    appleId: "1440900264",
     rarity: "rare",
   },
   {
@@ -121,6 +197,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b27323152d9337d6c57b116ed13a",
     streams: 478194653,
     rank: 2925,
+    bpm: 139,
+    releaseDate: "2015-12-09",
+    isrc: "USAT21503696",
+    spotifyId: "1BECwm5qkaBwlbfo4kpYx8",
+    deezerId: "116866556",
+    appleId: "1050385382",
     rarity: "rare",
   },
   {
@@ -131,6 +213,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2737f6f6c9e4b492a3d7e910d82",
     streams: 411214078,
     rank: 3525,
+    bpm: 172,
+    releaseDate: "1993-02-16",
+    isrc: "USIR19300813",
+    spotifyId: "0WzRs3jLFAqUjntdQKqQHK",
+    deezerId: "12901240",
+    appleId: "1669626148",
     rarity: "rare",
   },
   {
@@ -141,6 +229,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273a4ad09abe4e62f88e8238471",
     streams: 273843188,
     rank: 5592,
+    bpm: 124,
+    releaseDate: "2018-10-05",
+    isrc: "GBAHS1800662",
+    spotifyId: "05mAIVLkIWc2d1UBYZBCp8",
+    deezerId: "562719802",
+    appleId: "1468263367",
     rarity: "common",
   },
   {
@@ -151,6 +245,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2736ce61113662ecf693b605ee5",
     streams: 243992168,
     rank: 6297,
+    bpm: 134,
+    releaseDate: "1977-09-29",
+    isrc: "USSM17700369",
+    spotifyId: "4cG3ovmC8Hnp9ZsmSZI2O4",
+    deezerId: "968743",
+    appleId: "158617967",
     rarity: "common",
   },
   {
@@ -161,6 +261,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2735d2676e12a38ad50bc3ac85b",
     streams: 214488845,
     rank: 7238,
+    bpm: 140,
+    releaseDate: "2022-05-20",
+    isrc: "USWB12201477",
+    spotifyId: "2gJj6WtAxXjApMs3PXsCeX",
+    deezerId: "1736518367",
+    appleId: "1620257604",
     rarity: "common",
   },
   {
@@ -171,6 +277,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b27387aa91b6ba6b4fded7bf3293",
     streams: 137082973,
     rank: 11244,
+    bpm: 111,
+    releaseDate: "1995-05-08",
+    isrc: "GBDUW0600006",
+    spotifyId: "4IUkEUQmp2HkJZrf0vUru5",
+    deezerId: "3129772",
+    appleId: "1609438402",
     rarity: "common",
   },
   {
@@ -181,6 +293,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273f5e7b2e5adaa87430a3eccff",
     streams: 110772812,
     rank: 13588,
+    bpm: 185,
+    releaseDate: "2002-11-26",
+    isrc: "USSM10505333",
+    spotifyId: "28TReO2Mxk9Q3GA4K98YSz",
+    deezerId: "546570",
+    appleId: "159457242",
     rarity: "common",
   },
   {
@@ -191,6 +309,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2735ee839f6415e0d02fc4f2b49",
     streams: 244358274,
     rank: 6273,
+    bpm: 138,
+    releaseDate: "2020-03-09",
+    isrc: "USUG11902884",
+    spotifyId: "0LEFmgIj8ABU7CelzGh5Bs",
+    deezerId: "897652872",
+    appleId: "1501942915",
     rarity: "common",
   },
   {
@@ -201,6 +325,12 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b2733009007708ab5134936a58b3",
     streams: 1594993356,
     rank: 428,
+    bpm: 137,
+    releaseDate: "1972-03-31",
+    isrc: "GBAMB7200006",
+    spotifyId: "3gdewACMIVMEWVbyb8O9sY",
+    deezerId: "1144863",
+    appleId: "1440910931",
     rarity: "epic",
   },
   {
@@ -212,9 +342,15 @@ export const SONGS = [
       "https://i.scdn.co/image/ab67616d0000b273e1ac646ed6f25125e2a77229",
     streams: 642793004,
     rank: 2013,
+    bpm: 206,
+    releaseDate: "2021-11-19",
+    isrc: "USWD12112915",
+    spotifyId: "52xJxFP6TqMuO4Yt0eOkMz",
+    deezerId: "1550821762",
+    appleId: "1640179849",
     rarity: "rare",
   },
-] as const satisfies ReadonlyArray<GameSong>
+] as const satisfies ReadonlyArray<ListenableSong>
 
 export type DemoSong = (typeof SONGS)[number]
 

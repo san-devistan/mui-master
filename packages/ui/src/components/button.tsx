@@ -17,6 +17,8 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        // Chunky press-in surface, like the game select (see game.css).
+        game: "",
       },
       size: {
         default:
@@ -28,6 +30,8 @@ const buttonVariants = cva(
         "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-7",
         "icon-lg": "size-9",
+        // Square, so the select's icon disc sits centred on its own.
+        "icon-game": "size-12 px-0! [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {
@@ -46,6 +50,7 @@ function Button({
   return (
     <ButtonPrimitive
       data-slot="button"
+      data-variant={variant}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

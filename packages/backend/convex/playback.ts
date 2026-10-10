@@ -1,24 +1,15 @@
-import { ConvexError, v } from "convex/values"
+import { v } from "convex/values"
 import { Effect } from "effect"
 
 import { internal } from "./_generated/api"
 import { action, internalQuery } from "./_generated/server"
-import { fetchDeezerPreview } from "./songs/_lib/deezer"
+import { fetchDeezerPreview, searchDeezerPreview } from "./songs/_lib/deezer"
 
-export const ownedSongSource = internalQuery({
-  args: { collectorKey: v.string(), songId: v.id("songs") },
-  handler: async (ctx, { collectorKey, songId }) => {
-    const owned = await ctx.db
-      .query("ownedSongs")
-      .withIndex("by_collectorId_and_songId", (q) =>
-        q.eq("collectorId", collectorKey).eq("songId", songId)
-      )
-      .unique()
-    if (!owned) {
-      return null
-    }
-
-    const song = await ctx.db.get("songs", songId)
+export const songSource = internalQuery({
+  args: { songId: v.string() },
+  handler: async (ctx, { songId }) => {
+    const id = ctx.db.normalizeId("songs", songId)
+    const song = id ? await ctx.db.get("songs", id) : null
     if (!song) {
       return null
     }
@@ -27,34 +18,45 @@ export const ownedSongSource = internalQuery({
       ? []
       : await ctx.db
           .query("songVersions")
-          .withIndex("by_songId", (q) => q.eq("songId", songId))
+          .withIndex("by_songId", (q) => q.eq("songId", song._id))
           .take(10)
 
     return {
       previewUrl: song.previewUrl,
       isrc: song.isrc ?? versions.find((version) => version.isrc)?.isrc,
+      title: song.title,
+      leadArtist: song.artistNames[0],
     }
   },
 })
 
+// The stored Spotify preview, else Deezer's: by ISRC, then by exact title and
+// lead artist when that ISRC's release has no preview. Deezer URLs expire,
+// so they're resolved at play time and never stored.
+// shortcut: no ownership check while the web game runs on demo data; check
+// ownedSongs again once players have real collections.
 export const preview = action({
-  args: { collectorKey: v.string(), songId: v.id("songs") },
+  args: { songId: v.string() },
   handler: async (ctx, args): Promise<{ url: string | null }> => {
-    const source = await ctx.runQuery(internal.playback.ownedSongSource, args)
+    const source = await ctx.runQuery(internal.playback.songSource, args)
     if (!source) {
-      throw new ConvexError("Collect this song to play it.")
+      return { url: null }
     }
 
     if (source.previewUrl) {
       return { url: source.previewUrl }
     }
 
-    if (!source.isrc) {
-      return { url: null }
-    }
-
+    const byIsrc = source.isrc
+      ? fetchDeezerPreview(source.isrc)
+      : Effect.succeed(null)
     const url = await Effect.runPromise(
-      fetchDeezerPreview(source.isrc).pipe(
+      byIsrc.pipe(
+        Effect.flatMap((found) =>
+          found || !source.leadArtist
+            ? Effect.succeed(found)
+            : searchDeezerPreview(source.title, source.leadArtist)
+        ),
         Effect.catch(() => Effect.succeed(null))
       )
     )

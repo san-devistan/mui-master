@@ -119,7 +119,12 @@ function caption(text: string, line: keyof typeof CAPTIONS): Marquee {
 // foil border. STICKER is its size and where its middle sits on the card.
 export const STICKER = { w: 76, h: 40, x: CARD_W - 30, y: 20, tilt: 0.14 }
 
-export async function drawSticker(label = "NEW", color = "#ff3d7f") {
+// `text` defaults to white; pass ink for a light pill.
+export async function drawSticker(
+  label = "NEW",
+  color = "#ff3d7f",
+  text = "#ffffff"
+) {
   await document.fonts.load(NEW)
   const { canvas, ctx } = blankCanvas(STICKER.w, STICKER.h)
   ctx.translate(STICKER.w / 2, STICKER.h / 2)
@@ -134,7 +139,7 @@ export async function drawSticker(label = "NEW", color = "#ff3d7f") {
   ctx.strokeStyle = INK
   ctx.lineWidth = 2.5
   ctx.stroke()
-  ctx.fillStyle = "#ffffff"
+  ctx.fillStyle = text
   ctx.font = NEW
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"

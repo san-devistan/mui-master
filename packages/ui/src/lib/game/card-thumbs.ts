@@ -1,9 +1,5 @@
 import { CARD_W } from "@workspace/ui/lib/game/card-art"
-import {
-  cardFilm,
-  newSticker,
-  type CardSlot,
-} from "@workspace/ui/lib/game/card-scene"
+import { cardFilm, type CardSlot } from "@workspace/ui/lib/game/card-scene"
 import {
   addFilm,
   createStage,
@@ -116,8 +112,10 @@ function draw(stamp: number) {
     if (!(canvas instanceof HTMLCanvasElement)) continue
     if (!thumb.shown) continue
     running = true
-    // Covered by a dialog (its page goes inert): keep the loop, skip the work.
-    if ((still && thumb.drawn) || canvas.closest("[inert]")) continue
+    // Faded out under a showcase: keep the loop, skip the work. Inert alone
+    // isn't enough, the page is back on screen while the card flies home.
+    if (still && thumb.drawn) continue
+    if (!canvas.checkVisibility({ opacityProperty: true })) continue
     const box = canvas.getBoundingClientRect()
     const across = (box.left + box.width / 2) / innerWidth - 0.5
     const down = (box.top + box.height / 2) / innerHeight - 0.5
@@ -156,7 +154,6 @@ function draw(stamp: number) {
 export function mountCardThumb(
   canvas: HTMLCanvasElement,
   song: GameSong,
-  copies: number,
   onDrawn: () => void
 ) {
   let film: Film | null = null
@@ -181,14 +178,9 @@ export function mountCardThumb(
     film = loaded
     loaded.subject.visible = false
     loaded.subject.position.y = LIFT
-    if (copies > 1) {
-      const sticker = newSticker(scene.renderer, `×${copies}`, "#121016")
-      loaded.subject.add(sticker.mesh)
-      parts.push(sticker)
-    }
     try {
       await loaded.ready
-      // Give the sticker texture a frame to land.
+      // Give the art a frame to land.
       await new Promise(requestAnimationFrame)
     } finally {
       parts.push(...scene.disposables.splice(before))

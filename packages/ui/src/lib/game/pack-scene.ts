@@ -244,20 +244,27 @@ const INSIDE_VERTEX = /* glsl */ `
   }
 `
 
-// Silver foil lining: brushed metal, a touch dimmer deep in the middle, with
-// rainbow reflections sliding across it.
+// Silver foil: brushed metal, a touch dimmer along the middle of `uv`, with
+// rainbow reflections sliding across it. The pack's lining, and the NEW badge.
+export const SILVER_FOIL = /* glsl */ `
+  vec3 silverFoil( vec2 uv, float time ) {
+    float across = abs( uv.y - 0.5 ) * 2.0;
+    float brushed = 0.04 * sin( uv.x * 420.0 + sin( uv.x * 37.0 ) * 3.0 );
+    vec3 silver = mix( vec3( 0.7, 0.72, 0.8 ), vec3( 0.97, 0.97, 1.0 ), across * across ) + brushed;
+    vec3 tint = 0.6 + 0.4 * cos( 6.2832 * ( uv.x * 1.3 + uv.y * 0.5 - time * 0.15 + vec3( 0.0, 0.333, 0.667 ) ) );
+    float band = pow( 0.5 + 0.5 * sin( uv.x * 11.0 - uv.y * 5.0 - time * 1.4 ), 6.0 );
+    float glint = pow( 0.5 + 0.5 * sin( uv.x * 27.0 + uv.y * 9.0 + time * 0.9 ), 24.0 );
+    return min( silver * mix( vec3( 0.85 ), vec3( 1.0 ), tint ) + 0.45 * band * tint + 0.5 * glint, 1.0 );
+  }
+`
+
+// The pack's lining.
 const INSIDE_FRAGMENT = /* glsl */ `
   uniform float time;
   varying vec2 vUv;
+  ${SILVER_FOIL}
   void main() {
-    float across = abs( vUv.y - 0.5 ) * 2.0;
-    float brushed = 0.04 * sin( vUv.x * 420.0 + sin( vUv.x * 37.0 ) * 3.0 );
-    vec3 silver = mix( vec3( 0.7, 0.72, 0.8 ), vec3( 0.97, 0.97, 1.0 ), across * across ) + brushed;
-    vec3 tint = 0.6 + 0.4 * cos( 6.2832 * ( vUv.x * 1.3 + vUv.y * 0.5 - time * 0.15 + vec3( 0.0, 0.333, 0.667 ) ) );
-    float band = pow( 0.5 + 0.5 * sin( vUv.x * 11.0 - vUv.y * 5.0 - time * 1.4 ), 6.0 );
-    float glint = pow( 0.5 + 0.5 * sin( vUv.x * 27.0 + vUv.y * 9.0 + time * 0.9 ), 24.0 );
-    vec3 color = silver * mix( vec3( 0.85 ), vec3( 1.0 ), tint ) + 0.45 * band * tint + 0.5 * glint;
-    gl_FragColor = vec4( min( color, 1.0 ), 1.0 );
+    gl_FragColor = vec4( silverFoil( vUv, time ), 1.0 );
   }
 `
 

@@ -12,45 +12,50 @@
     #a238ff 82%
   );
   --brand-mesh: linear-gradient(135deg, #a238ff, #c470f8, #7b2cff, #d9a0ff);
+  /* Each rarity's dominant card colour: the base of its foil fill below. */
+  --rarity-common-base: #5fd9b0;
+  --rarity-rare-base: #6f86ff;
+  --rarity-epic-base: #e05cf0;
+  --rarity-legendary-base: #ffb21e;
   --rarity-common-fill: linear-gradient(
     135deg,
-    #5fd9b0 0%,
+    var(--rarity-common-base) 0%,
     #bff5e2 12%,
     #fff 24%,
     #d8f46a 30%,
     #effab8 35%,
     #bff5e2 46%,
-    #5fd9b0 60%
+    var(--rarity-common-base) 60%
   );
   --rarity-rare-fill: linear-gradient(
     135deg,
-    #6f86ff 0%,
+    var(--rarity-rare-base) 0%,
     #c3ccff 12%,
     #f2f4ff 24%,
     #4fd6ff 30%,
     #bdefff 35%,
     #c3ccff 46%,
-    #6f86ff 60%
+    var(--rarity-rare-base) 60%
   );
   --rarity-epic-fill: linear-gradient(
     135deg,
-    #e05cf0 0%,
+    var(--rarity-epic-base) 0%,
     #f6c2fb 12%,
     #fff2fd 24%,
     #8a5cff 30%,
     #d0bfff 35%,
     #f6c2fb 46%,
-    #e05cf0 60%
+    var(--rarity-epic-base) 60%
   );
   --rarity-legendary-fill: linear-gradient(
     135deg,
-    #ffb21e 0%,
+    var(--rarity-legendary-base) 0%,
     #ffe08a 12%,
     #fffbe8 24%,
     #ff8ab8 30%,
     #ffd3e2 35%,
     #ffe08a 46%,
-    #ffb21e 60%
+    var(--rarity-legendary-base) 60%
   );
 }
 
@@ -198,6 +203,16 @@
   pointer-events: none;
 }
 
+/* The opening's canvas fades in once its pack is drawn, rather than the pack
+   popping in (opening-scene sets data-drawn). */
+[data-slot="pack-opening"] > .game-canvas {
+  transition: opacity 0.35s ease-out;
+}
+
+[data-slot="pack-opening"] > .game-canvas:not([data-drawn]) {
+  opacity: 0;
+}
+
 .game-pack-motes > i {
   position: absolute;
   top: var(--mote-y);
@@ -330,8 +345,9 @@
   }
 }
 
-/* Chunky press-in select with a floating menu. */
-[data-slot="select-trigger"][data-variant="game"] {
+/* Chunky press-in select with a floating menu, and buttons to match. */
+[data-slot="select-trigger"][data-variant="game"],
+[data-slot="button"][data-variant="game"] {
   height: 3rem;
   gap: 0.5rem;
   padding-inline: 0.75rem 1rem;
@@ -372,7 +388,10 @@
     outline: 3px solid var(--brand);
     outline-offset: 3px;
   }
+}
 
+[data-slot="select-trigger"][data-variant="game"],
+[data-slot="button"][data-variant="game"] {
   & > svg:first-child {
     box-sizing: content-box;
     padding: 0.375rem;
@@ -393,6 +412,10 @@
   &[data-popup-open] [data-slot="select-icon"] {
     rotate: 180deg;
   }
+}
+
+[data-slot="button"][data-variant="game"] svg {
+  stroke-width: 3;
 }
 
 [data-slot="select-content"][data-variant="game"] {
@@ -486,7 +509,7 @@
 
 .game-celebration > i {
   position: absolute;
-  top: 50%;
+  top: calc(50% + var(--celebration-y, 0px));
   left: 50%;
 }
 
@@ -607,6 +630,13 @@
   }
 }
 
+/* Collection cards making room for a new one (game-slides): a quick slide,
+   so the next card can drop in right after. */
+::view-transition-group(*) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+}
+
 @keyframes game-drop {
   0% {
     opacity: 0;
@@ -660,21 +690,38 @@
   }
 }
 
-/* The badge foil: gloss sweeping across, then a pause; rainbow tint drifting. */
+/* The badge foil: glints and rainbow bands sliding across, like the pack
+   lining's. */
 @keyframes game-badge-shine {
   0% {
     background-position:
-      -150% 0,
+      0 0,
       0 0,
       0 0,
       0 0;
   }
-  40%,
   100% {
     background-position:
-      250% 0,
-      0 0,
+      -300% 0,
       100% 0,
+      0 0,
+      0 0;
+  }
+}
+
+/* The count badge's sheen: rests off to one side, crosses now and then. */
+@keyframes game-count-sheen {
+  0%,
+  60% {
+    background-position:
+      120% 0,
+      0 0,
+      0 0;
+  }
+  100% {
+    background-position:
+      -20% 0,
+      0 0,
       0 0;
   }
 }
@@ -762,6 +809,7 @@
   .game-cut-flash,
   .game-cut-flash::before,
   .game-cut-flash::after,
+  [data-slot="pack-opening"] > .game-canvas,
   [data-slot="select-content"][data-variant="game"] {
     animation: none !important;
     transition: none !important;

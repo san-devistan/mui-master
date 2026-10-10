@@ -243,9 +243,9 @@ export function filmMaterial(
     alphaMap: shape,
     alphaTest: 0.5,
     transparent: reflection,
-    // The mirror's negative scale flips winding, so rendering only the front
-    // would drop the reflection.
-    side: reflection ? THREE.DoubleSide : THREE.FrontSide,
+    // One-sided in the mirror too (three flips the winding for its negative
+    // scale), or a two-faced film's rear would show through its front.
+    side: THREE.FrontSide,
     roughness: 0.55,
     clearcoat: 1,
     clearcoatRoughness: 0.14,

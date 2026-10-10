@@ -6,11 +6,11 @@ import type * as React from "react"
 import { useEffect, useRef } from "react"
 
 const gameShellVariants = cva(
-  "group/game-shell flex h-dvh flex-col overflow-hidden game-backdrop text-ink",
+  "group/game-shell inset-0 fixed flex flex-col overflow-hidden game-backdrop text-ink",
   {
     variants: {
       nav: {
-        tabs: "md:pb-0 md:pl-28 game-shell-bottom",
+        tabs: "md:pl-28",
         none: "",
       },
     },

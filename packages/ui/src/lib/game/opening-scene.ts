@@ -1,3 +1,4 @@
+import { CARD_W } from "@workspace/ui/lib/game/card-art"
 import {
   cardBack,
   cardFilm,
@@ -46,7 +47,8 @@ import {
 import type { GameSong } from "@workspace/ui/lib/game/theme"
 import * as THREE from "three"
 
-// Phone-sized stage, in CSS px; world y points up from the middle.
+// Phone-sized design, in CSS px; world y points up from the middle. Any other
+// stage shape shows at least this, with more room around it.
 export const OPENING_W = 393
 export const OPENING_H = 852
 
@@ -64,28 +66,29 @@ const CUT_PACK_TOP = 0.5
 const halfView = (zoom: number) => OPENING_H / 2 / zoom
 const CUT_CAMERA_Y = PACK_TOP + (CUT_PACK_TOP - 0.5) * 2 * halfView(CUT_ZOOM)
 
-// The cut line on screen in the cut view, as fractions of the stage.
-export const CUT_LINE = {
-  top: 0.5 + (CUT_CAMERA_Y - (PACK_TOP - CUT)) / (2 * halfView(CUT_ZOOM)),
-  width: (PACK_W * CUT_ZOOM) / OPENING_W,
-}
-
 // Mirror floor just under the pack's lowest bob.
 const FLOOR_Y = PACK_Y - PACK_H / 2 - 2
+// The pack's entrance: from far back and small in the middle of the stage, it
+// comes up close, a touch past where it rests, and turns to face the viewer.
+// Standing on the floor all the way, so its reflection follows it in.
+const ENTER = 1.1
+const ENTER_Z = -900
+const ENTER_SCALE = 0.75
+const ENTER_TURN = 0.5
 // The pile sits mid-screen once the camera has pulled back.
 const CARD_Y = 0
 // Pile: cards stacked square, a hair apart (card stock is 2 thick).
 const DEPTH = 3
 // Dragging turns the whole pile to show its rarity-coloured edges: radians per
-// stage width dragged, up to 66°. Dragging is the mobile way to tilt the
-// pile; desktop hover tilts it too, but only while not dragging.
+// stage width dragged, easing softly into about 45° so a long drag can't spin
+// it round. Dragging is the mobile way to tilt the pile; desktop hover tilts
+// it too, but only while not dragging.
 const TURN = 2.4
-const MAX_TURN = THREE.MathUtils.degToRad(66)
-// Swiped cards fly this far out to the side they were thrown.
+const MAX_TURN = THREE.MathUtils.degToRad(45)
+// Swiped cards fly at least this far out to the side they were thrown.
 const OUT = OPENING_W
-// Inside the pack the cards shrink to clear its sides and seals, and sit
-// deep enough to stay hidden below the cut (in pack space, from its middle).
-const PACKED = 0.8
+// Inside the pack the cards sit deep enough to stay hidden below the cut (in
+// pack space, from its middle).
 const PACKED_Y = -60
 
 // Opening timeline, in seconds after the cut: the strip snaps off and is
@@ -101,6 +104,8 @@ const DROP = [0.3, 1.1] as const
 const PULL_BACK = [0.4, 1.4] as const
 const SLIDE = [0.3, 1.2] as const
 const SETTLE = [1.0, 1.6] as const
+// Seconds from the cut until the cards are out and `onOpened` fires.
+export const OPENED = SETTLE[1]
 // The strip is heavy: still caught on the pack for a beat, pulled taut, then
 // snapped free. It flies on a thrown arc (fast up, hangs at the top, falls
 // faster and faster), spinning slowly and evenly as it goes. It shrinks into
@@ -129,9 +134,9 @@ const soften = (value: number, limit: number) =>
   limit * Math.tanh(value / limit)
 
 // depth 0 is the top card; negative depths are swiped off to `side`.
-function pilePose(depth: number, side: number): Pose {
+function pilePose(depth: number, side: number, out: number): Pose {
   if (depth < 0) {
-    return pose({ x: side * OUT, y: CARD_Y + 60, z: 20, rz: -side * 0.5 })
+    return pose({ x: side * out, y: CARD_Y + 60, z: 20, rz: -side * 0.5 })
   }
   return pose({ y: CARD_Y, z: -DEPTH * depth })
 }
@@ -154,7 +159,6 @@ function packedPose(count: number, pack: Pose, y: number): Pose {
     y: pack.y + at.y,
     z: pack.z + at.z,
     rx: 0,
-    s: PACKED,
   }
 }
 
@@ -221,7 +225,9 @@ export function mountOpeningScene(
   canvas: HTMLCanvasElement,
   songs: ReadonlyArray<GameSong & { isNew?: boolean }>,
   covers: ReadonlyArray<string>,
-  onOpened: () => void
+  onOpened: () => void,
+  // Without it, the waiting pack is simply there.
+  { entrance = true } = {}
 ): OpeningScene {
   const stage = createStage(canvas)
   // Cards are hidden below the pack's opening until it has dropped away, so
@@ -236,6 +242,18 @@ export function mountOpeningScene(
       { floorY }
     )
   const body = packPart("body", undefined, FLOOR_Y)
+  // The entrance starts once the pack is drawn, so a slow first load doesn't
+  // spend it on a blank film; the canvas fades in then too (game.css), rather
+  // than the pack popping in.
+  let drawn = false
+  canvas.removeAttribute("data-drawn")
+  void body.ready.then(() => {
+    // A remount may have taken the canvas over meanwhile.
+    if (stage.disposed) return false
+    drawn = true
+    canvas.toggleAttribute("data-drawn", true)
+    return true
+  })
   // Only the top band, so it can curl without dragging the whole film along.
   const strip = packPart("strip", STRIP_BAND)
   const glow = cutGlow(stage.time)
@@ -290,7 +308,7 @@ export function mountOpeningScene(
   })
 
   let phase: OpeningPhase = "idle"
-  let elapsed = 0
+  let elapsed = entrance ? 0 : Infinity
   let current = 0
   let dragged = 0
   // Camera zoom and height; `from` holds them when the cut finished, so the
@@ -301,24 +319,51 @@ export function mountOpeningScene(
   let twisted = 0
   let opened = false
   const tilt = { x: 0, y: 0 }
-  const distance = cameraDistance(OPENING_H)
-  const end = SETTLE[1]
+  // Fitted to the real canvas: the design always fits, a wider or taller
+  // screen just sees more around it.
+  let distance = cameraDistance(OPENING_H)
+  let out = OUT
+  const studio = canvas.parentElement ?? canvas
+  const fit = new ResizeObserver(() => {
+    const { clientWidth: width, clientHeight: height } = canvas
+    if (!width || !height) return
+    const seen = Math.max(OPENING_H, (OPENING_W * height) / width)
+    distance = cameraDistance(seen)
+    out = Math.max(OUT, (seen * width) / height / 2 / PILE_ZOOM + CARD_W)
+    stage.renderer.setSize(width, height, false)
+    stage.camera.aspect = width / height
+    stage.camera.updateProjectionMatrix()
+    // The cut guide over the seam, in the cut view.
+    const seam = (CUT_CAMERA_Y - (PACK_TOP - CUT)) * CUT_ZOOM
+    studio.style.setProperty("--cut-top", `${(0.5 + seam / seen) * 100}%`)
+    studio.style.setProperty(
+      "--cut-width",
+      `${((PACK_W * CUT_ZOOM * height) / (seen * width)) * 100}%`
+    )
+  })
+  fit.observe(canvas)
+  stage.disposables.push({ dispose: () => fit.disconnect() })
   // The pack as posed this frame: the cards ride inside it until they're out.
   let pack = pose({})
 
   function posePack(time: number) {
-    const enter = phase === "idle" ? easeOutBack(clamp01(elapsed / 0.8)) : 1
+    const arrived = phase === "idle" ? clamp01(elapsed / ENTER) : 1
+    const near = easeOutBack(arrived)
+    const grown = lerp(ENTER_SCALE, 1, easeOut(arrived))
     const bob =
       phase === "idle" ? 4 * (1 - Math.cos((time * Math.PI * 2) / 5)) : 0
     const drop = phase === "open" ? span(elapsed, DROP) ** 2 : 0
     const gape = phase === "open" ? easeOutBack(span(elapsed, GAPE)) : 0
     // Where the pack is held; the cut strip flies off from here.
     const held = pose({
-      y: lerp(-700, PACK_Y + bob, enter),
+      // Shrunk about its foot, so it stays standing on the floor.
+      y: FLOOR_Y + 2 + (PACK_H / 2) * grown + bob,
+      z: lerp(ENTER_Z, 0, near),
+      s: grown,
       // Softly held to about the hover range, so a finger can't tip it much
       // further: under 14° lean and 23° turn.
       rx: soften(tilt.y * 0.5, 0.25),
-      ry: soften(tilt.x * 0.8, 0.4),
+      ry: soften(tilt.x * 0.8, 0.4) + ENTER_TURN * (1 - easeOut(arrived)),
     })
     // Drops straight down off the upright cards rising out of its mouth.
     const gaping = { ...held, rx: held.rx + 0.32 * gape }
@@ -326,10 +371,10 @@ export function mountOpeningScene(
     pack = gaping
     place(body.subject, packed)
     // Puffs the films apart so the opened mouth shows.
-    body.subject.scale.z = 1 + 1.6 * gape
+    body.subject.scale.z = grown * (1 + 1.6 * gape)
     mirrorPose(body)
     // Only while the pack is above the floor, not rising up or dropping away.
-    body.reflection.visible = packed.y - PACK_H / 2 >= FLOOR_Y
+    body.reflection.visible = packed.y - (PACK_H / 2) * grown >= FLOOR_Y
     // Clip plane across the pack's mouth, moving with it: cards only show
     // once they're out, as it drops down off them.
     const turn = new THREE.Euler(packed.rx, packed.ry, packed.rz)
@@ -358,9 +403,8 @@ export function mountOpeningScene(
     const sway = pointer.at ? 0 : Math.sin((time * Math.PI * 2) / 9) * 0.14
     // While a finger drags, hover tilt eases out and the drag takes over.
     const hover = 1 - clamp01(Math.abs(dragged) * 6)
-    const turn = THREE.MathUtils.clamp(
+    const turn = soften(
       (tilt.x * 0.8 + sway) * hover + dragged * TURN,
-      -MAX_TURN,
       MAX_TURN
     )
     // The pile tilts and turns as one block, about its top card.
@@ -373,15 +417,16 @@ export function mountOpeningScene(
     // the pile.
     const top = CARD_Y - packedPose(cards.length, pack, 0).y
     const risen = packedPose(cards.length, pack, lerp(PACKED_Y, top, slid))
-    const stack = mix(
-      risen,
-      pose({ y: CARD_Y, rx: pile.x, ry: pile.y }),
-      turned
-    )
+    // One size on screen all the way out: scaled against the camera pulling
+    // back, small enough in the cut view to clear the pack's sides.
+    const stack = {
+      ...mix(risen, pose({ y: CARD_Y, rx: pile.x, ry: pile.y }), turned),
+      s: PILE_ZOOM / view.zoom,
+    }
     const coming = turned < 1
     for (const [index, card] of cards.entries()) {
       const depth = index - current
-      const target = pilePose(depth, sides[index] ?? -1)
+      const target = pilePose(depth, sides[index] ?? -1, out)
       if (depth >= 0) {
         const offset = new THREE.Vector3(0, 0, target.z).applyEuler(pile)
         target.x += offset.x
@@ -463,7 +508,8 @@ export function mountOpeningScene(
   }
 
   stage.onFrame((time, delta) => {
-    elapsed = stage.still ? Infinity : elapsed + delta
+    if (stage.still) elapsed = Infinity
+    else if (drawn || phase !== "idle") elapsed += delta
     const ease = stage.still ? 1 : 1 - 0.88 ** (delta * 60)
     // Held level while cutting, so the guide stays on the cut line; a finger
     // only turns the waiting pack, the cards have their own swipe.
@@ -482,7 +528,7 @@ export function mountOpeningScene(
     posePack(time)
     poseCards(time, stage.still ? 1 : 1 - 0.8 ** (delta * 60))
     sweep(time)
-    if (phase === "open" && !opened && elapsed >= end) {
+    if (phase === "open" && !opened && elapsed >= OPENED) {
       opened = true
       onOpened()
     }

@@ -13,6 +13,7 @@ import {
   type FilmSpec,
   type Trim,
 } from "@workspace/ui/lib/game/film-scene"
+import { SILVER_FOIL } from "@workspace/ui/lib/game/pack-scene"
 import {
   CELEBRATION,
   celebrations,
@@ -114,8 +115,8 @@ export function cardFilm(song: GameSong): FilmSpec {
 }
 
 // NEW sticker stuck on the card's face, above the foil border and its glare.
-// With `time`, its pill is foil like the cards: a fine grain, a soft gloss
-// sliding across it and a holo shimmer. Returns the mesh and what to dispose.
+// With `time`, its pill is the pack lining's silver foil, rainbow reflections
+// and all, with ink lettering. Returns the mesh and what to dispose.
 export function newSticker(
   renderer: THREE.WebGLRenderer,
   label?: string,
@@ -130,8 +131,12 @@ export function newSticker(
   })
   if (time) foilSticker(material, time)
   const geometry = new THREE.PlaneGeometry(STICKER.w, STICKER.h)
-  const texture = drawSticker(label, color).then((art) => {
-    const map = canvasTexture(art, renderer)
+  // A white pill marks where the foil goes; ink reads on silver.
+  const art = time
+    ? drawSticker(label, "#ffffff", "#121016")
+    : drawSticker(label, color)
+  const texture = art.then((canvas) => {
+    const map = canvasTexture(canvas, renderer)
     map.premultiplyAlpha = true
     material.map = map
     material.needsUpdate = true
@@ -155,8 +160,8 @@ export function newSticker(
   }
 }
 
-// Lights the sticker's pill like foil. Only the bright pill catches it: the
-// white label and the dark outline keep their print colour.
+// Turns the sticker's white pill into silver foil. The ink label and outline
+// keep their print colour.
 function foilSticker(
   material: THREE.MeshBasicMaterial,
   time: { value: number }
@@ -164,23 +169,21 @@ function foilSticker(
   material.onBeforeCompile = (shader) => {
     shader.uniforms.time = time
     shader.fragmentShader = shader.fragmentShader
-      .replace("void main() {", "uniform float time;\nvoid main() {")
+      .replace(
+        "void main() {",
+        `uniform float time;\n${SILVER_FOIL}\nvoid main() {`
+      )
       .replace(
         "#include <map_fragment>",
         /* glsl */ `#include <map_fragment>
         #ifdef USE_MAP
         {
           vec3 ink = diffuseColor.rgb / max( diffuseColor.a, 0.001 );
-          // The pill is saturated pink; the label is white, the edge near black.
-          float pill = smoothstep( 0.25, 0.5, ink.r - ink.g ) * diffuseColor.a;
-          vec2 at = vMapUv * vec2( 76.0, 40.0 );
-          float grain = fract( sin( dot( floor( at * 1.5 ), vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
-          // Soft gloss sweeping across, lighter at the top like a domed sticker.
-          float sweep = exp( -pow( ( vMapUv.x - vMapUv.y * 0.5 - fract( time * 0.22 ) * 2.0 + 0.5 ) / 0.12, 2.0 ) );
-          float dome = smoothstep( 0.35, 0.9, vMapUv.y );
-          vec3 holo = 0.5 + 0.5 * cos( 6.2832 * ( vMapUv.x * 0.8 + vMapUv.y * 0.3 - time * 0.15 + vec3( 0.0, 0.333, 0.667 ) ) );
-          vec3 foil = ink * ( 0.88 + 0.18 * grain ) + 0.12 * holo + 0.18 * dome + 0.45 * sweep * ( 0.7 + 0.3 * holo );
-          diffuseColor.rgb = mix( diffuseColor.rgb, min( foil, 1.0 ) * diffuseColor.a, pill );
+          // The pill is white; the label and the edge are ink, the shadow dark.
+          float pill = smoothstep( 0.6, 0.9, min( ink.r, min( ink.g, ink.b ) ) ) * diffuseColor.a;
+          // The pill sits in the middle 60 x 26 of the 76 x 40 sticker.
+          vec2 uv = clamp( ( vMapUv - vec2( 0.105, 0.175 ) ) / vec2( 0.79, 0.65 ), 0.0, 1.0 );
+          diffuseColor.rgb = mix( diffuseColor.rgb, silverFoil( uv, time ) * diffuseColor.a, pill );
         }
         #endif`
       )
@@ -289,11 +292,13 @@ export type CardSlot = {
 
 export type CardSceneOptions = {
   mirror?: boolean
-  copies?: number
   // Pack-opening entrance: rise into place, then celebrate.
   reveal?: boolean
   // Fly in from this slot, e.g. a card picked from a grid, then celebrate.
   from?: CardSlot
+  // Where a flown-in card lands (CSS px from the canvas middle, y down) and
+  // its width there; defaults to the middle at the opened pile's size.
+  land?: { y: number; width: number }
 }
 
 export type CardScene = {
@@ -307,16 +312,12 @@ export type CardScene = {
 export function mountCardScene(
   canvas: HTMLCanvasElement,
   song: GameSong,
-  { mirror = true, copies = 1, reveal = false, from }: CardSceneOptions = {}
+  { mirror = true, reveal = false, from, land }: CardSceneOptions = {}
 ): CardScene {
   const stage = mountFilmScene(canvas, cardFilm(song), mirror)
-  if (copies > 1) {
-    const sticker = newSticker(stage.renderer, `×${copies}`, "#121016")
-    stage.film.subject.add(sticker.mesh)
-    stage.disposables.push(sticker)
-  }
-  const flight = from && !stage.still ? flyCard(stage, song, from) : null
-  if (!flight && reveal && !stage.still) revealCard(stage, song)
+  const flight = from && !stage.still ? flyCard(stage, song, from, land) : null
+  if (!flight && land) frame(stage, land)
+  if (!flight && reveal && !stage.still) revealCard(stage, song, !land)
   // A frame after the art lands, so the card is on screen.
   const ready = stage.film.ready.then(
     () => new Promise<void>((done) => requestAnimationFrame(() => done()))
@@ -368,10 +369,28 @@ function celebrate(
   return partying ? celebrations[rarity](at, since) : at
 }
 
+// Frames the card where `land` asks: sized, and the picture shifted (mirror
+// floor included) so the card stays head-on. Returns the zoom in CSS px per
+// world unit and the shift in CSS px below the canvas middle.
+function frame(stage: CardStage, land: CardSceneOptions["land"]) {
+  const canvas = stage.renderer.domElement
+  const { clientWidth: width, clientHeight: height } = canvas
+  // Landed like the opened pile (or as asked), always clear of the sides.
+  const zoom = Math.min(
+    land ? land.width / CARD_W : PILE_ZOOM,
+    (width - 48) / CARD_W
+  )
+  stage.camera.position.z /= zoom
+  const shift = land?.y ?? 0
+  // The view window moves the other way to the picture.
+  if (shift) stage.camera.setViewOffset(width, height, 0, -shift, width, height)
+  return { zoom, shift }
+}
+
 // Pack-opening entrance on a phone-sized canvas framed like the opened pile:
 // the card rises into place, then celebrates.
-function revealCard(stage: CardStage, song: GameSong) {
-  stage.camera.position.z /= PILE_ZOOM
+function revealCard(stage: CardStage, song: GameSong, pile: boolean) {
+  if (pile) stage.camera.position.z /= PILE_ZOOM
   const { motion, mirrored, shine } = entrance(stage)
   const start = stage.time.value
   stage.onFrame((time) => {
@@ -395,22 +414,25 @@ const LIFT = 140
 
 // A card picked from a grid: drawn exactly over its slot, it lifts out, flies
 // to the middle and celebrates; flyBack lays it back in a slot.
-function flyCard(stage: CardStage, song: GameSong, from: CardSlot) {
+function flyCard(
+  stage: CardStage,
+  song: GameSong,
+  from: CardSlot,
+  land?: CardSceneOptions["land"]
+) {
   const { motion, mirrored, shine } = entrance(stage)
   const canvas = stage.renderer.domElement
   const { subject, tilt } = stage.film
   // The canvas spans the page, so cap its resolution; the card stays sharp.
   stage.renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
-  // Landed like the opened pile, but always clear of the canvas sides.
-  const zoom = Math.min(PILE_ZOOM, (canvas.clientWidth - 48) / CARD_W)
-  stage.camera.position.z /= zoom
+  const { zoom, shift } = frame(stage, land)
   if (from.time !== undefined) stage.time.value = from.time
   // A world unit is `zoom` CSS px at depth 0, and the film is CARD_W wide.
   const slotPose = (slot: CardSlot) => {
     const box = canvas.getBoundingClientRect()
     return pose({
       x: (slot.x - box.left - box.width / 2) / zoom,
-      y: (box.top + box.height / 2 - slot.y) / zoom,
+      y: (box.top + box.height / 2 + shift - slot.y) / zoom,
       s: slot.width / (CARD_W * zoom),
     })
   }

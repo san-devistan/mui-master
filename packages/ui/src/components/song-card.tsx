@@ -1,8 +1,10 @@
 "use client"
 
+import { CountBadge } from "@workspace/ui/components/count-badge"
 import {
   mountCardScene,
   type CardScene,
+  type CardSceneOptions,
   type CardSlot,
 } from "@workspace/ui/lib/game/card-scene"
 import {
@@ -26,11 +28,12 @@ type SongCardHandle = Pick<CardScene, "flyBack">
 
 type SongCardProps = {
   song: GameSong
-  copies?: number
   mirror?: boolean
   reveal?: boolean
   // Fly in from this on-screen slot (see songCardThumbSlot) instead.
   from?: CardSlot
+  // Where a flown-in card lands, relative to the canvas middle.
+  land?: CardSceneOptions["land"]
   // Called once the card is drawn where it starts.
   onReady?: () => void
   ref?: Ref<SongCardHandle>
@@ -40,18 +43,18 @@ type SongCardProps = {
 // A three.js song card: printed film on rarity foil.
 function SongCard({
   song,
-  copies = 1,
   mirror = true,
   reveal = false,
   from,
+  land,
   onReady,
   ref,
   className,
 }: SongCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<CardScene | null>(null)
-  // The slot only matters when the card mounts.
-  const startRef = useRef(from)
+  // The slots only matter when the card mounts.
+  const startRef = useRef({ from, land })
   const ready = useEffectEvent(() => onReady?.())
 
   useImperativeHandle(ref, () => ({
@@ -63,9 +66,8 @@ function SongCard({
     if (!canvas) return undefined
     const scene = mountCardScene(canvas, song, {
       mirror,
-      copies,
       reveal,
-      from: startRef.current,
+      ...startRef.current,
     })
     sceneRef.current = scene
     let current = true
@@ -75,7 +77,7 @@ function SongCard({
       sceneRef.current = null
       scene.dispose()
     }
-  }, [song, mirror, copies, reveal])
+  }, [song, mirror, reveal])
 
   return (
     <canvas
@@ -90,15 +92,13 @@ function SongCard({
 // Grid card rendered by the same 3D card pipeline, from one shared context;
 // its light follows the page scroll. Keyed so a new card starts unpainted.
 function SongCardThumb(props: SongCardThumbProps) {
-  return (
-    <LiveThumb
-      key={`${props.song.id}:${String(props.copies ?? 1)}`}
-      {...props}
-    />
-  )
+  return <LiveThumb key={props.song.id} {...props} />
 }
 
-type SongCardThumbProps = Pick<SongCardProps, "song" | "copies"> & {
+type SongCardThumbProps = {
+  song: GameSong
+  // Copies held; two or more show a count badge on the corner.
+  copies?: number
   // While a big SongCard stands in for it, e.g. mid-flight.
   away?: boolean
 }
@@ -110,14 +110,14 @@ function LiveThumb({ song, copies = 1, away = false }: SongCardThumbProps) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
-    return mountCardThumb(canvas, song, copies, () => setDrawn(true))
-  }, [song, copies])
+    return mountCardThumb(canvas, song, () => setDrawn(true))
+  }, [song])
 
   return (
     <span
       data-slot="song-card-thumb"
       data-away={away || undefined}
-      className="group-hover/card:-translate-y-1 relative block aspect-5/7 w-full transition-transform group-active/card:scale-95 data-away:invisible"
+      className="group-hover/card:-translate-y-1 @container/thumb relative block aspect-5/7 w-full transition-transform group-active/card:scale-95 data-away:invisible"
     >
       {drawn ? null : (
         <span className="animate-pulse inset-0 absolute rounded-2xl bg-muted" />
@@ -127,6 +127,7 @@ function LiveThumb({ song, copies = 1, away = false }: SongCardThumbProps) {
         aria-hidden="true"
         className="game-card-snapshot absolute max-w-none"
       />
+      <CountBadge count={copies} size="card" />
     </span>
   )
 }

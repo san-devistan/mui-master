@@ -1,18 +1,21 @@
 "use client"
 
 import { Celebration } from "@workspace/ui/components/celebration"
+import { GameMotes } from "@workspace/ui/components/game-motes"
 import { useReveal } from "@workspace/ui/hooks/use-reveal"
 import {
-  CUT_LINE,
   mountOpeningScene,
+  OPENED,
   type OpeningPhase,
   type OpeningScene,
 } from "@workspace/ui/lib/game/opening-scene"
+import { REVEAL_PLAYED } from "@workspace/ui/lib/game/reveal-motion"
 import { play, sfx } from "@workspace/ui/lib/game/sfx"
-import type { CssVars, GameSong } from "@workspace/ui/lib/game/theme"
+import type { GameSong } from "@workspace/ui/lib/game/theme"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
   type MouseEvent,
@@ -20,23 +23,46 @@ import {
 } from "react"
 
 const CUT_DONE = 0.7
-const SWIPE = 0.4
-const MOTES = Array.from({ length: 10 }, (_, mote) => {
-  const vars: CssVars = {
-    "--mote-x": `${8 + ((mote * 37) % 84)}%`,
-    "--mote-y": `${6 + ((mote * 23) % 36)}%`,
-    "--mote-delay": `${-(mote * 0.73) % 4}s`,
-    "--mote-size": `${3 + (mote % 3)}px`,
-  }
-  return { id: `mote-${String(mote)}`, vars }
-})
-const CUT_VARS: CssVars = {
-  "--cut-top": `${CUT_LINE.top * 100}%`,
-  "--cut-width": `${CUT_LINE.width * 100}%`,
-}
+// A card is swiped only by a flick: still moving sideways at FLICK px/ms or
+// more over the last FLICK_WINDOW ms when let go, at least FLICK_MIN px from
+// where it started. A slow or held drag just turns the pile, then lets it
+// turn back.
+const FLICK = 0.3
+const FLICK_MIN = 40
+const FLICK_WINDOW = 100
+// Seconds after a swipe before the new card's reveal cue.
+const REVEAL_AFTER = 0.2
 
 type Phase = OpeningPhase | "cards"
 export type PackPull = GameSong & { isNew?: boolean }
+
+type Point = { x: number; y: number; at: number }
+// Where a drag started, and its moves over the last FLICK_WINDOW ms.
+type Drag = Point & { left: number; width: number; trail: Array<Point> }
+
+// Notes a move, forgetting those older than FLICK_WINDOW.
+function follow(drag: Drag, point: Point) {
+  drag.trail.push(point)
+  while ((drag.trail[0]?.at ?? point.at) < point.at - FLICK_WINDOW)
+    drag.trail.shift()
+}
+
+// Which way a drag let go at `end` swipes the card: -1 or 1, or 0 when it
+// doesn't, as it was slow, held still at the end, or mostly vertical.
+function swipeSide(drag: Drag, end: Point) {
+  follow(drag, end)
+  const from = drag.trail[0] ?? end
+  const dx = end.x - from.x
+  const sideways = Math.abs(dx) > Math.abs(end.y - from.y)
+  const speed = Math.abs(dx) / Math.max(end.at - from.at, 1)
+  const travelled = (end.x - drag.x) * Math.sign(dx)
+  const flicked = sideways && speed >= FLICK && travelled >= FLICK_MIN
+  return flicked ? Math.sign(dx) : 0
+}
+
+// Seconds until `pull` is out, `delay` from now, and its reveal has played.
+const revealedIn = (pull: PackPull | undefined, delay: number) =>
+  pull && delay + REVEAL_PLAYED[pull.rarity]
 
 type PackOpeningProps = {
   pulls: ReadonlyArray<PackPull>
@@ -44,6 +70,12 @@ type PackOpeningProps = {
   onDone: () => void
   // True once the pack is tapped open.
   onOpenChange?: (open: boolean) => void
+  // The card coming on show, with the seconds until it's out and its reveal
+  // has played; null when none is (pack left or reset). Called on the cut for
+  // the first card, on its swipe in for the others.
+  onCard?: (pull: PackPull | null, revealed?: number) => void
+  // Fly the waiting pack in; false shows it straight away.
+  entrance?: boolean
   className?: string
 }
 
@@ -53,13 +85,13 @@ function PackOpening({
   covers,
   onDone,
   onOpenChange,
+  onCard,
+  entrance = true,
   className,
 }: PackOpeningProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<OpeningScene | null>(null)
-  const dragRef = useRef<{ x: number; left: number; width: number } | null>(
-    null
-  )
+  const dragRef = useRef<Drag | null>(null)
   // Where a press on the waiting pack started, so dragging it round to turn
   // it doesn't also open it.
   const pressRef = useRef<{ x: number; y: number } | null>(null)
@@ -68,6 +100,8 @@ function PackOpening({
   const { party, reveal, reset } = useReveal(pulls, sceneRef)
   const pullKey = pulls.map((pull) => pull.id).join("|")
   const coverKey = covers.join("|")
+  // Latest callback, without remounting the scene when it changes.
+  const announce = useEffectEvent((pull: PackPull | null) => onCard?.(pull))
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -75,19 +109,26 @@ function PackOpening({
     reset()
     setPhase("idle")
     setIndex(0)
-    const scene = mountOpeningScene(canvas, pulls, coverKey.split("|"), () => {
-      setPhase("cards")
-      setIndex(0)
-      reveal(0)
-    })
+    const scene = mountOpeningScene(
+      canvas,
+      pulls,
+      coverKey.split("|"),
+      () => {
+        setPhase("cards")
+        setIndex(0)
+        reveal(0)
+      },
+      { entrance }
+    )
     sceneRef.current = scene
     return () => {
       sceneRef.current = null
+      announce(null)
       scene.dispose()
     }
     // pullKey is the stable identity of pulls.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [coverKey, pullKey, reset, reveal])
+  }, [coverKey, pullKey, reset, reveal, entrance])
 
   function enter(next: Phase) {
     setPhase(next)
@@ -114,6 +155,7 @@ function PackOpening({
     play("swipe")
     setTimeout(() => play("open"), 350)
     enter("open")
+    onCard?.(pulls[0] ?? null, revealedIn(pulls[0], OPENED))
   }
 
   function cancelCut() {
@@ -124,7 +166,8 @@ function PackOpening({
   function grab(event: PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId)
     const { left, width } = event.currentTarget.getBoundingClientRect()
-    dragRef.current = { x: event.clientX, left, width }
+    const { clientX: x, clientY: y, timeStamp: at } = event
+    dragRef.current = { x, y, at, left, width, trail: [{ x, y, at }] }
   }
 
   function cutAlong(event: PointerEvent<HTMLDivElement>) {
@@ -142,7 +185,8 @@ function PackOpening({
     setIndex(next)
     sceneRef.current?.show(next, side)
     play("swipe")
-    setTimeout(() => reveal(next), 200)
+    onCard?.(pulls[next] ?? null, revealedIn(pulls[next], REVEAL_AFTER))
+    setTimeout(() => reveal(next), REVEAL_AFTER * 1000)
   }
 
   // The last card flies off like the others, then the pack is done. Moving
@@ -151,24 +195,28 @@ function PackOpening({
     setIndex(pulls.length)
     sceneRef.current?.show(pulls.length, side)
     play("swipe")
+    onCard?.(null)
     setTimeout(onDone, 450)
   }
 
   function swipeMove(event: PointerEvent<HTMLDivElement>) {
     const start = dragRef.current
     if (!start) return
-    sceneRef.current?.drag((event.clientX - start.x) / start.width)
+    const { clientX: x, clientY: y, timeStamp: at } = event
+    follow(start, { x, y, at })
+    sceneRef.current?.drag((x - start.x) / start.width)
   }
 
   function swipeEnd(event: PointerEvent<HTMLDivElement>) {
     const start = dragRef.current
     if (!start) return
     dragRef.current = null
-    const share = (event.clientX - start.x) / start.width
+    const { clientX: x, clientY: y, timeStamp: at } = event
+    const side = swipeSide(start, { x, y, at })
     sceneRef.current?.drag(0)
-    if (Math.abs(share) <= SWIPE) return
-    if (isLast) leave(Math.sign(share))
-    else show(index + 1, Math.sign(share))
+    if (!side) return
+    if (isLast) leave(side)
+    else show(index + 1, side)
   }
 
   const song = pulls[index]
@@ -179,18 +227,13 @@ function PackOpening({
       data-slot="pack-opening"
       data-phase={phase}
       className={cn(
-        "game-studio aspect-393/852 game-opening-size touch-none select-none",
+        // Full screen on phones (their shape varies); a phone-shaped frame on
+        // bigger screens. The scene fits itself to either.
+        "game-studio md:aspect-393/852 md:game-opening-size size-full touch-none select-none",
         className
       )}
-      style={CUT_VARS}
     >
-      {phase === "idle" || phase === "cut" ? (
-        <div className="game-pack-motes" aria-hidden="true">
-          {MOTES.map((mote) => (
-            <i key={mote.id} style={mote.vars} />
-          ))}
-        </div>
-      ) : null}
+      {phase === "idle" || phase === "cut" ? <GameMotes /> : null}
       <canvas ref={canvasRef} className="game-canvas z-10" aria-hidden="true" />
       {phase === "open" ? (
         <i className="game-cut-flash" aria-hidden="true" />

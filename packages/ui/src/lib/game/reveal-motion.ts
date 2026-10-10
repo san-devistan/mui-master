@@ -1,12 +1,13 @@
+import type { Rarity } from "@workspace/ui/lib/game/theme"
 import type * as THREE from "three"
 
 // Seconds each first-pull celebration takes (the DOM effects match these).
 export const CELEBRATION = { epic: 1.1, legendary: 2.1 } as const
 export type Celebrated = keyof typeof CELEBRATION
 
-// Camera zoom on the opened pile, and the seconds a revealed card takes to
-// rise into it.
-export const PILE_ZOOM = 1.3
+// Camera zoom on the opened pile (the card about 90% of a phone's width), and
+// the seconds a revealed card takes to rise into it.
+export const PILE_ZOOM = 1.45
 export const RISE = 0.6
 // Seconds a card picked from the collection takes to fly out or back.
 export const FLY = 0.55
@@ -88,3 +89,13 @@ function legendaryPose(at: Pose, t: number): Pose {
 }
 
 export const celebrations = { epic: epicPose, legendary: legendaryPose }
+
+// Seconds after a card lands until its reveal cue (uisfx lengths) and
+// celebration have played out: when its song should be in. Legendary's cue
+// comes 0.85s in and its light sweep ends at 2.1s.
+export const REVEAL_PLAYED: Record<Rarity, number> = {
+  common: 0.4,
+  rare: 0.75,
+  epic: Math.max(CELEBRATION.epic, 0.95),
+  legendary: Math.max(SHINE[1], 0.85 + 1.2),
+}

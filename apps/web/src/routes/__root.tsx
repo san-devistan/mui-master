@@ -6,6 +6,9 @@ import {
   createRootRouteWithContext,
 } from "@tanstack/react-router"
 import appCss from "@workspace/ui/globals.css?url"
+import { useEffect } from "react"
+
+const edgeSwipeZone = 24
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -50,6 +53,19 @@ export const Route = createRootRouteWithContext<{
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    // iOS Safari only skips its edge back/forward swipe when the edge touchstart is cancelled.
+    const blockEdgeSwipe = (event: TouchEvent) => {
+      const x = event.touches[0]?.clientX
+      if (x === undefined) return
+      if (x < edgeSwipeZone || x > window.innerWidth - edgeSwipeZone) {
+        event.preventDefault()
+      }
+    }
+    document.addEventListener("touchstart", blockEdgeSwipe, { passive: false })
+    return () => document.removeEventListener("touchstart", blockEdgeSwipe)
+  }, [])
+
   return (
     <html lang="en" className="game-backdrop-floor" suppressHydrationWarning>
       <head>
