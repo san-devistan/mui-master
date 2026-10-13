@@ -4,6 +4,7 @@ import {
   cardFilm,
   cardShine,
   newSticker,
+  shineInset,
 } from "@workspace/ui/lib/game/card-scene"
 import {
   addFilm,
@@ -292,13 +293,21 @@ export function mountOpeningScene(
     } else stickers.push(null)
     return card
   })
-  const backs = cardBack(stage.renderer)
-  backs.material.clippingPlanes = [mouth]
-  for (const card of cards) {
-    card.subject.add(new THREE.Mesh(backs.geometry, backs.material))
-  }
+  // One back per card kind on the stage, shared by its cards.
+  const backs = new Map<GameSong["kind"], ReturnType<typeof cardBack>>()
+  cards.forEach((card, index) => {
+    const kind = songs[index]?.kind
+    let back = backs.get(kind)
+    if (!back) {
+      back = cardBack(stage.renderer, kind)
+      back.material.clippingPlanes = [mouth]
+      backs.set(kind, back)
+      stage.disposables.push(back)
+    }
+    card.subject.add(new THREE.Mesh(back.geometry, back.material))
+  })
   const shine = cardShine()
-  stage.disposables.push(backs, shine)
+  stage.disposables.push(shine)
   const poses = songs.map(() => pose({}))
   const sides = songs.map(() => -1)
   let party: { index: number; rarity: Celebrated; start: number } | null = null
@@ -562,6 +571,7 @@ export function mountOpeningScene(
     celebrate(index, rarity) {
       if (stage.still) return
       party = { index, rarity, start: stage.time.value }
+      shine.uniforms.inset.value = shineInset(songs[index]?.kind)
       cards[index]?.subject.add(shine.mesh)
     },
     dispose: stage.dispose,

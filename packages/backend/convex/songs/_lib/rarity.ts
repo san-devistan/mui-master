@@ -21,13 +21,6 @@ const artistTiers: Tiers = [
   { rarity: "common", minStreams: minSpotifyStreams },
 ]
 
-export const rarityWeights: Record<CardRarity, number> = {
-  common: 170,
-  rare: 24,
-  epic: 5,
-  legendary: 1,
-}
-
 export const rarityOrder: ReadonlyArray<CardRarity> = [
   "legendary",
   "epic",
@@ -58,19 +51,35 @@ export function raiseRarity(
     : current
 }
 
-export function drawRarity(roll: number): CardRarity {
+type Odds = Partial<Record<CardRarity, number>>
+
+// A pack's five cards, each with its own odds (in %), so the pack builds up from commons to a
+// guaranteed hit: the first is at most rare, the third leans rare and epic, the last is rare or
+// better. A rarity a card leaves out can't come up in it.
+export const packOdds: ReadonlyArray<Odds> = [
+  { common: 90, rare: 10 },
+  { common: 85, rare: 12, epic: 3 },
+  { common: 65, rare: 27, epic: 8 },
+  { common: 85, rare: 12, epic: 2.5, legendary: 0.5 },
+  { rare: 70, epic: 24, legendary: 6 },
+]
+
+// Rarely, a god pack instead: all five cards legendary. 0.1%, one pack in 1,000 on average.
+export const godPackChance = 0.001
+export const godPackOdds: ReadonlyArray<Odds> = packOdds.map(() => ({
+  legendary: 100,
+}))
+
+// The rarity a roll in [0, 1) gives under `odds`, rarest first.
+export function drawRarity(odds: Odds, roll: number): CardRarity {
   const total = rarityOrder.reduce(
-    (sum, rarity) => sum + rarityWeights[rarity],
+    (sum, rarity) => sum + (odds[rarity] ?? 0),
     0
   )
   let threshold = roll * total
-
   for (const rarity of rarityOrder) {
-    threshold -= rarityWeights[rarity]
-    if (threshold < 0) {
-      return rarity
-    }
+    threshold -= odds[rarity] ?? 0
+    if (threshold < 0) return rarity
   }
-
-  return "common"
+  return rarityOrder.findLast((rarity) => odds[rarity]) ?? "common"
 }

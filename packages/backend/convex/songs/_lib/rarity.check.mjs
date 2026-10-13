@@ -4,9 +4,10 @@ import assert from "node:assert/strict"
 import {
   artistRarityForStreams,
   drawRarity,
+  godPackOdds,
+  packOdds,
   raiseRarity,
   rarityForStreams,
-  rarityWeights,
 } from "./rarity.ts"
 
 assert.equal(rarityForStreams(99_999_999), undefined)
@@ -28,12 +29,25 @@ assert.equal(raiseRarity("epic", "common"), "epic")
 assert.equal(raiseRarity("legendary", "rare"), "legendary")
 assert.equal(raiseRarity("rare", "rare"), "rare")
 
-const total = Object.values(rarityWeights).reduce((sum, w) => sum + w, 0)
-assert.deepEqual(
-  Object.fromEntries(
-    Object.entries(rarityWeights).map(([rarity, w]) => [rarity, w / total])
-  ),
-  { common: 0.85, rare: 0.12, epic: 0.025, legendary: 0.005 }
-)
-assert.equal(drawRarity(0), "legendary")
-assert.equal(drawRarity(0.999), "common")
+// Every card's odds add up to 100%.
+for (const odds of packOdds) {
+  assert.equal(
+    Object.values(odds).reduce((sum, p) => sum + p, 0),
+    100
+  )
+}
+const [first, , , fourth, last] = packOdds
+assert.equal(drawRarity(fourth, 0), "legendary")
+assert.equal(drawRarity(fourth, 0.999), "common")
+// The first card is at most rare, the last never common, whatever the roll.
+for (let roll = 0; roll < 1; roll += 0.001) {
+  assert.ok(["common", "rare"].includes(drawRarity(first, roll)))
+  assert.notEqual(drawRarity(last, roll), "common")
+}
+assert.equal(drawRarity(last, 0.999), "rare")
+// A god pack is legendary all through.
+for (const odds of godPackOdds) {
+  for (let roll = 0; roll < 1; roll += 0.01) {
+    assert.equal(drawRarity(odds, roll), "legendary")
+  }
+}

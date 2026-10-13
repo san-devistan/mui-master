@@ -41,6 +41,8 @@ export const BRAND = {
 // A card: a song (cover, title, credited artists) or an artist (photo, name, "Artist").
 export type GameSong = {
   id: string
+  // Artist cards get a wavy edge; anything else is a song card.
+  kind?: "song" | "artist"
   title: string
   artist: string
   imageUrl: string

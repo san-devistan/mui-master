@@ -1,13 +1,17 @@
 import type { Doc, Id } from "./_generated/dataModel"
 import { mutation, query, type QueryCtx } from "./_generated/server"
 import { playerId } from "./auth"
-import { drawRarity } from "./songs/_lib/rarity"
+import {
+  drawRarity,
+  godPackChance,
+  godPackOdds,
+  packOdds,
+  rarityOrder,
+} from "./songs/_lib/rarity"
 import type { CardRarity } from "./songs/_lib/validators"
 
 // The game's cards: songs and artists, as the web app shows them. A card's id is its song or
 // artist id; `kind` says which.
-
-const PACK_SIZE = 5
 
 type Card = {
   kind: "song" | "artist"
@@ -101,22 +105,43 @@ const drawArtist = async (ctx: QueryCtx, rarity: CardRarity) => {
   return row ? artistCard(row) : null
 }
 
-// Opens a pack for the signed-in player: five cards, each rarity rolled with drawRarity, then a
-// song or an artist of that rarity in proportion to how many of each there are, so every card of
-// a rarity is as likely. No card twice in a pack. The cards go straight into the player's
-// collection (a copy more for one they own); `isNew` marks those they didn't have.
-// shortcut: no limit on packs per player; add one (daily packs, a currency) when the game needs it.
-export const open = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const player = await playerId(ctx)
-    if (!player) throw new Error("Not signed in")
-    const stats = await ctx.db.query("catalogStats").first()
-    if (!stats) throw new Error("The catalog isn't counted yet")
-    const cards: Array<Card> = []
-    const drawn = new Set<string>()
-    for (let tries = 0; cards.length < PACK_SIZE && tries < 50; tries++) {
-      const rarity = drawRarity(Math.random())
+// A card by id, song or artist; null when it's gone.
+const cardById = async (ctx: QueryCtx, id: string) => {
+  const songId = ctx.db.normalizeId("songs", id)
+  const song = songId ? await ctx.db.get("songs", songId) : null
+  if (song) return await songCard(ctx, song)
+  const artistId = ctx.db.normalizeId("artists", id)
+  const artist = artistId ? await ctx.db.get("artists", artistId) : null
+  return artist ? artistCard(artist) : null
+}
+
+const ownedCard = (ctx: QueryCtx, player: string, cardId: string) =>
+  ctx.db
+    .query("collection")
+    .withIndex("by_playerId_and_cardId", (q) =>
+      q.eq("playerId", player).eq("cardId", cardId)
+    )
+    .unique()
+
+const pendingPack = (ctx: QueryCtx, player: string) =>
+  ctx.db
+    .query("pendingPacks")
+    .withIndex("by_playerId", (q) => q.eq("playerId", player))
+    .unique()
+
+// Five cards, each with its position's odds (packOdds, or godPackOdds for the rare god pack),
+// then a song or an artist of the rarity rolled, in proportion to how many of each there are, so
+// every card of a rarity is as likely. No card twice: a repeat is redrawn with the same odds.
+// Ordered from least to most rare.
+const drawPack = async (ctx: QueryCtx) => {
+  const stats = await ctx.db.query("catalogStats").first()
+  if (!stats) throw new Error("The catalog isn't counted yet")
+  const cards: Array<Card> = []
+  const drawn = new Set<string>()
+  const pack = Math.random() < godPackChance ? godPackOdds : packOdds
+  for (const odds of pack) {
+    for (let tries = 0; tries < 10; tries++) {
+      const rarity = drawRarity(odds, Math.random())
       const { songs, artists } = stats.byRarity[rarity]
       const card =
         Math.random() * (songs + artists) < songs
@@ -125,16 +150,55 @@ export const open = mutation({
       if (!card || drawn.has(card.id)) continue
       drawn.add(card.id)
       cards.push(card)
+      break
     }
-    const pulledAt = Date.now()
+  }
+  const rank = (card: Card) => -rarityOrder.indexOf(card.rarity)
+  return cards.toSorted((a, b) => rank(a) - rank(b) || a.streams - b.streams)
+}
+
+// The signed-in player's waiting pack: drawn the first time, then the same cards until they open
+// it, so reloading never rerolls it. `isNew` marks the cards they don't own yet.
+// shortcut: no limit on packs per player; add one (daily packs, a currency) when the game needs it.
+export const next = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const player = await playerId(ctx)
+    if (!player) throw new Error("Not signed in")
+    const pending = await pendingPack(ctx, player)
+    let cards: Array<Card>
+    if (pending) {
+      const found = await Promise.all(
+        pending.cardIds.map((id) => cardById(ctx, id))
+      )
+      cards = found.flatMap((card) => (card ? [card] : []))
+    } else {
+      cards = await drawPack(ctx)
+      await ctx.db.insert("pendingPacks", {
+        playerId: player,
+        cardIds: cards.map((card) => card.id),
+      })
+    }
     const pulls: Array<Card & { isNew: boolean }> = []
     for (const card of cards) {
-      const owned = await ctx.db
-        .query("collection")
-        .withIndex("by_playerId_and_cardId", (q) =>
-          q.eq("playerId", player).eq("cardId", card.id)
-        )
-        .unique()
+      pulls.push({ ...card, isNew: !(await ownedCard(ctx, player, card.id)) })
+    }
+    return pulls
+  },
+})
+
+// Opens the waiting pack: its cards go into the player's collection, a copy more for one they
+// own. Does nothing without one, so a double tap can't add a pack twice.
+export const claim = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const player = await playerId(ctx)
+    if (!player) throw new Error("Not signed in")
+    const pending = await pendingPack(ctx, player)
+    if (!pending) return
+    const pulledAt = Date.now()
+    for (const cardId of pending.cardIds) {
+      const owned = await ownedCard(ctx, player, cardId)
       if (owned) {
         await ctx.db.patch("collection", owned._id, {
           copies: owned.copies + 1,
@@ -142,14 +206,13 @@ export const open = mutation({
       } else {
         await ctx.db.insert("collection", {
           playerId: player,
-          cardId: card.id,
+          cardId,
           copies: 1,
           pulledAt,
         })
       }
-      pulls.push({ ...card, isNew: !owned })
     }
-    return pulls
+    await ctx.db.delete("pendingPacks", pending._id)
   },
 })
 
@@ -165,16 +228,9 @@ export const collection = query({
       .withIndex("by_playerId", (q) => q.eq("playerId", player))
       .take(5000)
     const found: Array<Card & { copies: number; pulledAt: number }> = []
-    for (const { cardId: id, copies, pulledAt } of rows) {
-      const songId = ctx.db.normalizeId("songs", id)
-      const song = songId ? await ctx.db.get("songs", songId) : null
-      if (song) {
-        found.push({ ...(await songCard(ctx, song)), copies, pulledAt })
-        continue
-      }
-      const artistId = ctx.db.normalizeId("artists", id)
-      const artist = artistId ? await ctx.db.get("artists", artistId) : null
-      if (artist) found.push({ ...artistCard(artist), copies, pulledAt })
+    for (const { cardId, copies, pulledAt } of rows) {
+      const card = await cardById(ctx, cardId)
+      if (card) found.push({ ...card, copies, pulledAt })
     }
     return found
   },

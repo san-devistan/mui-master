@@ -89,11 +89,19 @@ platform.
   5B+, rare 1B+, else common. `catalog:updateRarities` recomputes artist
   playcounts and raises every rarity; the import runs it at the end of each
   `--save` run. Keep the thresholds fixed once the game is live: rarities
-  can't go down, so raising a threshold would mix old and new rules. Each
-  card rolls common 85%, rare 12%, epic 2.5%, legendary 0.5%. Check:
+  can't go down, so raising a threshold would mix old and new rules. Check:
   `node packages/backend/convex/songs/_lib/rarity.check.mjs`.
-- Packs (`packs.ts`): five cards, each a rolled rarity, then a song or an
-  artist of it in proportion to how many of each hold it (counts in
+- Players (`auth.ts`): Better Auth in its Convex component, anonymous guests
+  only for now; `playerId(ctx)` is the signed-in user's id. Needs the Convex
+  env vars `BETTER_AUTH_SECRET` and `SITE_URL` (the web app's URL).
+- Collection: `collection` holds one row per player and card (copies, first
+  pull); `pendingPacks` holds each player's waiting pack, drawn once by
+  `packs:next` and kept until `packs:claim` adds it to the collection.
+- Packs (`packs.ts`): five cards, each rolled with its position's odds
+  (`packOdds` in `songs/_lib/rarity.ts`: the first at most rare, the last
+  rare or better; one pack in 1,000 is a god pack, all legendary), shown
+  least rare first. Then a song or an artist of the
+  rarity rolled, in proportion to how many of each hold it (counts in
   `catalogStats`), picked with a random `drawKey` on the
   `by_rarity_and_drawKey` index; never the same card twice in a pack. An
   artist card plays the preview of its `topSongId`, its most played catalog

@@ -6,6 +6,8 @@ import {
   drawCardBack,
   drawSticker,
   STICKER,
+  WAVE,
+  wavyOutline,
 } from "@workspace/ui/lib/game/card-art"
 import { canvasTexture } from "@workspace/ui/lib/game/film-material"
 import {
@@ -62,16 +64,25 @@ const RARITY = {
 
 // The card stock's cut edge: the outline extruded, walls only (the printed
 // faces cover the caps).
-function cardEdge(color: string, metal: number) {
+function cardEdge(color: string, metal: number, kind: GameSong["kind"]) {
   const outline = new THREE.Shape()
-  outline.moveTo(-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2)
-  for (const [x, y, angle] of [
-    [CARD_W / 2 - CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, -Math.PI / 2],
-    [CARD_W / 2 - CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, 0],
-    [-CARD_W / 2 + CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, Math.PI / 2],
-    [-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, Math.PI],
-  ] as const) {
-    outline.absarc(x, y, CARD_RADIUS, angle, angle + Math.PI / 2)
+  if (kind === "artist") {
+    // Card px are y-down from the corner; the film is y-up from its middle.
+    outline.setFromPoints(
+      wavyOutline().map(
+        ([x, y]) => new THREE.Vector2(x - CARD_W / 2, CARD_H / 2 - y)
+      )
+    )
+  } else {
+    outline.moveTo(-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2)
+    for (const [x, y, angle] of [
+      [CARD_W / 2 - CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, -Math.PI / 2],
+      [CARD_W / 2 - CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, 0],
+      [-CARD_W / 2 + CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, Math.PI / 2],
+      [-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, Math.PI],
+    ] as const) {
+      outline.absarc(x, y, CARD_RADIUS, angle, angle + Math.PI / 2)
+    }
   }
   const geometry = new THREE.ExtrudeGeometry(outline, {
     depth: THICKNESS,
@@ -109,7 +120,13 @@ export function cardFilm(song: GameSong): FilmSpec {
     stops,
     ...look,
     // Common cards keep the 2D ink edge; rarer ones show their foil colour.
-    solids: [cardEdge(metal ? (stops[0]?.[0] ?? "#121016") : "#121016", metal)],
+    solids: [
+      cardEdge(
+        metal ? (stops[0]?.[0] ?? "#121016") : "#121016",
+        metal,
+        song.kind
+      ),
+    ],
     draw: () => drawCardArt(song),
   }
 }
@@ -190,8 +207,12 @@ function foilSticker(
   }
 }
 
-// The back face, shared by every card on a stage (add one Mesh per card).
-export function cardBack(renderer: THREE.WebGLRenderer) {
+// The back face, shared by every card of a kind on a stage (add one Mesh per
+// card).
+export function cardBack(
+  renderer: THREE.WebGLRenderer,
+  kind: GameSong["kind"]
+) {
   const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H)
     .rotateY(Math.PI)
     .translate(0, 0, -THICKNESS / 2)
@@ -201,7 +222,7 @@ export function cardBack(renderer: THREE.WebGLRenderer) {
     clearcoat: 1,
     clearcoatRoughness: 0.14,
   })
-  const texture = drawCardBack().then((art) => {
+  const texture = drawCardBack(kind).then((art) => {
     const map = canvasTexture(art, renderer)
     material.map = map
     material.needsUpdate = true
@@ -228,12 +249,14 @@ const SHINE_VERTEX = /* glsl */ `
 
 const SHINE_FRAGMENT = /* glsl */ `
   uniform float progress;
+  uniform float inset;
   varying vec2 vUv;
   void main() {
-    // Rounded card outline, so the light stays on the card.
+    // Rounded card outline (inset inside a wavy edge), so the light
+    // stays on the card.
     vec2 size = vec2( ${CARD_W.toFixed(1)}, ${CARD_H.toFixed(1)} );
     vec2 inside = abs( ( vUv - 0.5 ) * size ) - ( 0.5 * size - ${CARD_RADIUS.toFixed(1)} );
-    float edge = length( max( inside, 0.0 ) ) - ${CARD_RADIUS.toFixed(1)};
+    float edge = length( max( inside, 0.0 ) ) - ${CARD_RADIUS.toFixed(1)} + inset;
     float card = 1.0 - smoothstep( -1.0, 0.0, edge );
     // A wide soft band with a bright core and a thin trailing glint, sweeping
     // from the bottom-left corner to the top-right one. Measured across the
@@ -249,9 +272,10 @@ const SHINE_FRAGMENT = /* glsl */ `
   }
 `
 
-// Light sweeping across a card's face: set `progress` 0..1 to move it.
+// Light sweeping across a card's face: set `progress` 0..1 to move it, and
+// `inset` with shineInset for the card it is on.
 export function cardShine() {
-  const uniforms = { progress: { value: 0 } }
+  const uniforms = { progress: { value: 0 }, inset: { value: 0 } }
   const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H)
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -279,6 +303,9 @@ export function cardShine() {
     },
   }
 }
+
+export const shineInset = (kind: GameSong["kind"]) =>
+  kind === "artist" ? WAVE.depth : 0
 
 // Where a card sits on screen (CSS px): its middle and width, plus the light
 // tilt and foil clock it is drawn with there, so a handover doesn't flicker.
@@ -334,12 +361,13 @@ type CardStage = ReturnType<typeof mountFilmScene>
 // Groups carrying an entrance round the film and its mirror image, so the
 // inner film keeps its sway and bob; plus the back and light sweep the
 // celebrations show.
-function entrance(stage: CardStage) {
+function entrance(stage: CardStage, kind: GameSong["kind"]) {
   const { subject, reflection } = stage.film
   // The legendary spin turns the card round, so it needs its back.
-  const back = cardBack(stage.renderer)
+  const back = cardBack(stage.renderer, kind)
   subject.add(new THREE.Mesh(back.geometry, back.material))
   const shine = cardShine()
+  shine.uniforms.inset.value = shineInset(kind)
   subject.add(shine.mesh)
   stage.disposables.push(back, shine)
   const motion = new THREE.Group()
@@ -391,7 +419,7 @@ function frame(stage: CardStage, land: CardSceneOptions["land"]) {
 // the card rises into place, then celebrates.
 function revealCard(stage: CardStage, song: GameSong, pile: boolean) {
   if (pile) stage.camera.position.z /= PILE_ZOOM
-  const { motion, mirrored, shine } = entrance(stage)
+  const { motion, mirrored, shine } = entrance(stage, song.kind)
   const start = stage.time.value
   stage.onFrame((time) => {
     const since = time - start
@@ -420,7 +448,7 @@ function flyCard(
   from: CardSlot,
   land?: CardSceneOptions["land"]
 ) {
-  const { motion, mirrored, shine } = entrance(stage)
+  const { motion, mirrored, shine } = entrance(stage, song.kind)
   const canvas = stage.renderer.domElement
   const { subject, tilt } = stage.film
   // The canvas spans the page, so cap its resolution; the card stays sharp.

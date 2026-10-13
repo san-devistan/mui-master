@@ -8,13 +8,19 @@ composition; data and logic come from `@workspace/backend`.
 Screens are built from `@workspace/ui`. When something is missing, it usually
 belongs in `packages/ui` rather than in the app.
 
-The game reads the catalog from Convex (`convex/packs.ts`): `packs.open`
-draws a pack, `packs.cards` loads the collection's cards, `packs.catalog`
-gives the card count and pack covers. Cards are songs or artists
-(`src/game/_lib/cards.ts`). Until accounts exist, the player's collection
-(card ids, copies, first pull) lives in localStorage
-(`src/game/_lib/collection.ts`); card details always come from the backend.
-The profile page is empty for now.
+The game reads everything from Convex (`convex/packs.ts`): `packs.next` is the
+player's waiting pack, `packs.claim` opens it into their collection,
+`packs.collection` lists their cards, `packs.catalog` gives the card count and
+pack covers. Cards are songs or artists (`src/game/_lib/cards.ts`). The
+profile page is empty for now.
+
+## Auth
+
+Players are Better Auth users (`src/lib/auth-client.ts`). Everyone plays as an
+anonymous guest for now: the game layout signs a visitor in on arrival.
+Better Auth's endpoints are served at `/api/auth/*` (`routes/api.auth.$.ts`),
+forwarded to the Convex deployment, so it needs `VITE_CONVEX_SITE_URL` (the
+`.convex.site` URL) in `.env.local`.
 
 ## Effect
 

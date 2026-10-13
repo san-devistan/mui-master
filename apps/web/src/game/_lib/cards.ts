@@ -4,7 +4,7 @@ import type { FunctionReturnType } from "convex/server"
 
 // A card as the backend sends it: a song or an artist (see convex/packs.ts).
 export type BackendCard = Omit<
-  FunctionReturnType<typeof api.packs.open>[number],
+  FunctionReturnType<typeof api.packs.next>[number],
   "isNew"
 >
 

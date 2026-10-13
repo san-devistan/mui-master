@@ -93,4 +93,10 @@ export default defineSchema({
   })
     .index("by_playerId", ["playerId"])
     .index("by_playerId_and_cardId", ["playerId", "cardId"]),
+  // The pack waiting for each player, drawn ahead so its cards are ready once it's cut open; it's
+  // the same pack until they open it (packs:claim), whatever reloads or double draws happen.
+  pendingPacks: defineTable({
+    playerId: v.string(),
+    cardIds: v.array(v.string()),
+  }).index("by_playerId", ["playerId"]),
 })

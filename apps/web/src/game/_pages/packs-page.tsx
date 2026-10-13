@@ -1,6 +1,5 @@
 import { useRevealMusic } from "@/game/_hooks/use-reveal-music"
 import { toGameCard, type GameCard } from "@/game/_lib/cards"
-import { useCollection } from "@/game/_lib/collection"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
@@ -15,20 +14,15 @@ let arrived = false
 
 type Pull = GameCard & { isNew: boolean }
 
-const RARITY_ORDER = ["common", "rare", "epic", "legendary"]
-// Rarest last, so the reveal builds up like a real pack; within a rarity, most streamed last.
-const revealOrder = (a: GameCard, b: GameCard) =>
-  RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity) ||
-  a.streams - b.streams
-
 export function PacksPage() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const music = useRevealMusic()
-  const collection = useCollection()
-  const openPack = useMutation(api.packs.open)
+  const nextPack = useMutation(api.packs.next)
+  const claimPack = useMutation(api.packs.claim)
   const { data: catalog } = useQuery(convexQuery(api.packs.catalog, {}))
-  // The next pack, drawn while it waits so the cards are ready once it's cut open.
+  // The waiting pack, drawn ahead so its cards are ready once it's cut open; the backend keeps it
+  // the same until it's opened.
   const [pulls, setPulls] = useState<ReadonlyArray<Pull> | null>(null)
   // Read once, then marked, so this visit keeps its entrance.
   const [entrance] = useState(() => {
@@ -40,20 +34,16 @@ export function PacksPage() {
   useEffect(() => {
     let cancelled = false
     async function draw() {
-      const cards = await openPack()
+      const cards = await nextPack()
       if (cancelled) return
-      const sorted = cards.map(toGameCard).toSorted(revealOrder)
-      setPulls(
-        sorted.map((card) => ({ ...card, isNew: !collection.owned[card.id] }))
-      )
+      // In the backend's order: least rare first, the pack's best card last.
+      setPulls(cards.map(toGameCard))
     }
     void draw()
     return () => {
       cancelled = true
     }
-    // Drawn once per visit: the collection changes when this pack is added.
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [openPack])
+  }, [nextPack])
 
   if (!pulls || !catalog) return <div className="min-h-0 flex-1" />
 
@@ -71,7 +61,7 @@ export function PacksPage() {
           if (!next) return
           music.unlock()
           // Owned from the moment it's opened, so leaving mid-reveal keeps the cards.
-          collection.add(pulls.map((pull) => pull.id))
+          void claimPack()
           setOpen(next)
         }}
         onCard={(pull, revealed) => {
