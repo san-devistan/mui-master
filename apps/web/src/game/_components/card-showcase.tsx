@@ -1,6 +1,6 @@
 import { ListenLinks } from "@/game/_components/listen-links"
 import { useSongPreview } from "@/game/_hooks/use-song-preview"
-import type { CollectedSong } from "@/game/_lib/demo-data"
+import type { CollectedSong } from "@/game/_lib/collection"
 import { Button } from "@workspace/ui/components/button"
 import { Celebration } from "@workspace/ui/components/celebration"
 import { CountBadge } from "@workspace/ui/components/count-badge"
@@ -36,6 +36,10 @@ const FACTS_DROP = 16
 // The most seconds the panel waits past the reveal for a slow song to start.
 const SONG_WAIT = 2
 const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")
+const compact = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
 
 // "1991-09-24" as "24 Sep 1991", the same for everyone (no locale or zone).
 function releaseDay(date: string) {
@@ -89,7 +93,7 @@ export function CardDetail({
   const [settled, setSettled] = useState(false)
   // Measured once the panel is laid out, before the card mounts.
   const [land, setLand] = useState<ReturnType<typeof landing> | null>(null)
-  const preview = useSongPreview(song.id)
+  const preview = useSongPreview(song.previewSongId)
   // Out on show, between take-off and heading home.
   const flying = phase === "shown"
   // Fully in once the card has landed and its reveal has played: it fades in
@@ -219,8 +223,20 @@ export function CardDetail({
             ref={factsRef}
             className="gap-5 *:pr-5 *:last:pr-0 flex items-center justify-center divide-x-2 divide-ink/15"
           >
-            <SongFact label="BPM" value={String(song.bpm)} />
-            <SongFact label="Released" value={releaseDay(song.releaseDate)} />
+            {song.kind === "song" ? (
+              <>
+                <SongFact label="BPM" value={String(song.bpm)} />
+                <SongFact
+                  label="Released"
+                  value={releaseDay(song.releaseDate ?? "")}
+                />
+              </>
+            ) : (
+              <SongFact
+                label="Monthly listeners"
+                value={compact.format(song.monthlyListeners ?? 0)}
+              />
+            )}
           </dl>
           <div className="gap-3 flex items-center justify-center">
             <ListenLinks song={song} />

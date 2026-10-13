@@ -41,16 +41,6 @@ const decode = <S extends Schema.Top>(schema: S) =>
     )
   })
 
-export const fetchDeezerPreview = Effect.fn("fetchDeezerPreview")(function* (
-  isrc: string
-) {
-  const body = yield* getJson(
-    `https://api.deezer.com/track/isrc:${encodeURIComponent(isrc)}`
-  )
-  const track = yield* decode(Track)(body)
-  return track.preview || null
-})
-
 // The playable track in `tracks` with exactly this title and lead artist, so
 // covers and karaoke versions never match.
 export function deezerMatch(

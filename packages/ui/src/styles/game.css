@@ -227,70 +227,91 @@
   animation: game-mote 4s var(--mote-delay) ease-in-out infinite;
 }
 
-/* Katana slice once the pack is cut through: a blade of light whips across the
-   seam past both edges of the screen, leaving a hairline that flares and fades,
-   with a glint where the blade left. 0.5s in all. */
+/* Katana slice once the pack is cut through, along the finger's own stroke
+   (cut-slash.ts): a blade of light whips along it past both edges of the
+   screen, leaving a hairline that flares and fades, with a glint where the
+   finger let go. 0.5s in all. */
 .game-cut-flash {
   position: absolute;
-  top: var(--cut-top);
-  left: 0;
+  inset: 0;
   z-index: 20;
-  width: 100%;
-  height: 4rem;
-  overflow: visible;
   pointer-events: none;
-  translate: 0 -50%;
-  rotate: -4deg;
 }
 
-/* The blade: a long sharp streak, white-hot at its head, holo at its tail. */
-.game-cut-flash::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: -60%;
-  width: 60%;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(65 154 255 / 0.5) 30%,
-    rgb(255 54 194 / 0.75) 60%,
-    rgb(255 243 110 / 0.9) 80%,
-    #fff 96%,
-    transparent
-  );
+.game-cut-flash > svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The blade: a short white-hot dash racing along the stroke. */
+.game-cut-blade {
+  stroke: #fff;
+  stroke-width: 5;
+  stroke-dasharray: 0.3 1.3;
+  stroke-dashoffset: 0.3;
   filter: drop-shadow(0 0 6px #fff) drop-shadow(0 0 14px rgb(255 54 194 / 0.7));
-  clip-path: polygon(0 50%, 96% 0, 100% 50%, 96% 100%);
-  translate: 0 -50%;
   animation: game-katana-blade 0.5s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
 }
 
-/* What it leaves: a hairline cut that flares and thins out, and a glint. */
-.game-cut-flash::after {
-  content: "";
+/* What it leaves: a hairline cut over a holo band, drawn on behind the blade,
+   flaring then thinning out. */
+.game-cut-line,
+.game-cut-glow {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px rgb(255 54 194 / 0.6));
+  animation: game-katana-cut 0.5s ease-out forwards;
+}
+
+.game-cut-line {
+  --cut-width: 3px;
+  stroke: #fff;
+}
+
+.game-cut-glow {
+  --cut-width: 12px;
+}
+
+.game-cut-flash stop {
+  stop-color: rgb(255 243 110 / 0.6);
+
+  &:first-child {
+    stop-color: rgb(255 243 110 / 0);
+  }
+
+  &:nth-child(3) {
+    stop-color: rgb(255 54 194 / 0.6);
+  }
+
+  &:nth-child(4) {
+    stop-color: rgb(65 154 255 / 0.6);
+  }
+
+  &:last-child {
+    stop-color: rgb(65 154 255 / 0);
+  }
+}
+
+/* The glint where the finger let go, a four-point star turned to the slash. */
+.game-cut-flash > i {
   position: absolute;
-  inset: 0;
+  top: var(--glint-y);
+  left: var(--glint-x);
+  width: 2.5rem;
+  height: 2.5rem;
+  translate: -50% -50%;
+  rotate: var(--glint-angle);
   background:
-    radial-gradient(closest-side, #fff, rgb(255 255 255 / 0) 70%) 92% 50% /
-      2.5rem 2.5rem no-repeat,
-    linear-gradient(0deg, transparent 46%, #fff 49% 51%, transparent 54%) 92%
-      50% / 0.5rem 4rem no-repeat,
-    linear-gradient(90deg, transparent, #fff 8% 92%, transparent) center / 100%
-      3px no-repeat,
-    linear-gradient(
-        90deg,
-        transparent,
-        rgb(255 243 110 / 0.6),
-        rgb(255 54 194 / 0.6),
-        rgb(65 154 255 / 0.6),
-        transparent
-      )
-      center / 100% 0.75rem no-repeat;
+    radial-gradient(closest-side, #fff, rgb(255 255 255 / 0) 70%),
+    linear-gradient(0deg, transparent 46%, #fff 49% 51%, transparent 54%)
+      center / 0.5rem 4rem no-repeat;
   filter: drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px rgb(255 54 194 / 0.6));
   opacity: 0;
-  animation: game-katana-cut 0.5s ease-out forwards;
+  animation: game-katana-glint 0.5s ease-out forwards;
 }
 
 /* Chunky 3D surfaces: white bodies on an ink ledge, with purple gloss chips. */
@@ -616,16 +637,16 @@
 
 @keyframes game-katana-blade {
   0% {
-    translate: 0 -50%;
-    scale: 0.6 1;
+    stroke-dashoffset: 0.3;
+    stroke-width: 5;
     opacity: 1;
   }
   45% {
     opacity: 1;
   }
   to {
-    translate: 280% -50%;
-    scale: 1.4 0.4;
+    stroke-dashoffset: -1;
+    stroke-width: 2;
     opacity: 0;
   }
 }
@@ -730,21 +751,38 @@
   0%,
   12% {
     opacity: 0;
-    clip-path: inset(0 100% 0 0);
+    stroke-dashoffset: 1;
+    stroke-width: var(--cut-width);
   }
   30% {
     opacity: 1;
-    clip-path: inset(0 0 0 0);
-    scale: 1 1.6;
+    stroke-dashoffset: 0;
+    stroke-width: calc(var(--cut-width) * 1.6);
   }
   55% {
     opacity: 0.9;
-    scale: 1 1.1;
+    stroke-width: calc(var(--cut-width) * 1.1);
   }
   to {
     opacity: 0;
-    clip-path: inset(0 0 0 0);
-    scale: 1.02 0.2;
+    stroke-dashoffset: 0;
+    stroke-width: calc(var(--cut-width) * 0.2);
+  }
+}
+
+@keyframes game-katana-glint {
+  0%,
+  25% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  35% {
+    opacity: 1;
+    scale: 1.2;
+  }
+  to {
+    opacity: 0;
+    scale: 0.8;
   }
 }
 
@@ -807,8 +845,7 @@
   .game-celebration *,
   .game-pack-motes > i,
   .game-cut-flash,
-  .game-cut-flash::before,
-  .game-cut-flash::after,
+  .game-cut-flash *,
   [data-slot="pack-opening"] > .game-canvas,
   [data-slot="select-content"][data-variant="game"] {
     animation: none !important;

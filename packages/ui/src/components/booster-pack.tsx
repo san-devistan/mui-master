@@ -50,7 +50,7 @@ function BoosterPack({
       ref={canvasRef}
       data-slot="booster-pack"
       className={cn("game-canvas touch-none select-none", className)}
-      aria-label="Billion Club booster pack, 5 song cards"
+      aria-label="Billion Club booster pack, 5 cards"
     />
   )
 }

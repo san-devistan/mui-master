@@ -14,6 +14,3 @@ url = "https://mcp.better-auth.com/mcp"
 
 [mcp_servers.stripe]
 url = "https://mcp.stripe.com"
-
-[mcp_servers.soundcharts]
-url = "https://mcp.soundcharts.com/mcp"

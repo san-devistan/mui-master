@@ -115,8 +115,8 @@ export function usePreviewUrl() {
 // Plays a song's preview on its own, fully faded in `by` seconds from now,
 // unless the game's sound is off; looked up and loaded meanwhile. `autoplay`
 // resolves once the song is heard, or once it won't be. Fades it out on
-// `stop` or when the component unmounts.
-export function useSongPreview(songId: string) {
+// `stop` or when the component unmounts. No song (an artist with none): silent.
+export function useSongPreview(songId: string | null) {
   const previewUrl = usePreviewUrl()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   // False once stopped, so a preview still loading doesn't start after.
@@ -134,7 +134,7 @@ export function useSongPreview(songId: string) {
   )
 
   async function start(by: number) {
-    if (!sfx.isEnabled()) return
+    if (!sfx.isEnabled() || !songId) return
     wantedRef.current = true
     const end = performance.now() + by * 1000
     const url = await previewUrl(songId).catch(() => null)

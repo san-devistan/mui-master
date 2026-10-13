@@ -3,7 +3,7 @@ import { Effect } from "effect"
 
 import { internal } from "./_generated/api"
 import { action, internalQuery } from "./_generated/server"
-import { fetchDeezerPreview, searchDeezerPreview } from "./songs/_lib/deezer"
+import { searchDeezerPreview } from "./songs/_lib/deezer"
 
 export const songSource = internalQuery({
   args: { songId: v.string() },
@@ -13,28 +13,21 @@ export const songSource = internalQuery({
     if (!song) {
       return null
     }
-
-    const versions = song.isrc
-      ? []
-      : await ctx.db
-          .query("songVersions")
-          .withIndex("by_songId", (q) => q.eq("songId", song._id))
-          .take(10)
+    const leadId = song.artistIds.at(0)
+    const lead = leadId ? await ctx.db.get("artists", leadId) : null
 
     return {
-      previewUrl: song.previewUrl,
-      isrc: song.isrc ?? versions.find((version) => version.isrc)?.isrc,
-      title: song.title,
-      leadArtist: song.artistNames[0],
+      previewUrl: song.preview,
+      title: song.name,
+      leadArtist: lead?.name,
     }
   },
 })
 
-// The stored Spotify preview, else Deezer's: by ISRC, then by exact title and
-// lead artist when that ISRC's release has no preview. Deezer URLs expire,
-// so they're resolved at play time and never stored.
-// shortcut: no ownership check while the web game runs on demo data; check
-// ownedSongs again once players have real collections.
+// The stored Spotify preview, else Deezer's, found by exact title and lead
+// artist. Deezer URLs expire, so they're resolved at play time and never stored.
+// shortcut: no ownership check while the web game runs on demo data; add one
+// once authenticated players have real collections.
 export const preview = action({
   args: { songId: v.string() },
   handler: async (ctx, args): Promise<{ url: string | null }> => {
@@ -47,16 +40,11 @@ export const preview = action({
       return { url: source.previewUrl }
     }
 
-    const byIsrc = source.isrc
-      ? fetchDeezerPreview(source.isrc)
-      : Effect.succeed(null)
+    if (!source.leadArtist) {
+      return { url: null }
+    }
     const url = await Effect.runPromise(
-      byIsrc.pipe(
-        Effect.flatMap((found) =>
-          found || !source.leadArtist
-            ? Effect.succeed(found)
-            : searchDeezerPreview(source.title, source.leadArtist)
-        ),
+      searchDeezerPreview(source.title, source.leadArtist).pipe(
         Effect.catch(() => Effect.succeed(null))
       )
     )

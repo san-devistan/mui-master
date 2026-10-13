@@ -8,9 +8,13 @@ composition; data and logic come from `@workspace/backend`.
 Screens are built from `@workspace/ui`. When something is missing, it usually
 belongs in `packages/ui` rather than in the app.
 
-The current game UI uses static data from `src/game/_lib/demo-data.ts`, a
-Convex dev snapshot. Replace it with backend queries when the game loop is
-built.
+The game reads the catalog from Convex (`convex/packs.ts`): `packs.open`
+draws a pack, `packs.cards` loads the collection's cards, `packs.catalog`
+gives the card count and pack covers. Cards are songs or artists
+(`src/game/_lib/cards.ts`). Until accounts exist, the player's collection
+(card ids, copies, first pull) lives in localStorage
+(`src/game/_lib/collection.ts`); card details always come from the backend.
+The profile page is empty for now.
 
 ## Effect
 

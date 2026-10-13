@@ -52,3 +52,12 @@ export function normalizeText(text: string) {
 export function songKey(title: string, leadArtistId: string) {
   return `${leadArtistId}:${normalizeText(canonicalTitle(title))}`
 }
+
+type Release = { metadata: { releaseDate: string } }
+
+// Which of two releases of one recording (same ISRC) a card keeps: the oldest. Dates are
+// "YYYY-MM-DD" or "YYYY", which sort as text; a year-only date sorts before that year's full
+// dates, so it counts as the oldest. Same date keeps `b`, the one already stored.
+export function isBetterRelease(a: Release, b: Release) {
+  return a.metadata.releaseDate < b.metadata.releaseDate
+}

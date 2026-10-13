@@ -1,7 +1,7 @@
 // Run: node packages/backend/convex/songs/_lib/dedupe.check.mjs
 import assert from "node:assert/strict"
 
-import { displayTitle } from "./dedupe.ts"
+import { displayTitle, isBetterRelease } from "./dedupe.ts"
 
 const cases = {
   "Lapada Dela - Ao Vivo": "Lapada Dela",
@@ -47,3 +47,14 @@ const cases = {
 for (const [title, expected] of Object.entries(cases)) {
   assert.equal(displayTitle(title), expected, title)
 }
+
+/** @param {string} releaseDate */
+const release = (releaseDate) => ({ metadata: { releaseDate } })
+assert.ok(isBetterRelease(release("2008-05-27"), release("2022-01-14")))
+assert.ok(!isBetterRelease(release("2022-01-14"), release("2008-05-27")))
+assert.ok(isBetterRelease(release("2010-08-12"), release("2010-08-13")))
+// A year-only date counts as the oldest of its year, but not of an earlier one.
+assert.ok(isBetterRelease(release("2010"), release("2010-08-13")))
+assert.ok(!isBetterRelease(release("2010"), release("2009-12-31")))
+// Same date keeps the one already stored.
+assert.ok(!isBetterRelease(release("2010-08-13"), release("2010-08-13")))

@@ -38,13 +38,13 @@ export const BRAND = {
   mesh: ["#a238ff", "#c470f8", "#7b2cff", "#d9a0ff"],
 }
 
+// A card: a song (cover, title, credited artists) or an artist (photo, name, "Artist").
 export type GameSong = {
   id: string
   title: string
   artist: string
   imageUrl: string
   streams: number
-  rank: number
   rarity: Rarity
 }
 

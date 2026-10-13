@@ -1,6 +1,11 @@
 "use client"
 
 import { Celebration } from "@workspace/ui/components/celebration"
+import {
+  CutGuide,
+  CutSlash,
+  useCutSlash,
+} from "@workspace/ui/components/cut-slash"
 import { GameMotes } from "@workspace/ui/components/game-motes"
 import { useReveal } from "@workspace/ui/hooks/use-reveal"
 import {
@@ -92,6 +97,7 @@ function PackOpening({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<OpeningScene | null>(null)
   const dragRef = useRef<Drag | null>(null)
+  const cut = useCutSlash()
   // Where a press on the waiting pack started, so dragging it round to turn
   // it doesn't also open it.
   const pressRef = useRef<{ x: number; y: number } | null>(null)
@@ -151,6 +157,7 @@ function PackOpening({
 
   function cutOpen() {
     dragRef.current = null
+    cut.finish()
     sceneRef.current?.setCut(1)
     play("swipe")
     setTimeout(() => play("open"), 350)
@@ -160,11 +167,14 @@ function PackOpening({
 
   function cancelCut() {
     dragRef.current = null
+    cut.clear()
     sceneRef.current?.setCut(0)
   }
 
+  // A new stroke starts with each grab; only the cut keeps it.
   function grab(event: PointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId)
+    cut.trace(event, true)
     const { left, width } = event.currentTarget.getBoundingClientRect()
     const { clientX: x, clientY: y, timeStamp: at } = event
     dragRef.current = { x, y, at, left, width, trail: [{ x, y, at }] }
@@ -173,6 +183,7 @@ function PackOpening({
   function cutAlong(event: PointerEvent<HTMLDivElement>) {
     const start = dragRef.current
     if (!start) return
+    cut.trace(event)
     const done = Math.max(0, (event.clientX - start.x) / start.width)
     // The cut follows the finger itself along the seam.
     const under = (event.clientX - start.left) / start.width
@@ -224,6 +235,7 @@ function PackOpening({
 
   return (
     <div
+      ref={cut.stage}
       data-slot="pack-opening"
       data-phase={phase}
       className={cn(
@@ -235,9 +247,7 @@ function PackOpening({
     >
       {phase === "idle" || phase === "cut" ? <GameMotes /> : null}
       <canvas ref={canvasRef} className="game-canvas z-10" aria-hidden="true" />
-      {phase === "open" ? (
-        <i className="game-cut-flash" aria-hidden="true" />
-      ) : null}
+      {phase === "open" && cut.slash ? <CutSlash slash={cut.slash} /> : null}
       {phase === "cards" && party?.index === index ? (
         <Celebration key={party.key} rarity={party.rarity} />
       ) : null}
@@ -255,19 +265,14 @@ function PackOpening({
       ) : null}
 
       {phase === "cut" ? (
-        <>
-          <div
-            className="game-cut-guide h-14 absolute z-20 cursor-grab active:cursor-grabbing"
-            aria-hidden="true"
-            onPointerDown={grab}
-            onPointerMove={cutAlong}
-            onPointerUp={cancelCut}
-            onPointerCancel={cancelCut}
-          />
-          <button type="button" className="sr-only" onClick={cutOpen}>
-            Cut pack open
-          </button>
-        </>
+        <CutGuide
+          ref={cut.guide}
+          onPointerDown={grab}
+          onPointerMove={cutAlong}
+          onPointerUp={cancelCut}
+          onPointerCancel={cancelCut}
+          onCut={cutOpen}
+        />
       ) : null}
 
       {phase === "cards" ? (

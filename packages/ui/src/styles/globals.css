@@ -179,8 +179,8 @@
 }
 
 @utility game-safe-top {
-  /* iOS 26 Safari tabs report a 0 inset but blur the page top below the status bar. */
-  padding-top: max(1rem, env(safe-area-inset-top, 0px));
+  /* iOS Safari tabs already start the page below the status bar and report a 0 inset. */
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
 }
 
 @utility game-safe-bottom {

@@ -1,7 +1,8 @@
 import { CardDetail, type Showcase } from "@/game/_components/card-showcase"
 import { CollectionCount } from "@/game/_components/collection-count"
-import { COLLECTION, type CollectedSong } from "@/game/_lib/demo-data"
-import { getRouteApi } from "@tanstack/react-router"
+import { useCollectedCards, type CollectedSong } from "@/game/_lib/collection"
+import { getRouteApi, Link } from "@tanstack/react-router"
+import { Button } from "@workspace/ui/components/button"
 import { GameMain, GameScroll } from "@workspace/ui/components/game-shell"
 import {
   Select,
@@ -46,14 +47,13 @@ const SORTS = {
   recent: {
     label: "Recent",
     Icon: ClockIcon,
-    compare: (a: CollectedSong, b: CollectedSong) =>
-      b.pulledOn.localeCompare(a.pulledOn),
+    compare: (a: CollectedSong, b: CollectedSong) => b.pulledAt - a.pulledAt,
   },
   rarest: {
     label: "Rarest",
     Icon: GemIcon,
     compare: (a: CollectedSong, b: CollectedSong) =>
-      rarityRank(b) - rarityRank(a) || a.rank - b.rank,
+      rarityRank(b) - rarityRank(a) || b.streams - a.streams,
   },
   title: {
     label: "A–Z",
@@ -76,12 +76,15 @@ const DROP = 0.6
 const route = getRouteApi("/_game/collection")
 
 export function CollectionPage() {
+  const cards = useCollectedCards()
+  const collection = cards ?? []
   // New cards just pulled from a pack, newest first: shown first, under all
   // rarities and the recent order the page opens with, and badged NEW. They
   // aren't in the grid on arrival; they're added one by one, first pulled
   // first, each dropping in at the top and pushing the rest down. Leaving the
   // page drops `added` from the URL, and the badges.
   const { added = [] } = route.useSearch()
+  const fresh = new Set(added)
   // How many of the new cards are in the grid so far, oldest pull first.
   const [landed, setLanded] = useState(0)
   const arriving = landed < added.length
@@ -103,10 +106,14 @@ export function CollectionPage() {
     const at = added.indexOf(song.id)
     return at < 0 ? added.length : at
   }
-  const order = COLLECTION.toSorted((a, b) =>
-    sort === "recent"
-      ? freshness(a) - freshness(b) || SORTS.recent.compare(a, b)
-      : SORTS[sort].compare(a, b)
+  const order = new Map(
+    collection
+      .toSorted((a, b) =>
+        sort === "recent"
+          ? freshness(a) - freshness(b) || SORTS.recent.compare(a, b)
+          : SORTS[sort].compare(a, b)
+      )
+      .map((song, at) => [song.id, at])
   )
   const isShown = (song: CollectedSong) =>
     filter === "all" || song.rarity === filter
@@ -213,12 +220,13 @@ export function CollectionPage() {
         </div>
 
         <GameScroll>
+          {cards?.length === 0 ? <EmptyCollection /> : null}
           <ul className="gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 grid grid-cols-2">
             {/* Keep WebGL cards mounted while filtering; hide and reorder instead. */}
-            {COLLECTION.map((song) => {
-              const isNew = added.includes(song.id)
+            {collection.map((song) => {
+              const isNew = fresh.has(song.id)
               const orderStyle: CssVars = {
-                "--game-order": String(order.indexOf(song)),
+                "--game-order": String(order.get(song.id)),
                 "--game-card": `card-${song.id}`,
               }
               return (
@@ -235,7 +243,7 @@ export function CollectionPage() {
                   <button
                     type="button"
                     className="group/card @container relative block w-full rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-ring"
-                    aria-label={`${song.title} by ${song.artist}, ${song.rarity}${isNew ? ", new" : ""}`}
+                    aria-label={`${song.kind === "artist" ? `${song.title}, artist` : `${song.title} by ${song.artist}`}, ${song.rarity}${isNew ? ", new" : ""}`}
                     onClick={(event) => {
                       openerRef.current = event.currentTarget
                       setShowcase({
@@ -284,6 +292,19 @@ export function CollectionPage() {
           onClose={() => setShowcase(null)}
         />
       ) : null}
+    </div>
+  )
+}
+
+function EmptyCollection() {
+  return (
+    <div className="gap-4 pt-16 flex flex-col items-center text-center">
+      <p className="text-lg font-bold">No cards yet</p>
+      <Button
+        variant="game"
+        nativeButton={false}
+        render={<Link to="/">Open a pack</Link>}
+      />
     </div>
   )
 }
