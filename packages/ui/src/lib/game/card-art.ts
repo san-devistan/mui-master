@@ -113,8 +113,11 @@ function border(ctx: CanvasRenderingContext2D, kind: GameSong["kind"]) {
   ctx.stroke()
 }
 
-async function cover(ctx: CanvasRenderingContext2D, song: GameSong) {
-  const image = await loadImage(song.imageUrl)
+function cover(
+  ctx: CanvasRenderingContext2D,
+  song: GameSong,
+  image: HTMLImageElement
+) {
   const art = photo(ART, song.kind)
   ctx.save()
   ctx.shadowColor = "rgb(18 16 22 / 0.35)"
@@ -317,19 +320,25 @@ function cardShape(kind: GameSong["kind"]) {
 }
 
 export async function drawCardArt(song: GameSong) {
-  await Promise.all(
-    [DISPLAY, UI, STREAMS].map((font) => document.fonts.load(font))
-  )
+  // The cover downloads while the fonts load, not after.
+  const [image] = await Promise.all([
+    loadImage(song.imageUrl),
+    ...[DISPLAY, UI, STREAMS].map((font) => document.fonts.load(font)),
+  ])
   const front = blankCanvas(CARD_W, CARD_H)
-  await cover(front.ctx, song)
+  cover(front.ctx, song, image)
   stats(front.ctx, song)
   border(front.ctx, song.kind)
   return {
     front: front.canvas,
     shape: cardShape(song.kind),
-    marquees: [
-      caption(song.title, "title", padding(song.kind)),
-      caption(song.artist, "artist", padding(song.kind)),
-    ],
+    // Artist cards show just the name: their wavy edge already says what they are.
+    marquees:
+      song.kind === "artist"
+        ? [caption(song.title, "title", padding(song.kind))]
+        : [
+            caption(song.title, "title", padding(song.kind)),
+            caption(song.artist, "artist", padding(song.kind)),
+          ],
   }
 }

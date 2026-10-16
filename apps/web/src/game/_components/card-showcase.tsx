@@ -33,8 +33,10 @@ const MIRROR = 0.13
 const TOP_GAP = 48
 // The facts sit this much lower than the card's mirror alone would put them.
 const FACTS_DROP = 16
-// The most seconds the panel waits past the reveal for a slow song to start.
-const SONG_WAIT = 2
+// Seconds the panel's rows take to come in, one after the other (each row's
+// fade plus the stagger before the last, as in the panel's classes): timed to
+// be fully in as the card's reveal ends.
+const PANEL_IN = 0.5 + 0.2
 const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")
 const compact = new Intl.NumberFormat("en", {
   notation: "compact",
@@ -88,16 +90,16 @@ export function CardDetail({
   const factsRef = useRef<HTMLDListElement>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [landed, setLanded] = useState(false)
-  // The facts, links and close button show once the reveal has played out
-  // and the song is heard, so they come in with it.
+  // The facts, links and close button come in over the end of the reveal, so
+  // they are all in as the card's animation ends.
   const [settled, setSettled] = useState(false)
   // Measured once the panel is laid out, before the card mounts.
   const [land, setLand] = useState<ReturnType<typeof landing> | null>(null)
-  const preview = useSongPreview(song.previewSongId)
+  const preview = useSongPreview(song.previewSongId, song.preview)
   // Out on show, between take-off and heading home.
   const flying = phase === "shown"
-  // Fully in once the card has landed and its reveal has played: it fades in
-  // over the end of the reveal. Resolves once it's heard, or won't be.
+  // The song is fully in once the card has landed and its reveal has played:
+  // it fades in over the end of the reveal.
   const autoplay = useEffectEvent((by: number) => preview.autoplay(by))
 
   useLayoutEffect(() => {
@@ -128,29 +130,17 @@ export function CardDetail({
   useEffect(() => {
     if (!flying) return undefined
     const timers: Array<ReturnType<typeof setTimeout>> = []
-    let cancelled = false
-    const after = (seconds: number) =>
-      new Promise<void>((resolve) => {
-        timers.push(setTimeout(resolve, seconds * 1000))
-      })
     timers.push(setTimeout(() => setLanded(true), FLY * 1000))
     const played = FLY + REVEAL_PLAYED[song.rarity]
-    // A slow preview holds the panel back only so long: it has the close
-    // button.
-    async function settle() {
-      await Promise.all([
-        after(played),
-        Promise.race([autoplay(played), after(played + SONG_WAIT)]),
-      ])
-      if (!cancelled) setSettled(true)
-    }
-    void settle()
+    timers.push(
+      setTimeout(() => setSettled(true), Math.max(0, played - PANEL_IN) * 1000)
+    )
+    void autoplay(played)
     if (song.rarity === "legendary") {
       timers.push(setTimeout(() => play(REVEAL.legendary), FLY * 1000 + 850))
     }
     play(song.rarity === "legendary" ? "swipe" : REVEAL[song.rarity])
     return () => {
-      cancelled = true
       for (const timer of timers) clearTimeout(timer)
     }
   }, [song, flying])
@@ -204,7 +194,7 @@ export function CardDetail({
       {song.copies > 1 ? (
         <div
           data-shown={flying || undefined}
-          className="inset-x-0 top-0 px-5 md:px-8 md:pt-8 -translate-y-4 data-shown:translate-y-0 pointer-events-none absolute flex justify-end game-safe-top opacity-0 transition duration-300 data-shown:opacity-100"
+          className="inset-x-0 top-0 px-5 md:px-8 md:pt-8 -translate-y-4 data-shown:translate-y-0 pointer-events-none absolute flex justify-end game-safe-top opacity-0 transition duration-150 data-shown:opacity-100 data-shown:duration-300"
         >
           <CountBadge count={song.copies} />
         </div>
@@ -214,9 +204,9 @@ export function CardDetail({
         data-settled={settled || undefined}
         className="group/panel inset-x-0 bottom-0 pb-6 md:pb-8 pointer-events-none absolute data-shown:pointer-events-auto"
       >
-        {/* Each row rises and fades in once the reveal is done, one after
-            the other; they leave together when the card heads home. */}
-        <div className="max-w-md px-5 gap-4 *:translate-y-3 *:ease-out group-data-settled/panel:*:translate-y-0 mx-auto flex flex-col items-center *:opacity-0 *:transition *:duration-500 group-data-settled/panel:*:opacity-100 group-data-settled/panel:*:nth-2:delay-100 group-data-settled/panel:*:nth-3:delay-200">
+        {/* Each row rises and fades in over the end of the reveal, one after
+            the other; they leave together, quickly, as the card heads home. */}
+        <div className="max-w-md px-5 gap-4 *:translate-y-3 *:ease-out group-data-settled/panel:*:translate-y-0 mx-auto flex flex-col items-center *:opacity-0 *:transition *:duration-150 group-data-settled/panel:*:opacity-100 group-data-settled/panel:*:duration-500 group-data-settled/panel:*:nth-2:delay-100 group-data-settled/panel:*:nth-3:delay-200">
           {/* One centred group, each fact as wide as its value, so a long
               date doesn't pull the weight to one side. */}
           <dl
@@ -224,13 +214,10 @@ export function CardDetail({
             className="gap-5 *:pr-5 *:last:pr-0 flex items-center justify-center divide-x-2 divide-ink/15"
           >
             {song.kind === "song" ? (
-              <>
-                <SongFact label="BPM" value={String(song.bpm)} />
-                <SongFact
-                  label="Released"
-                  value={releaseDay(song.releaseDate ?? "")}
-                />
-              </>
+              <SongFact
+                label="Released"
+                value={releaseDay(song.releaseDate ?? "")}
+              />
             ) : (
               <SongFact
                 label="Monthly listeners"

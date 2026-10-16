@@ -1,3 +1,5 @@
+import { v } from "convex/values"
+
 import type { Doc, Id } from "./_generated/dataModel"
 import { mutation, query, type QueryCtx } from "./_generated/server"
 import { playerId } from "./auth"
@@ -23,10 +25,12 @@ type Card = {
   rarity: CardRarity
   // The song whose preview plays: the song itself, or the artist's most played one.
   previewSongId: Id<"songs"> | null
+  // That song's stored Spotify preview, so the client plays it without a lookup; null when it
+  // has none (Deezer's expire, so they're looked up at play time).
+  preview: string | null
   spotifyUrl: string
   deezerUrl: string | null
-  // Song cards: BPM and release date. Artist cards: monthly listeners.
-  bpm?: number
+  // Song cards: release date. Artist cards: monthly listeners.
   releaseDate?: string
   monthlyListeners?: number
 }
@@ -46,30 +50,39 @@ const songCard = async (ctx: QueryCtx, song: Doc<"songs">): Promise<Card> => {
     streams: song.playcount,
     rarity: song.rarity,
     previewSongId: song._id,
+    preview: song.preview,
     spotifyUrl: `https://open.spotify.com/track/${song.ids.spotify}`,
     deezerUrl: song.ids.deezer
       ? `https://www.deezer.com/track/${song.ids.deezer}`
       : null,
-    bpm: song.metadata.tempo,
     releaseDate: song.metadata.releaseDate,
   }
 }
 
-const artistCard = (artist: Doc<"artists">): Card => ({
-  kind: "artist",
-  id: artist._id,
-  title: artist.name,
-  subtitle: "Artist",
-  imageUrl: artist.image,
-  streams: artist.playcount,
-  rarity: artist.rarity,
-  previewSongId: artist.topSongId ?? null,
-  spotifyUrl: `https://open.spotify.com/artist/${artist.ids.spotify}`,
-  deezerUrl: artist.ids.deezer
-    ? `https://www.deezer.com/artist/${artist.ids.deezer}`
-    : null,
-  monthlyListeners: artist.monthlyListeners,
-})
+const artistCard = async (
+  ctx: QueryCtx,
+  artist: Doc<"artists">
+): Promise<Card> => {
+  const top = artist.topSongId
+    ? await ctx.db.get("songs", artist.topSongId)
+    : null
+  return {
+    kind: "artist",
+    id: artist._id,
+    title: artist.name,
+    subtitle: "Artist",
+    imageUrl: artist.image,
+    streams: artist.playcount,
+    rarity: artist.rarity,
+    previewSongId: artist.topSongId ?? null,
+    preview: top?.preview ?? null,
+    spotifyUrl: `https://open.spotify.com/artist/${artist.ids.spotify}`,
+    deezerUrl: artist.ids.deezer
+      ? `https://www.deezer.com/artist/${artist.ids.deezer}`
+      : null,
+    monthlyListeners: artist.monthlyListeners,
+  }
+}
 
 // A random card of `rarity`: the first at or after a random drawKey, wrapping round. Each card
 // is as likely as the gap before its key, close enough to uniform at this size.
@@ -102,7 +115,7 @@ const drawArtist = async (ctx: QueryCtx, rarity: CardRarity) => {
       .query("artists")
       .withIndex("by_rarity_and_drawKey", (q) => q.eq("rarity", rarity))
       .first())
-  return row ? artistCard(row) : null
+  return row ? await artistCard(ctx, row) : null
 }
 
 // A card by id, song or artist; null when it's gone.
@@ -112,7 +125,7 @@ const cardById = async (ctx: QueryCtx, id: string) => {
   if (song) return await songCard(ctx, song)
   const artistId = ctx.db.normalizeId("artists", id)
   const artist = artistId ? await ctx.db.get("artists", artistId) : null
-  return artist ? artistCard(artist) : null
+  return artist ? await artistCard(ctx, artist) : null
 }
 
 const ownedCard = (ctx: QueryCtx, player: string, cardId: string) =>
@@ -179,11 +192,12 @@ export const next = mutation({
         cardIds: cards.map((card) => card.id),
       })
     }
-    const pulls: Array<Card & { isNew: boolean }> = []
-    for (const card of cards) {
-      pulls.push({ ...card, isNew: !(await ownedCard(ctx, player, card.id)) })
-    }
-    return pulls
+    return await Promise.all(
+      cards.map(async (card) => ({
+        ...card,
+        isNew: !(await ownedCard(ctx, player, card.id)),
+      }))
+    )
   },
 })
 
@@ -200,15 +214,20 @@ export const claim = mutation({
     for (const cardId of pending.cardIds) {
       const owned = await ownedCard(ctx, player, cardId)
       if (owned) {
+        // A pull shows the card at its current rarity, so a pending upgrade is seen.
+        const card = await cardById(ctx, cardId)
         await ctx.db.patch("collection", owned._id, {
           copies: owned.copies + 1,
+          ...(card ? { seenRarity: card.rarity } : {}),
         })
       } else {
+        const card = await cardById(ctx, cardId)
         await ctx.db.insert("collection", {
           playerId: player,
           cardId,
           copies: 1,
           pulledAt,
+          ...(card ? { seenRarity: card.rarity } : {}),
         })
       }
     }
@@ -227,12 +246,61 @@ export const collection = query({
       .query("collection")
       .withIndex("by_playerId", (q) => q.eq("playerId", player))
       .take(5000)
-    const found: Array<Card & { copies: number; pulledAt: number }> = []
-    for (const { cardId, copies, pulledAt } of rows) {
-      const card = await cardById(ctx, cardId)
-      if (card) found.push({ ...card, copies, pulledAt })
+    // Read together, not one card after another.
+    const found = await Promise.all(
+      rows.map(async ({ cardId, copies, pulledAt }) => {
+        const card = await cardById(ctx, cardId)
+        return card ? [{ ...card, copies, pulledAt }] : []
+      })
+    )
+    return found.flat()
+  },
+})
+
+// The signed-in player's cards whose rarity went up since they last saw them, rarest first, each
+// with the rarity it was at; empty for a visitor.
+// shortcut: reads the whole collection like `collection` does; keep a list of pending upgrades
+// per player if collections grow past a few thousand cards.
+export const upgrades = query({
+  args: {},
+  handler: async (ctx) => {
+    const player = await playerId(ctx)
+    if (!player) return []
+    const rows = await ctx.db
+      .query("collection")
+      .withIndex("by_playerId", (q) => q.eq("playerId", player))
+      .take(5000)
+    const found = (
+      await Promise.all(
+        rows.map(async ({ cardId, copies, pulledAt, seenRarity }) => {
+          if (!seenRarity || seenRarity === "legendary") return []
+          const card = await cardById(ctx, cardId)
+          return card &&
+            rarityOrder.indexOf(card.rarity) < rarityOrder.indexOf(seenRarity)
+            ? [{ ...card, copies, pulledAt, from: seenRarity }]
+            : []
+        })
+      )
+    ).flat()
+    return found.toSorted(
+      (a, b) =>
+        rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity) ||
+        b.streams - a.streams
+    )
+  },
+})
+
+// Marks an upgraded card as seen at its current rarity, once its upgrade has played.
+export const seeUpgrade = mutation({
+  args: { cardId: v.string() },
+  handler: async (ctx, { cardId }) => {
+    const player = await playerId(ctx)
+    if (!player) throw new Error("Not signed in")
+    const owned = await ownedCard(ctx, player, cardId)
+    const card = await cardById(ctx, cardId)
+    if (owned && card) {
+      await ctx.db.patch("collection", owned._id, { seenRarity: card.rarity })
     }
-    return found
   },
 })
 

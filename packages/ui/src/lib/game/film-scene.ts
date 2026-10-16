@@ -136,6 +136,8 @@ export type Film = {
   faces: { front: THREE.BufferGeometry; rear: THREE.BufferGeometry }
   // Turns the foil's light without turning the film.
   tilt: THREE.Vector2
+  // Fades the mirror image, 0..1.
+  mirror: { value: number }
   // Resolves once the art is drawn and on the film.
   ready: Promise<void>
 }
@@ -172,6 +174,7 @@ export function addFilm(
     ramp: canvasTexture(drawFoilRamp(spec.stops), renderer),
     time: stage.time,
     tilt: new THREE.Vector2(),
+    mirror: { value: 1 },
   }
   disposables.push(
     spec.geometry,
@@ -228,6 +231,7 @@ export function addFilm(
     reflection,
     faces: { front: spec.geometry, rear: back },
     tilt: foil.tilt,
+    mirror: foil.mirror,
     ready: dress(),
   }
 }

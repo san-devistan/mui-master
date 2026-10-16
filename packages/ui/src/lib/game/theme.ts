@@ -1,5 +1,13 @@
 export type Rarity = "common" | "rare" | "epic" | "legendary"
 
+// Least to most rare.
+export const RARITY_ORDER: ReadonlyArray<Rarity> = [
+  "common",
+  "rare",
+  "epic",
+  "legendary",
+]
+
 // Shader gradients take at most 8 stops.
 export const FOIL: ReadonlyArray<readonly [string, number]> = [
   ["#a238ff", 0.04],

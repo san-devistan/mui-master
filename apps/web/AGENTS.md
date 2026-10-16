@@ -11,8 +11,10 @@ belongs in `packages/ui` rather than in the app.
 The game reads everything from Convex (`convex/packs.ts`): `packs.next` is the
 player's waiting pack, `packs.claim` opens it into their collection,
 `packs.collection` lists their cards, `packs.catalog` gives the card count and
-pack covers. Cards are songs or artists (`src/game/_lib/cards.ts`). The
-profile page is empty for now.
+pack covers. Cards are songs or artists (`src/game/_lib/cards.ts`). On app
+open, `packs.upgrades` cards that went up a rarity climb one rarity per tap on
+their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
+is empty for now.
 
 ## Auth
 

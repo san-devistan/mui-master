@@ -46,6 +46,11 @@ export function getRouter() {
   )
 
   convexQueryClient?.connect(queryClient)
+  // Opens the socket now, paused until the token comes, so its handshake runs
+  // alongside the auth calls instead of after them.
+  if (typeof window !== "undefined") {
+    convexQueryClient?.convexClient.connectionState()
+  }
 
   function ConvexProviderWrapper({ children }: { children: ReactNode }) {
     if (!convexQueryClient) {
@@ -66,7 +71,8 @@ export function getRouter() {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreload: "intent",
+    // The tab bar is always on screen, so every tab's code is loaded up front.
+    defaultPreload: "viewport",
     defaultPreloadStaleTime: 0,
     Wrap: ConvexProviderWrapper,
   })

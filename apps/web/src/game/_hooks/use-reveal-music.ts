@@ -40,7 +40,12 @@ export function useRevealMusic() {
   }
 
   // Fully in `by` seconds from now: once its card's reveal has played out.
-  async function play(songId: string, by = PREVIEW_FADE) {
+  // `stored`: the card's own preview, played without a lookup.
+  async function play(
+    songId: string,
+    by = PREVIEW_FADE,
+    stored: string | null = null
+  ) {
     wantedRef.current = songId
     if (!sfx.isEnabled()) {
       stop()
@@ -51,7 +56,7 @@ export function useRevealMusic() {
     // The last song fades out while the next is looked up; only once it's
     // silent does the next one start.
     const [url] = await Promise.all([
-      previewUrl(songId).catch(() => null),
+      previewUrl(songId, stored).catch(() => null),
       fadeOut(audio),
     ])
     // A later swipe took over, or this song has no preview: stay silent.

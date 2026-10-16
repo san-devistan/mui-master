@@ -90,6 +90,9 @@ export default defineSchema({
     copies: v.number(),
     // When it was first pulled, in ms.
     pulledAt: v.number(),
+    // The rarity the player last saw the card at. Below the card's current rarity, it went up in
+    // a catalog refresh and the app plays its upgrade (packs:upgrades); unset counts as seen.
+    seenRarity: v.optional(cardRarity),
   })
     .index("by_playerId", ["playerId"])
     .index("by_playerId_and_cardId", ["playerId", "cardId"]),

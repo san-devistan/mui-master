@@ -34,7 +34,8 @@ function SelectTrigger({
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
-  size?: "sm" | "default"
+  // `icon`: a round trigger showing only the value's icon (game variant).
+  size?: "sm" | "default" | "icon"
   variant?: "default" | "game"
 }) {
   return (

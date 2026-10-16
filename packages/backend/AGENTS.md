@@ -95,8 +95,11 @@ platform.
   only for now; `playerId(ctx)` is the signed-in user's id. Needs the Convex
   env vars `BETTER_AUTH_SECRET` and `SITE_URL` (the web app's URL).
 - Collection: `collection` holds one row per player and card (copies, first
-  pull); `pendingPacks` holds each player's waiting pack, drawn once by
-  `packs:next` and kept until `packs:claim` adds it to the collection.
+  pull, and `seenRarity`, the rarity they last saw it at); `pendingPacks` holds
+  each player's waiting pack, drawn once by `packs:next` and kept until
+  `packs:claim` adds it to the collection. `packs:upgrades` lists owned cards
+  whose rarity rose past `seenRarity` in a catalog refresh, and
+  `packs:seeUpgrade` marks one seen once the app has shown it.
 - Packs (`packs.ts`): five cards, each rolled with its position's odds
   (`packOdds` in `songs/_lib/rarity.ts`: the first at most rare, the last
   rare or better; one pack in 1,000 is a god pack, all legendary), shown

@@ -15,23 +15,24 @@ import {
   SongCardThumb,
   songCardThumbSlot,
 } from "@workspace/ui/components/song-card"
-import type { CssVars, Rarity } from "@workspace/ui/lib/game/theme"
+import {
+  RARITY_ORDER,
+  type CssVars,
+  type Rarity,
+} from "@workspace/ui/lib/game/theme"
 import {
   ArrowDownAZIcon,
   ArrowDownUpIcon,
   ClockIcon,
   GemIcon,
+  LayersIcon,
   ListFilterIcon,
+  MicVocalIcon,
+  Music2Icon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 
-const RARITY_ORDER: ReadonlyArray<Rarity> = [
-  "common",
-  "rare",
-  "epic",
-  "legendary",
-]
 const FILTERS = {
   all: "All rarities",
   common: "Common",
@@ -40,6 +41,16 @@ const FILTERS = {
   legendary: "Legendary",
 } as const satisfies Record<"all" | Rarity, string>
 type Filter = keyof typeof FILTERS
+
+const KINDS = {
+  all: { label: "All cards", Icon: LayersIcon },
+  song: { label: "Songs", Icon: Music2Icon },
+  artist: { label: "Artists", Icon: MicVocalIcon },
+} as const
+type KindFilter = keyof typeof KINDS
+const KIND_LABELS = Object.fromEntries(
+  Object.entries(KINDS).map(([key, { label }]) => [key, label])
+)
 
 const rarityRank = (song: CollectedSong) => RARITY_ORDER.indexOf(song.rarity)
 
@@ -66,6 +77,30 @@ type SortKey = keyof typeof SORTS
 const SORT_LABELS = Object.fromEntries(
   Object.entries(SORTS).map(([key, { label }]) => [key, label])
 )
+
+// Each card's place in the grid. Under "recent", just-pulled `added` cards
+// come first, newest first; a pack's cards share a pull time and come oldest
+// saved first (least rare), so reversed, ties go newest first, as they dropped in.
+function gridOrder(
+  collection: ReadonlyArray<CollectedSong>,
+  sort: SortKey,
+  added: ReadonlyArray<string>
+) {
+  const freshness = (song: CollectedSong) => {
+    const at = added.indexOf(song.id)
+    return at < 0 ? added.length : at
+  }
+  return new Map(
+    collection
+      .toReversed()
+      .toSorted((a, b) =>
+        sort === "recent"
+          ? freshness(a) - freshness(b) || SORTS.recent.compare(a, b)
+          : SORTS[sort].compare(a, b)
+      )
+      .map((song, at) => [song.id, at])
+  )
+}
 
 const TRIGGER_CLASS = "flex-1 sm:flex-none sm:min-w-48"
 // Seconds before the first just-pulled card drops into the collection, then
@@ -95,28 +130,21 @@ export function CollectionPage() {
     return at < 0 || added.length - 1 - at < landed
   }
   const [filter, setFilter] = useState<Filter>("all")
+  const [kind, setKind] = useState<KindFilter>("all")
   const [sort, setSort] = useState<SortKey>("recent")
   const [showcase, setShowcase] = useState<Showcase | null>(null)
   const openerRef = useRef<HTMLButtonElement | null>(null)
   const selected = showcase?.song ?? null
+  // By id: a live collection update brings new card objects.
+  const isAway = (song: CollectedSong) =>
+    selected?.id === song.id && showcase?.phase !== "lifting"
   // The page steps aside once the big card covers its thumb, and comes back
   // as it heads home.
   const immersive = showcase?.phase === "shown"
-  const freshness = (song: CollectedSong) => {
-    const at = added.indexOf(song.id)
-    return at < 0 ? added.length : at
-  }
-  const order = new Map(
-    collection
-      .toSorted((a, b) =>
-        sort === "recent"
-          ? freshness(a) - freshness(b) || SORTS.recent.compare(a, b)
-          : SORTS[sort].compare(a, b)
-      )
-      .map((song, at) => [song.id, at])
-  )
+  const order = gridOrder(collection, sort, added)
   const isShown = (song: CollectedSong) =>
-    filter === "all" || song.rarity === filter
+    (filter === "all" || song.rarity === filter) &&
+    (kind === "all" || song.kind === kind)
 
   useEffect(() => {
     if (!showcase) openerRef.current?.focus({ preventScroll: true })
@@ -163,61 +191,12 @@ export function CollectionPage() {
           <CollectionCount />
         </header>
 
-        <div className="mt-5 gap-3 flex">
-          <Select
-            items={FILTERS}
-            value={filter}
-            onValueChange={(value) => {
-              if (value) setFilter(value)
-            }}
-          >
-            <SelectTrigger
-              variant="game"
-              aria-label="Filter by rarity"
-              className={TRIGGER_CLASS}
-            >
-              <ListFilterIcon aria-hidden="true" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent variant="game">
-              {Object.entries(FILTERS).map(([key, label]) => (
-                <SelectItem key={key} value={key}>
-                  <span
-                    data-rarity={key === "all" ? undefined : key}
-                    className="size-3 self-center rounded-full border-2 border-ink not-data-rarity:game-rarity-grid data-rarity:game-fill"
-                    aria-hidden="true"
-                  />
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            items={SORT_LABELS}
-            value={sort}
-            onValueChange={(value) => {
-              if (value) setSort(value)
-            }}
-          >
-            <SelectTrigger
-              variant="game"
-              aria-label="Sort cards"
-              className={TRIGGER_CLASS}
-            >
-              <ArrowDownUpIcon aria-hidden="true" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent variant="game">
-              {Object.entries(SORTS).map(([key, { label, Icon }]) => (
-                <SelectItem key={key} value={key}>
-                  <Icon aria-hidden="true" strokeWidth={2.5} />
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <CollectionFilters
+          filter={filter}
+          onFilter={setFilter}
+          sort={sort}
+          onSort={setSort}
+        />
 
         <GameScroll>
           {cards?.length === 0 ? <EmptyCollection /> : null}
@@ -257,7 +236,7 @@ export function CollectionPage() {
                     <SongCardThumb
                       song={song}
                       copies={song.copies}
-                      away={selected === song && showcase?.phase !== "lifting"}
+                      away={isAway(song)}
                     />
                     {isNew ? (
                       <span
@@ -274,6 +253,7 @@ export function CollectionPage() {
           </ul>
         </GameScroll>
       </GameMain>
+      <CardKindSelect kind={kind} onKind={setKind} />
 
       {showcase ? (
         <CardDetail
@@ -305,6 +285,121 @@ function EmptyCollection() {
         nativeButton={false}
         render={<Link to="/">Open a pack</Link>}
       />
+    </div>
+  )
+}
+
+// Rarity and sort, side by side.
+function CollectionFilters({
+  filter,
+  onFilter,
+  sort,
+  onSort,
+}: {
+  filter: Filter
+  onFilter: (filter: Filter) => void
+  sort: SortKey
+  onSort: (sort: SortKey) => void
+}) {
+  return (
+    <div className="mt-5 gap-3 flex">
+      <Select
+        items={FILTERS}
+        value={filter}
+        onValueChange={(value) => {
+          if (value) onFilter(value)
+        }}
+      >
+        <SelectTrigger
+          variant="game"
+          aria-label="Filter by rarity"
+          className={TRIGGER_CLASS}
+        >
+          <ListFilterIcon aria-hidden="true" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent variant="game">
+          {Object.entries(FILTERS).map(([key, label]) => (
+            <SelectItem key={key} value={key}>
+              <span
+                data-rarity={key === "all" ? undefined : key}
+                className="size-3 self-center rounded-full border-2 border-ink not-data-rarity:game-rarity-grid data-rarity:game-fill"
+                aria-hidden="true"
+              />
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        items={SORT_LABELS}
+        value={sort}
+        onValueChange={(value) => {
+          if (value) onSort(value)
+        }}
+      >
+        <SelectTrigger
+          variant="game"
+          aria-label="Sort cards"
+          className={TRIGGER_CLASS}
+        >
+          <ArrowDownUpIcon aria-hidden="true" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent variant="game">
+          {Object.entries(SORTS).map(([key, { label, Icon }]) => (
+            <SelectItem key={key} value={key}>
+              <Icon aria-hidden="true" strokeWidth={2.5} />
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+// Songs, artists or both: a round button floating over the tab bar's right
+// end, showing the chosen type's icon. Steps aside with the tab bar.
+function CardKindSelect({
+  kind,
+  onKind,
+}: {
+  kind: KindFilter
+  onKind: (kind: KindFilter) => void
+}) {
+  return (
+    <div className="right-4 md:right-8 md:bottom-8 mb-20 ease-out md:mb-0 in-data-immersive:translate-y-4 pointer-events-none fixed game-safe-bottom z-40 transition duration-300 in-data-immersive:invisible in-data-immersive:opacity-0">
+      <Select
+        items={KIND_LABELS}
+        value={kind}
+        onValueChange={(value) => {
+          if (value) onKind(value)
+        }}
+      >
+        <SelectTrigger
+          variant="game"
+          size="icon"
+          aria-label={`Card type: ${KINDS[kind].label}`}
+          className="pointer-events-auto"
+        >
+          <SelectValue>
+            {(value: KindFilter) => {
+              const { Icon } = KINDS[value]
+              return <Icon aria-hidden="true" strokeWidth={2.5} />
+            }}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent variant="game" side="top" align="end">
+          {Object.entries(KINDS).map(([key, { label, Icon }]) => (
+            <SelectItem key={key} value={key}>
+              <Icon aria-hidden="true" strokeWidth={2.5} />
+              {label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

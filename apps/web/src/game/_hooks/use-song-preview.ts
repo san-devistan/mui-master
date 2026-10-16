@@ -100,12 +100,13 @@ export async function fadeOut(audio: HTMLAudioElement) {
   if (await fadeAudio(audio, 0)) audio.pause()
 }
 
-// Resolves a song's 30s preview: the stored Spotify one, else Deezer's
-// (looked up server-side, since Deezer's API isn't open to browsers). Null
-// without a Convex backend or a preview.
+// Resolves a song's 30s preview: the stored Spotify one the card came with,
+// else Deezer's (looked up server-side, since Deezer's API isn't open to
+// browsers). Null without a Convex backend or a preview.
 export function usePreviewUrl() {
   const convex = useConvex()
-  return async (songId: string) => {
+  return async (songId: string, stored: string | null = null) => {
+    if (stored) return stored
     if (!convex) return null
     const { url } = await convex.action(api.playback.preview, { songId })
     return url
@@ -116,7 +117,10 @@ export function usePreviewUrl() {
 // unless the game's sound is off; looked up and loaded meanwhile. `autoplay`
 // resolves once the song is heard, or once it won't be. Fades it out on
 // `stop` or when the component unmounts. No song (an artist with none): silent.
-export function useSongPreview(songId: string | null) {
+export function useSongPreview(
+  songId: string | null,
+  stored: string | null = null
+) {
   const previewUrl = usePreviewUrl()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   // False once stopped, so a preview still loading doesn't start after.
@@ -137,7 +141,7 @@ export function useSongPreview(songId: string | null) {
     if (!sfx.isEnabled() || !songId) return
     wantedRef.current = true
     const end = performance.now() + by * 1000
-    const url = await previewUrl(songId).catch(() => null)
+    const url = await previewUrl(songId, stored).catch(() => null)
     if (!url || !wantedRef.current) return
     const next = new Audio(url)
     next.preload = "auto"
