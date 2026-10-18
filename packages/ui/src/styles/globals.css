@@ -264,14 +264,15 @@
   mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);
 }
 
-/* Content scrolling under it fades out into a game dialog's white over its
-   top 3rem (give it pt-12, so the fade ends where its content starts),
-   rather than meeting it at a hard edge. */
-@utility game-dialog-fade {
-  background: linear-gradient(
+/* Faded at both ends, for a scroller that ends inside its panel (e.g. a
+   dialog's list) rather than under the tab bar. */
+@utility game-scroll-fade-both {
+  mask-image: linear-gradient(
     to bottom,
     transparent,
-    color-mix(in oklab, #fff 90%, var(--lavender)) 3rem
+    #000 1.5rem,
+    #000 calc(100% - 1.5rem),
+    transparent
   );
 }
 

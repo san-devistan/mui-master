@@ -53,9 +53,9 @@ export function HoloShop({
         <div className="gap-5 grid">
           <div className="gap-3 flex items-start">
             <DialogHeader className="min-w-0 flex-1">
-              <DialogTitle>Get holos</DialogTitle>
+              <DialogTitle>Holo shop</DialogTitle>
               <DialogDescription>
-                More packs to open, more auctions to win.
+                Rip more packs, outbid rivals and chase every legendary.
               </DialogDescription>
             </DialogHeader>
             <DialogClose
@@ -127,7 +127,7 @@ export function HoloShop({
                   <p className="text-sm font-bold opacity-90">
                     {wallet?.pro
                       ? "You're Pro"
-                      : `${euros(shop.pro.priceCents)} a month, cancel anytime`}
+                      : `${euros(shop.pro.priceCents)}/month, cancel anytime`}
                   </p>
                 </div>
               </div>

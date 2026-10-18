@@ -167,8 +167,8 @@ export default defineSchema({
     // Pro until then (ms); unset or past, the free game. Paid monthly; no checkout yet, so for
     // now only the dev switch sets it (wallet:setPro).
     proUntil: v.optional(v.number()),
-    // When Pro's daily holos were last given (wallet:claimDaily).
-    dailyHolosAt: v.optional(v.number()),
+    // When Pro's weekly holos were last given (wallet:claimWeekly).
+    weeklyHolosAt: v.optional(v.number()),
     // Up to 6 card ids the player shows on their profile, in order (profile.ts).
     showcase: v.optional(v.array(v.string())),
   }).index("by_playerId", ["playerId"]),

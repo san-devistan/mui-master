@@ -2,7 +2,7 @@ import { FreePacks } from "@/game/_components/free-packs"
 import { PageHeader } from "@/game/_components/page-header"
 import { useRevealMusic } from "@/game/_hooks/use-reveal-music"
 import { toGameCard, type GameCard } from "@/game/_lib/cards"
-import { errorText, useWallet } from "@/game/_lib/wallet"
+import { errorText, holos, useWallet } from "@/game/_lib/wallet"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
@@ -185,10 +185,11 @@ function BuyPack({
               variant="game"
               className="flex-1"
               disabled={!wallet || busy || short}
+              aria-label={wallet ? `Buy for ${holos(wallet.packPrice)}` : "Buy"}
               onClick={() => void buy()}
             >
               <HoloCoin />
-              Buy for {wallet?.packPrice ?? ""}
+              {wallet?.packPrice ?? ""}
             </Button>
           </DialogFooter>
         </div>

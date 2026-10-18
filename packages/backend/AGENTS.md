@@ -125,8 +125,8 @@ platform.
   progress can move to a linked account. Free packs come back one per 8 hours,
   3 held at most (`freePacks`, counted from `freePacksSince`); `packs:claim`
   uses one or, with `buy`, costs coins. Pro (`players.proUntil` ahead; no
-  checkout yet) gets one free pack per 4 hours, 6 held, 100 holos a day
-  (`wallet:claimDaily`, called as the app opens, once per UTC day) and 30 open
+  checkout yet) gets one free pack per 4 hours, 6 held, 1,000 holos a week
+  (`wallet:claimWeekly`, called as the app opens, a week after the last) and 30 open
   auctions instead of 10. `wallet:setPro` and `wallet:addHolos` are dev tools
   for testing, refused unless the env var `DEV_TOOLS=1` is set (dev only, never
   prod). `market.ts`: `sell` gives a

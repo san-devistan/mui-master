@@ -96,6 +96,20 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// The game dialog's round close button: in its footer by the actions, or on
+// its own beside the title where there are none.
+function DialogGameClose() {
+  return (
+    <DialogPrimitive.Close
+      data-slot="dialog-close"
+      render={<Button variant="game" size="icon-game" />}
+    >
+      <XIcon />
+      <span className="sr-only">Close</span>
+    </DialogPrimitive.Close>
+  )
+}
+
 function DialogFooter({
   className,
   showCloseButton = false,
@@ -114,13 +128,7 @@ function DialogFooter({
         className={cn("gap-3 flex items-center", className)}
         {...props}
       >
-        <DialogPrimitive.Close
-          data-slot="dialog-close"
-          render={<Button variant="game" size="icon-game" />}
-        >
-          <XIcon />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+        <DialogGameClose />
         {children}
       </div>
     )
@@ -179,6 +187,7 @@ export {
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogGameClose,
   DialogHeader,
   DialogOverlay,
   DialogPortal,

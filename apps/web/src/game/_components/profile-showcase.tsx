@@ -7,7 +7,7 @@ import { api } from "@workspace/backend/api"
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
+  DialogGameClose,
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
@@ -109,8 +109,7 @@ export function ProfileShowcase() {
 
 // The player's cards to pick one from, searchable; those already shown are
 // grayed out. It opens once its first cards are in, so it never shows empty.
-// The cards scroll on under the footer, which fades them out; more load as
-// the end comes near, like the collection's.
+// More load as the end comes near, like the collection's.
 function ShowcasePicker({
   shown,
   onPick,
@@ -133,8 +132,9 @@ function ShowcasePicker({
         compact
         className="sm:max-w-2xl flex max-h-11/12 flex-col"
       >
-        <DialogHeader>
+        <DialogHeader className="flex-row items-center justify-between">
           <DialogTitle>Add to your showcase</DialogTitle>
+          <DialogGameClose />
         </DialogHeader>
         <Input
           variant="game"
@@ -146,9 +146,7 @@ function ShowcasePicker({
         />
         <div
           data-slot="game-scroll"
-          // Runs on under the footer's fade (its top 3rem, plus the gap),
-          // which ends at the close button's top: the cards fade out down to it.
-          className="min-h-0 -mx-2 px-2 pt-2 pb-15 -mb-15 flex-1 overflow-y-auto game-scroll-fade"
+          className="min-h-0 -mx-2 px-2 pt-2 pb-6 flex-1 overflow-y-auto game-scroll-fade-both"
         >
           {cards?.length === 0 ? (
             <p className="py-8 text-center text-ink/60">
@@ -159,7 +157,9 @@ function ShowcasePicker({
             {cards?.map((card) => {
               const already = shown.has(card.id)
               return (
-                <li key={card.id}>
+                // Clipped just outside the card: its canvas runs past it for
+                // the 3D stage's margins, and would let the list slide sideways.
+                <li key={card.id} className="game-thumb-clip">
                   <button
                     type="button"
                     aria-label={`${card.title}, ${card.rarity}${already ? ", already shown" : ""}`}
@@ -181,9 +181,6 @@ function ShowcasePicker({
               <MoreCards key={more ? "ready" : "loading"} onNear={more} />
             )}
           </ul>
-        </div>
-        <div className="-mx-4 px-4 pt-12 -mb-4 pb-3 relative z-1 rounded-b-4xl game-dialog-fade">
-          <DialogFooter variant="game" className="justify-center" />
         </div>
       </DialogContent>
     </Dialog>

@@ -19,6 +19,21 @@ const ICON_FOIL = [
 const ICON_BARS = [16, 30, 48, 62, 40, 26, 14]
 // --brand-mesh, for a player's initial.
 const BRAND_MESH = ["#a238ff", "#c470f8", "#7b2cff", "#d9a0ff"]
+// --foil, for the Pro badge.
+const FOIL = [
+  [0.04, "#a238ff"],
+  [0.15, "#c470f8"],
+  [0.3, "#f5c4f2"],
+  [0.46, "#ffd64a"],
+  [0.58, "#d8d6d8"],
+  [0.66, "#a9b8ff"],
+  [0.74, "#a173fe"],
+  [0.82, "#a238ff"],
+] as const
+// Lucide's crown, on its 24 px grid.
+const CROWN = new Path2D(
+  "M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294zM5 21h14"
+)
 
 type Ctx = CanvasRenderingContext2D
 
@@ -89,6 +104,8 @@ export function pngBlob(canvas: HTMLCanvasElement) {
 export type ProfileShare = {
   name: string
   stats: ReadonlyArray<{ label: string; value: string }>
+  // Shows the Pro badge under the picture, as on the profile page.
+  pro?: boolean
   // The showcase's drawn card thumbs, in order (SongCardThumb canvases).
   cards: ReadonlyArray<HTMLCanvasElement>
 }
@@ -183,13 +200,69 @@ function fitName(ctx: Ctx, name: string, width: number) {
   return shown === name ? name : `${shown.trimEnd()}…`
 }
 
+// The profile page's Pro badge (game.css [data-slot=pro-badge]) at 2×: a
+// foil pill, its crown and "PRO" in ink.
+const BADGE = { height: 50, pad: 15, crown: 26, gap: 8, end: 18 }
+
+function badgeFont(ctx: Ctx) {
+  ctx.font = `900 24px ${BODY}`
+  ctx.letterSpacing = "2px"
+}
+
+function badgeWidth(ctx: Ctx) {
+  ctx.save()
+  badgeFont(ctx)
+  const text = ctx.measureText("PRO").width
+  ctx.restore()
+  return BADGE.pad + BADGE.crown + BADGE.gap + text + BADGE.end
+}
+
+// `x`: its left edge, `y`: its middle.
+function proBadge(ctx: Ctx, x: number, y: number) {
+  const { height } = BADGE
+  const width = badgeWidth(ctx)
+  ctx.save()
+  badgeFont(ctx)
+  const top = y - height / 2
+  ctx.fillStyle = INK
+  ctx.beginPath()
+  ctx.roundRect(x, top + 4, width, height, height / 2)
+  ctx.fill()
+  const foil = ctx.createLinearGradient(x, top, x + width, top + height)
+  for (const [at, color] of FOIL) foil.addColorStop(at, color)
+  ctx.fillStyle = foil
+  ctx.strokeStyle = INK
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.roundRect(x, top, width, height, height / 2)
+  ctx.fill()
+  ctx.stroke()
+  ctx.save()
+  ctx.translate(x + BADGE.pad, y - BADGE.crown / 2)
+  ctx.scale(BADGE.crown / 24, BADGE.crown / 24)
+  ctx.lineWidth = 3
+  ctx.lineCap = "round"
+  ctx.lineJoin = "round"
+  ctx.stroke(CROWN)
+  ctx.restore()
+  ctx.fillStyle = INK
+  ctx.textAlign = "left"
+  ctx.textBaseline = "middle"
+  ctx.fillText("PRO", x + BADGE.pad + BADGE.crown + BADGE.gap, y + 1)
+  ctx.restore()
+}
+
 // A player's profile as a portrait phone picture: their initial, name and
 // stats, their showcase's cards, and the app's name to find it by.
-export function drawProfileShare({ name, stats, cards }: ProfileShare) {
+export function drawProfileShare({ name, stats, pro, cards }: ProfileShare) {
   const { canvas, ctx } = blankCanvas(SHARE_W, SHARE_H, 1)
   const middle = SHARE_W / 2
   backdrop(ctx)
   avatar(ctx, name, middle, HEAD.avatar, HEAD.radius)
+  if (pro) {
+    // Hanging off the picture's bottom, over its ring.
+    proBadge(ctx, middle - badgeWidth(ctx) / 2, HEAD.avatar + HEAD.radius)
+  }
   ctx.fillStyle = INK
   ctx.textAlign = "center"
   ctx.fillText(fitName(ctx, name, SHARE_W - 120), middle, HEAD.name)

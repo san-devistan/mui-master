@@ -66,7 +66,12 @@ export function ProfilePage() {
       (canvas): canvas is HTMLCanvasElement =>
         canvas instanceof HTMLCanvasElement && canvas.width > 0
     )
-    const picture = drawProfileShare({ name, stats, cards: thumbs })
+    const picture = drawProfileShare({
+      name,
+      stats,
+      pro: wallet?.pro,
+      cards: thumbs,
+    })
     void sharePicture(pngBlob(picture), name, `${name} on ${APP_NAME}`)
   }
 
@@ -74,19 +79,23 @@ export function ProfilePage() {
     <GameMain layout="scroll">
       <PageHeader title="Profile" />
       <section className="mt-6 gap-4 md:gap-6 flex items-center">
-        <GameAvatar name={name} image={user?.image} />
+        {/* Pro hangs off the bottom of the picture, over its ring. */}
+        <div className="relative shrink-0">
+          <GameAvatar name={name} image={user?.image} />
+          {wallet?.pro ? (
+            <span
+              data-slot="pro-badge"
+              className="-bottom-2 absolute left-1/2 -translate-x-1/2"
+            >
+              <CrownIcon aria-hidden="true" />
+              Pro
+            </span>
+          ) : null}
+        </div>
         <div className="min-w-0 gap-2 flex flex-1 flex-col">
-          <div className="min-w-0 gap-x-2 gap-y-1 flex flex-wrap items-center">
-            <h2 className="text-2xl md:text-3xl font-black tracking-tighter truncate font-heading">
-              {name}
-            </h2>
-            {wallet?.pro ? (
-              <span data-slot="pro-badge">
-                <CrownIcon aria-hidden="true" />
-                Pro
-              </span>
-            ) : null}
-          </div>
+          <h2 className="text-2xl md:text-3xl font-black tracking-tighter truncate font-heading">
+            {name}
+          </h2>
           <dl className="gap-x-5 gap-y-1 text-sm flex flex-wrap">
             {stats.map((stat) => (
               <ProfileStat key={stat.label} {...stat} />
@@ -113,7 +122,7 @@ export function ProfilePage() {
 
 function ProfileStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col whitespace-nowrap">
       <dt className="text-xs font-semibold tracking-wide text-ink/60 uppercase">
         {label}
       </dt>

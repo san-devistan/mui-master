@@ -23,7 +23,7 @@ const TABS = [
 
 export function GameLayout() {
   const ready = useGuestSession()
-  useDailyHolos(ready)
+  useWeeklyHolos(ready)
   const path = useRouterState({ select: (state) => state.location.pathname })
   const onPacks = path === "/"
   // Once shown, the Packs page stays mounted, hidden on other tabs, so coming
@@ -102,11 +102,11 @@ function useGuestSession() {
   return Boolean(session)
 }
 
-// Pro's daily holos, given once the session is ready: each day the app is opened. The backend
-// gives them at most once a day, so a remount or a second tab adds nothing.
-function useDailyHolos(ready: boolean) {
-  const claimDaily = useMutation(api.wallet.claimDaily)
+// Pro's weekly holos, given once the session is ready, when a week has passed since the last.
+// The backend checks that, so a remount or a second tab adds nothing.
+function useWeeklyHolos(ready: boolean) {
+  const claimWeekly = useMutation(api.wallet.claimWeekly)
   useEffect(() => {
-    if (ready) void claimDaily().catch(() => undefined)
-  }, [ready, claimDaily])
+    if (ready) void claimWeekly().catch(() => undefined)
+  }, [ready, claimWeekly])
 }

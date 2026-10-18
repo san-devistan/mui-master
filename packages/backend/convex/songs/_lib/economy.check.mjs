@@ -2,13 +2,13 @@
 import assert from "node:assert/strict"
 
 import {
-  dailyHolosDue,
   freePackPlan,
   freePacks,
   isPro,
   minBid,
   packPrice,
   sellPrice,
+  weeklyHolosDue,
 } from "./economy.ts"
 import { packOdds } from "./rarity.ts"
 
@@ -44,12 +44,11 @@ assert.equal(freePacks(proOpened, now, proPlan).nextAt, now + 4 * hour)
 assert.equal(freePacks(proOpened, now + 4 * hour, proPlan).count, 6)
 assert.ok(isPro(now + 1, now) && !isPro(now, now) && !isPro(undefined, now))
 
-// Pro's daily holos: once per UTC day.
-const midnight = Date.UTC(2026, 9, 19)
-assert.ok(dailyHolosDue(undefined, now))
-assert.ok(!dailyHolosDue(now, now + hour))
-assert.ok(!dailyHolosDue(midnight - 1, midnight - 1))
-assert.ok(dailyHolosDue(midnight - 1, midnight))
+// Pro's weekly holos: the first straight away, then a week after the last.
+const week = 7 * 24 * hour
+assert.ok(weeklyHolosDue(undefined, now))
+assert.ok(!weeklyHolosDue(now, now + week - 1))
+assert.ok(weeklyHolosDue(now, now + week))
 
 // Selling a whole pack back must stay well under its price, or packs print coins.
 const resale = packOdds.reduce((sum, odds) => {

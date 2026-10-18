@@ -399,9 +399,6 @@ button[data-slot="game-pill"] {
   border: 2.5px solid var(--ink);
   border-radius: 1.25rem;
   background: var(--chunky-fill);
-  box-shadow:
-    var(--chunky-bevel),
-    0 4px 0 var(--ink);
   text-align: center;
 
   & [data-slot="button"] {
@@ -470,10 +467,6 @@ button[data-slot="game-pill"] {
   border-radius: 1.5rem;
   background: var(--brand-mesh);
   color: var(--brand-foreground);
-  box-shadow:
-    0 2px 0 rgb(255 255 255 / 0.45) inset,
-    0 5px 0 var(--ink),
-    0 16px 26px -10px rgb(123 44 255 / 0.7);
   isolation: isolate;
 
   &::before {

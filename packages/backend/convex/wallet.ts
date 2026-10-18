@@ -10,17 +10,17 @@ import {
 import { playerId } from "./auth"
 import {
   auctionHours,
-  dailyHolosDue,
   freePackPlan,
   freePacks,
   holoBundles,
   isPro,
   packPrice,
   pro,
-  proDailyHolos,
   proMonthDays,
+  proWeeklyHolos,
   sellPrice,
   startingCoins,
+  weeklyHolosDue,
 } from "./songs/_lib/economy"
 
 declare const process: { env: Record<string, string | undefined> }
@@ -109,9 +109,9 @@ export const shop = query({
   handler: () => ({ holoBundles, pro }),
 })
 
-// Pro's daily holos: given once a day, when the app opens, to a player who is Pro. Returns how
-// many were given (0 when not Pro or already given today).
-export const claimDaily = mutation({
+// Pro's weekly holos: given when the app opens, to a player who is Pro, a week after the last.
+// Returns how many were given (0 when not Pro or not due yet).
+export const claimWeekly = mutation({
   args: {},
   handler: async (ctx) => {
     const player = await playerId(ctx)
@@ -119,12 +119,12 @@ export const claimDaily = mutation({
     const row = await playerRow(ctx, player)
     const now = Date.now()
     if (!row || !isPro(row.proUntil, now)) return 0
-    if (!dailyHolosDue(row.dailyHolosAt, now)) return 0
+    if (!weeklyHolosDue(row.weeklyHolosAt, now)) return 0
     await ctx.db.patch("players", row._id, {
-      coins: row.coins + proDailyHolos,
-      dailyHolosAt: now,
+      coins: row.coins + proWeeklyHolos,
+      weeklyHolosAt: now,
     })
-    return proDailyHolos
+    return proWeeklyHolos
   },
 })
 

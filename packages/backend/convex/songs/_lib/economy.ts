@@ -15,7 +15,7 @@ const DAY = 24 * HOUR
 // Pro, billed monthly: what it adds over the free game.
 export const proFreePackHours = 4
 export const proMaxFreePacks = 6
-export const proDailyHolos = 100
+export const proWeeklyHolos = 1_000
 export const proMaxOpenAuctions = 30
 export const proMonthDays = 30
 
@@ -49,9 +49,9 @@ export function freePacks(
   }
 }
 
-// Pro's daily holos are due once each (UTC) day: none yet, or the last were on an earlier one.
-export const dailyHolosDue = (lastAt: number | undefined, now: number) =>
-  lastAt === undefined || Math.floor(lastAt / DAY) < Math.floor(now / DAY)
+// Pro's weekly holos are due a week after the last were given, or straight away the first time.
+export const weeklyHolosDue = (lastAt: number | undefined, now: number) =>
+  lastAt === undefined || now - lastAt >= 7 * DAY
 
 // What the bank pays for a copy. A pack averages under half its price back, so buying packs
 // to sell them never pays.
@@ -85,7 +85,10 @@ export const pro = {
       id: "freePacks",
       label: `A free pack every ${proFreePackHours} hours, ${proMaxFreePacks} held`,
     },
-    { id: "dailyHolos", label: `${proDailyHolos} holos every day` },
+    {
+      id: "weeklyHolos",
+      label: `${proWeeklyHolos.toLocaleString("en")} holos every week`,
+    },
     {
       id: "auctions",
       label: `Up to ${proMaxOpenAuctions} auctions at once`,
