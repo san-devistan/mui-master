@@ -4,7 +4,6 @@ import {
   cardFilm,
   cardShine,
   newSticker,
-  shineInset,
 } from "@workspace/ui/lib/game/card-scene"
 import {
   addFilm,
@@ -24,6 +23,7 @@ import {
 import {
   curl,
   cutGlow,
+  LIP_PUFF,
   packInside,
   packFilm,
   STRIP_BAND,
@@ -97,28 +97,37 @@ const PACKED_Y = -60
 // off the cards and out of view while the cards only ease up a little, to the
 // pile's height, and the camera pulls back. Once clear, the stack turns to face
 // the viewer. They stay on screen throughout and never go up then down.
-const CURL = [0, 0.3] as const
-// The strip's bend, 0..1 of a full curl: a stiff tab, not a ribbon.
-const BEND = 0.18
+const CURL = [0, 0.15] as const
+// The strip's bend, 0..1 of a full curl: a ribbon of foil, not a stiff tab.
+// Once free it flutters: the curl breathes and its ends twist back and forth
+// (radians end to end), `rate` radians per second.
+const BEND = 0.5
+const FLUTTER = { bend: 0.15, twist: 1.3, rate: 13 }
 const GAPE = [0, 0.35] as const
 const DROP = [0.3, 1.1] as const
 const PULL_BACK = [0.4, 1.4] as const
 const SLIDE = [0.3, 1.2] as const
 const SETTLE = [1.0, 1.6] as const
+// With a legendary inside, the opened pack holds still while its light flashes
+// (PackGlow), and only then drops away: everything after the gape waits this
+// long, in seconds.
+const GLOW_HOLD = 0.75
+export const glowHold = (songs: ReadonlyArray<GameSong>) =>
+  songs.some((song) => song.rarity === "legendary") ? GLOW_HOLD : 0
 // Seconds from the cut until the cards are out and `onOpened` fires.
-export const OPENED = SETTLE[1]
-// The strip is heavy: still caught on the pack for a beat, pulled taut, then
-// snapped free. It flies on a thrown arc (fast up, hangs at the top, falls
-// faster and faster), spinning slowly and evenly as it goes. It shrinks into
-// the background and drops out of view past the right edge. Per second, in
-// world px; with this camera, the top of the arc stays on screen.
+export const openedAfter = (songs: ReadonlyArray<GameSong>) =>
+  SETTLE[1] + glowHold(songs)
+// The strip is caught on the pack for a blink, pulled taut, then flung: air
+// brakes it hard (`drag`, seconds), so it whips up into the top right corner,
+// half off screen, hangs there tumbling, then falls faster and faster out past
+// the right edge, about a second after it let go. World px, radians, seconds.
 const STRIP_MID = new THREE.Vector3(0, PACK_H / 2 - STRIP_BAND / 2, 0)
-const HOLD = 0.14
-const FLIGHT = 2.2
-// Twist along the strip once free: a slow wobble, end to end, in radians.
-const TWIST = 0.55
-const THROW = { x: 190, y: 820, z: -950, gravity: 1300 }
-const SPIN = { x: -1.3, y: 0.5, z: -2.1 }
+const HOLD = 0.08
+const FLIGHT = 1.5
+const FLING = { x: 210, y: 700, z: -1700, drag: 0.08, turn: -1.6 }
+const DRIFT = 40
+const GRAVITY = 2000
+const SPIN = { x: -3, y: 1.2, z: -3.4 }
 
 export type OpeningPhase = "idle" | "cut" | "open"
 
@@ -180,13 +189,11 @@ function flownStrip(packed: Pose, time: number): Pose {
   // Caught: it strains up and leans back on its free end, then lets go.
   const strain = Math.sin((Math.PI / 2) * clamp01(t / HOLD))
   const flying = Math.max(0, t - HOLD)
-  // Released with a shudder that dies out in a moment.
-  const shudder = 0.08 * Math.exp(-flying / 0.08) * Math.sin(flying * 40)
-  const strained = t < HOLD ? strain : 1
+  const flung = 1 - Math.exp(-flying / FLING.drag)
   const turn = new THREE.Euler(
-    packed.rx - 0.12 * strained + SPIN.x * flying,
+    packed.rx - 0.12 * strain + SPIN.x * flying,
     packed.ry + SPIN.y * flying,
-    packed.rz - 0.06 * strained + SPIN.z * flying + shudder
+    packed.rz - 0.06 * strain + FLING.turn * flung + SPIN.z * flying
   )
   const from = STRIP_MID.clone().applyEuler(
     new THREE.Euler(packed.rx, packed.ry, packed.rz)
@@ -194,15 +201,15 @@ function flownStrip(packed: Pose, time: number): Pose {
   const to = STRIP_MID.clone().applyEuler(turn)
   return {
     ...packed,
-    x: packed.x + from.x - to.x + THROW.x * flying,
+    x: packed.x + from.x - to.x + FLING.x * flung + DRIFT * flying,
     y:
       packed.y +
       from.y -
       to.y +
       6 * strain +
-      THROW.y * flying -
-      (THROW.gravity / 2) * flying ** 2,
-    z: packed.z + from.z - to.z + THROW.z * flying,
+      FLING.y * flung -
+      (GRAVITY / 2) * flying ** 2,
+    z: packed.z + from.z - to.z + FLING.z * flung,
     rx: turn.x,
     ry: turn.y,
     rz: turn.z,
@@ -230,7 +237,8 @@ export function mountOpeningScene(
   // Without it, the waiting pack is simply there.
   { entrance = true } = {}
 ): OpeningScene {
-  const stage = createStage(canvas)
+  // Kept mounted under another tab: hold still and draw nothing until shown.
+  const stage = createStage(canvas, () => canvas.checkVisibility())
   // Cards are hidden below the pack's opening until it has dropped away, so
   // they read as coming out of the pack rather than in front of it.
   const mouth = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -308,8 +316,18 @@ export function mountOpeningScene(
     }
     card.subject.add(new THREE.Mesh(back.geometry, back.material))
   })
-  const shine = cardShine()
-  stage.disposables.push(shine)
+  // One light sweep per card shape, laid on whichever card celebrates.
+  const shines = new Map<GameSong["kind"], ReturnType<typeof cardShine>>()
+  const shineFor = (kind: GameSong["kind"]) => {
+    let shine = shines.get(kind)
+    if (!shine) {
+      shine = cardShine(kind)
+      shines.set(kind, shine)
+      stage.disposables.push(shine)
+    }
+    return shine
+  }
+  let shine = shineFor(songs[0]?.kind)
   const poses = songs.map(() => pose({}))
   const sides = songs.map(() => -1)
   let party: { index: number; rarity: Celebrated; start: number } | null = null
@@ -320,6 +338,7 @@ export function mountOpeningScene(
 
   let phase: OpeningPhase = "idle"
   let elapsed = entrance ? 0 : Infinity
+  const hold = glowHold(songs)
   let current = 0
   let dragged = 0
   // Camera zoom and height; `from` holds them when the cut finished, so the
@@ -341,7 +360,11 @@ export function mountOpeningScene(
     const seen = Math.max(OPENING_H, (OPENING_W * height) / width)
     distance = cameraDistance(seen)
     out = Math.max(OUT, (seen * width) / height / 2 / PILE_ZOOM + CARD_W)
-    stage.renderer.setSize(width, height, false)
+    const size = stage.renderer.getSize(new THREE.Vector2())
+    // Shown again at the same size: resizing would clear the frame on screen.
+    if (size.x !== width || size.y !== height) {
+      stage.renderer.setSize(width, height, false)
+    }
     stage.camera.aspect = width / height
     stage.camera.updateProjectionMatrix()
     // The cut guide over the seam, in the cut view.
@@ -363,7 +386,7 @@ export function mountOpeningScene(
     const grown = lerp(ENTER_SCALE, 1, easeOut(arrived))
     const bob =
       phase === "idle" ? 4 * (1 - Math.cos((time * Math.PI * 2) / 5)) : 0
-    const drop = phase === "open" ? span(elapsed, DROP) ** 2 : 0
+    const drop = phase === "open" ? span(elapsed - hold, DROP) ** 2 : 0
     const gape = phase === "open" ? easeOutBack(span(elapsed, GAPE)) : 0
     // Where the pack is held; the cut strip flies off from here.
     const held = pose({
@@ -395,11 +418,20 @@ export function mountOpeningScene(
         .applyEuler(turn)
         .add(new THREE.Vector3(packed.x, packed.y, packed.z))
     )
-    const curling = phase === "open" ? BEND * easeOut(span(elapsed, CURL)) : 0
-    const freed = phase === "open" ? Math.min(elapsed, HOLD + FLIGHT) - HOLD : 0
-    // Twists one way and back as it flies, easing in after the release.
+    if (phase === "open") markMouth(packed, turn)
+    const freed =
+      phase === "open"
+        ? Math.max(0, Math.min(elapsed, HOLD + FLIGHT) - HOLD)
+        : 0
+    // The flutter eases in after the release.
+    const flutter = clamp01(freed / 0.15)
+    const curling =
+      phase === "open"
+        ? BEND * easeOut(span(elapsed, CURL)) +
+          FLUTTER.bend * flutter * Math.sin(freed * FLUTTER.rate)
+        : 0
     const twisting =
-      freed > 0 ? TWIST * clamp01(freed / 0.3) * Math.sin(freed * 2.6) : 0
+      FLUTTER.twist * flutter * Math.sin(freed * FLUTTER.rate * 0.7 + 0.5)
     if (curling !== curled || twisting !== twisted) {
       curled = curling
       twisted = twisting
@@ -408,6 +440,26 @@ export function mountOpeningScene(
     }
     inside.visible = phase === "open"
     place(strip.subject, phase === "open" ? flownStrip(held, elapsed) : packed)
+  }
+
+  // Where the opened pack's mouth is on screen, for the light a legendary sends
+  // pouring out of it (PackGlow): --mouth-y down the stage, at its front lip, so
+  // the light shows over the opening and the rear film rather than behind them;
+  // --mouth-width across.
+  function markMouth(packed: Pose, turn: THREE.Euler) {
+    const at = (x: number, z = 0) =>
+      new THREE.Vector3(x, PACK_H / 2 - CUT, z)
+        .applyEuler(turn)
+        .add(new THREE.Vector3(packed.x, packed.y, packed.z))
+        .project(stage.camera)
+    const left = at(-PACK_W / 2)
+    const right = at(PACK_W / 2)
+    const lip = at(0, LIP_PUFF * body.subject.scale.z)
+    studio.style.setProperty("--mouth-y", `${((1 - lip.y) / 2) * 100}%`)
+    studio.style.setProperty(
+      "--mouth-width",
+      `${(Math.abs(right.x - left.x) / 2) * 100}%`
+    )
   }
 
   function poseCards(time: number, ease: number) {
@@ -422,8 +474,8 @@ export function mountOpeningScene(
     const pile = new THREE.Euler(tilt.y * 0.4 * hover, turn, 0)
     // Coming out, the cards are one stack: slid straight up inside the pack
     // to the pile's height, then turned to face the pile, never overshooting.
-    const slid = easeOut(span(elapsed, SLIDE))
-    const turned = easeInOut(span(elapsed, SETTLE))
+    const slid = easeOut(span(elapsed - hold, SLIDE))
+    const turned = easeInOut(span(elapsed - hold, SETTLE))
     // Straight up out of the mouth, to where the stack's middle is level with
     // the pile.
     const top = CARD_Y - packedPose(cards.length, pack, 0).y
@@ -507,7 +559,7 @@ export function mountOpeningScene(
 
   function aimCamera(ease: number) {
     if (phase === "open") {
-      const back = easeInOut(span(elapsed, PULL_BACK))
+      const back = easeInOut(span(elapsed - hold, PULL_BACK))
       view.zoom = lerp(from.zoom, PILE_ZOOM, back)
       view.y = lerp(from.y, 0, back)
     } else {
@@ -539,7 +591,7 @@ export function mountOpeningScene(
     posePack(time)
     poseCards(time, stage.still ? 1 : 1 - 0.8 ** (delta * 60))
     sweep(time)
-    if (phase === "open" && !opened && elapsed >= OPENED) {
+    if (phase === "open" && !opened && elapsed - hold >= SETTLE[1]) {
       opened = true
       onOpened()
     }
@@ -573,7 +625,8 @@ export function mountOpeningScene(
     celebrate(index, rarity) {
       if (stage.still) return
       party = { index, rarity, start: stage.time.value }
-      shine.uniforms.inset.value = shineInset(songs[index]?.kind)
+      shine.mesh.visible = false
+      shine = shineFor(songs[index]?.kind)
       cards[index]?.subject.add(shine.mesh)
     },
     dispose: stage.dispose,

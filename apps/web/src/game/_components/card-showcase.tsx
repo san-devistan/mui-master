@@ -1,4 +1,6 @@
-import { ListenLinks } from "@/game/_components/listen-links"
+import { CardTrade } from "@/game/_components/card-trade"
+import { ListenRow } from "@/game/_components/listen-links"
+import { RelatedCards } from "@/game/_components/related-cards"
 import { useSongPreview } from "@/game/_hooks/use-song-preview"
 import type { CollectedSong } from "@/game/_lib/collection"
 import { Button } from "@workspace/ui/components/button"
@@ -12,9 +14,13 @@ import {
 } from "@workspace/ui/components/song-card"
 import type { CardSlot } from "@workspace/ui/lib/game/card-scene"
 import { FLY, REVEAL_PLAYED } from "@workspace/ui/lib/game/reveal-motion"
-import { play, REVEAL } from "@workspace/ui/lib/game/sfx"
-import { XIcon } from "lucide-react"
+import { play } from "@workspace/ui/lib/game/sfx"
+import { ChevronDownIcon, XIcon } from "lucide-react"
 import {
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+  type RefObject,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -72,19 +78,79 @@ export type Showcase = {
   phase: "lifting" | "shown" | "returning"
 }
 
+// Scrolls `scroller` back to its top, smoothly; resolves once there.
+function scrollHome(scroller: HTMLElement | null) {
+  if (!scroller?.scrollTop) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    // Browsers without scrollend settle within the timeout.
+    const timer = setTimeout(resolve, 450)
+    scroller.addEventListener(
+      "scrollend",
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+      { once: true }
+    )
+    scroller.scrollTo({ top: 0, behavior: "smooth" })
+  })
+}
+
+// What the showcase's action rows get: the card shown, its close button to
+// place among them, `close` to send the card home, `picture` for a PNG of it
+// (null before it's drawn), `onTraded` to report copies that left, and the
+// screen's own `context`.
+export type ShowcaseActionsProps<Context = unknown> = {
+  song: CollectedSong
+  closeButton: ReactNode
+  close: () => void
+  picture: () => Blob | null
+  onTraded: (count: number) => void
+  context: Context
+}
+
+// What a screen showing a card can set in place of the collection's: the
+// facts under it, its action rows (a component defined once, given
+// `context`), and what scrolls up below.
+export type ShowcaseParts = {
+  facts?: ReactNode
+  below?: ReactNode
+} & (
+  | { Actions?: undefined; context?: undefined }
+  | {
+      // oxlint-disable-next-line typescript/no-explicit-any -- each screen's own context
+      Actions: ComponentType<ShowcaseActionsProps<any>>
+      context: unknown
+    }
+)
+
+// The showcase scrolls: the card on its first screen, its related cards
+// below. `onRelated` opens one of those the player owns, from its thumb.
 export function CardDetail({
   showcase: { song, from, phase },
   home,
   onShown,
   onReturn,
   onClose,
+  onRelated = () => undefined,
+  covered = false,
+  parts = {},
 }: {
   showcase: Showcase
   home: () => CardSlot | null
   onShown: () => void
   onReturn: () => void
   onClose: () => void
+  onRelated?: (
+    song: CollectedSong,
+    from: CardSlot | undefined,
+    opener: HTMLButtonElement
+  ) => void
+  // Another card is out on show over this one.
+  covered?: boolean
+  parts?: ShowcaseParts
 }) {
+  const scrollerRef = useRef<HTMLDialogElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const cardRef = useRef<SongCardHandle>(null)
   const factsRef = useRef<HTMLDListElement>(null)
@@ -95,6 +161,11 @@ export function CardDetail({
   const [settled, setSettled] = useState(false)
   // Measured once the panel is laid out, before the card mounts.
   const [land, setLand] = useState<ReturnType<typeof landing> | null>(null)
+  // Copies sold or put up from here; the showcase holds the card as it was picked.
+  const [traded, setTraded] = useState(0)
+  const copies = song.copies - traded
+  const shownSong = traded ? { ...song, copies } : song
+  const Actions = parts.Actions ?? CollectionActions
   const preview = useSongPreview(song.previewSongId, song.preview)
   // Out on show, between take-off and heading home.
   const flying = phase === "shown"
@@ -136,10 +207,8 @@ export function CardDetail({
       setTimeout(() => setSettled(true), Math.max(0, played - PANEL_IN) * 1000)
     )
     void autoplay(played)
-    if (song.rarity === "legendary") {
-      timers.push(setTimeout(() => play(REVEAL.legendary), FLY * 1000 + 850))
-    }
-    play(song.rarity === "legendary" ? "swipe" : REVEAL[song.rarity])
+    play("lift")
+    timers.push(setTimeout(() => play(song.rarity), FLY * 1000))
     return () => {
       for (const timer of timers) clearTimeout(timer)
     }
@@ -151,24 +220,42 @@ export function CardDetail({
     onReturn()
     setLanded(false)
     setSettled(false)
+    // The card heads home from its own screen, not scrolled off it.
+    await scrollHome(scrollerRef.current)
     play("swipe")
     await cardRef.current?.flyBack(home)
     onClose()
   }
 
+  const closeButton = (
+    <Button
+      ref={closeRef}
+      variant="game"
+      size="icon-game"
+      onClick={() => void close()}
+      aria-label="Close"
+    >
+      <XIcon aria-hidden="true" />
+    </Button>
+  )
+
   useEventListener("keydown", (event) => {
-    if (event.key === "Escape") void close()
+    // Only the card on top closes.
+    if (event.key === "Escape" && !covered) void close()
   })
 
   return (
     <dialog
+      ref={scrollerRef}
       open
       aria-label={song.title}
-      className="inset-0 p-0 m-0 fixed z-30 size-full max-h-none max-w-none bg-transparent text-ink"
+      inert={covered}
+      data-covered={covered || undefined}
+      className="inset-0 p-0 m-0 fixed z-30 game-no-scrollbar size-full max-h-none max-w-none overflow-y-auto overscroll-contain bg-transparent text-ink transition-opacity duration-300 data-covered:opacity-0"
     >
-      {/* Under the card: the packs page's glowing motes and its celebration,
-          framed like an opened pack. */}
-      <div className="inset-0 md:p-8 pointer-events-none absolute">
+      {/* The card's own screen, as before; the related cards scroll up
+          under it. The motes stay behind both. */}
+      <div className="inset-0 md:p-8 pointer-events-none fixed">
         <GameStage
           ref={stageRef}
           shape="screen"
@@ -180,73 +267,163 @@ export function CardDetail({
           ) : null}
         </GameStage>
       </div>
-      {/* The whole viewport, so the card can fly from anywhere in the grid. */}
-      {land ? (
-        <SongCard
-          ref={cardRef}
-          song={song}
-          from={from}
-          land={land}
-          reveal={!from}
-          onReady={takeOff}
-        />
-      ) : null}
-      {song.copies > 1 ? (
+      <div className="relative h-full">
+        {/* The whole viewport, so the card can fly from anywhere in the grid. */}
+        {land ? (
+          <SongCard
+            ref={cardRef}
+            song={song}
+            from={from}
+            land={land}
+            reveal={!from}
+            onReady={takeOff}
+            // Swiping up and down scrolls to the related cards; sideways tilts.
+            className="touch-pan-y"
+          />
+        ) : null}
+        {copies > 1 ? (
+          <div
+            data-shown={flying || undefined}
+            className="inset-x-0 top-0 px-5 md:px-8 md:pt-8 -translate-y-4 data-shown:translate-y-0 pointer-events-none absolute flex justify-end game-safe-top opacity-0 transition duration-150 data-shown:opacity-100 data-shown:duration-300"
+          >
+            <CountBadge count={copies} />
+          </div>
+        ) : null}
         <div
           data-shown={flying || undefined}
-          className="inset-x-0 top-0 px-5 md:px-8 md:pt-8 -translate-y-4 data-shown:translate-y-0 pointer-events-none absolute flex justify-end game-safe-top opacity-0 transition duration-150 data-shown:opacity-100 data-shown:duration-300"
+          data-settled={settled || undefined}
+          className="group/panel inset-x-0 bottom-0 pb-3 md:pb-5 pointer-events-none absolute data-shown:pointer-events-auto"
         >
-          <CountBadge count={song.copies} />
-        </div>
-      ) : null}
-      <div
-        data-shown={flying || undefined}
-        data-settled={settled || undefined}
-        className="group/panel inset-x-0 bottom-0 pb-6 md:pb-8 pointer-events-none absolute data-shown:pointer-events-auto"
-      >
-        {/* Each row rises and fades in over the end of the reveal, one after
+          {/* Each row rises and fades in over the end of the reveal, one after
             the other; they leave together, quickly, as the card heads home. */}
-        <div className="max-w-md px-5 gap-4 *:translate-y-3 *:ease-out group-data-settled/panel:*:translate-y-0 mx-auto flex flex-col items-center *:opacity-0 *:transition *:duration-150 group-data-settled/panel:*:opacity-100 group-data-settled/panel:*:duration-500 group-data-settled/panel:*:nth-2:delay-100 group-data-settled/panel:*:nth-3:delay-200">
-          {/* One centred group, each fact as wide as its value, so a long
+          <div className="max-w-md px-5 gap-4 *:translate-y-3 *:ease-out group-data-settled/panel:*:translate-y-0 mx-auto flex flex-col items-center *:opacity-0 *:transition *:duration-150 group-data-settled/panel:*:opacity-100 group-data-settled/panel:*:duration-500 group-data-settled/panel:*:nth-2:delay-100 group-data-settled/panel:*:nth-3:delay-200">
+            {/* One centred group, each fact as wide as its value, so a long
               date doesn't pull the weight to one side. */}
-          <dl
-            ref={factsRef}
-            className="gap-5 *:pr-5 *:last:pr-0 flex items-center justify-center divide-x-2 divide-ink/15"
-          >
-            {song.kind === "song" ? (
-              <SongFact
-                label="Released"
-                value={releaseDay(song.releaseDate ?? "")}
-              />
-            ) : (
-              <SongFact
-                label="Monthly listeners"
-                value={compact.format(song.monthlyListeners ?? 0)}
-              />
-            )}
-          </dl>
-          <div className="gap-3 flex items-center justify-center">
-            <ListenLinks song={song} />
-          </div>
-          {/* Wrapped: the button's own transition would override the row's. */}
-          <div className="mt-6">
-            <Button
-              ref={closeRef}
-              variant="game"
-              size="icon-game"
-              onClick={() => void close()}
-              aria-label="Close"
+            <dl
+              ref={factsRef}
+              className="gap-5 *:pr-5 *:last:pr-0 flex items-center justify-center divide-x-2 divide-ink/15"
             >
-              <XIcon aria-hidden="true" />
-            </Button>
+              <Facts facts={parts.facts} song={song} />
+            </dl>
+            <Actions
+              context={parts.context}
+              song={shownSong}
+              closeButton={closeButton}
+              close={() => void close()}
+              picture={() => cardRef.current?.snapshot() ?? null}
+              onTraded={(count) => setTraded((done) => done + count)}
+            />
+            <MoreBelow scroller={scrollerRef} />
           </div>
         </div>
       </div>
+      <ShowcaseBelow
+        shown={settled}
+        below={parts.below}
+        song={song}
+        onRelated={onRelated}
+      />
     </dialog>
   )
 }
 
-function SongFact({ label, value }: { label: string; value: string }) {
+// A collection card's actions: listening and sharing, then selling copies or
+// putting one up for auction either side of the close button. Selling the
+// last copy closes the showcase.
+function CollectionActions({
+  song,
+  closeButton,
+  close,
+  picture,
+  onTraded,
+}: ShowcaseActionsProps) {
+  return (
+    <>
+      <ListenRow song={song} picture={picture} />
+      {/* Wrapped: the buttons' own transitions would override the row's. */}
+      <CardTrade
+        song={song}
+        copies={song.copies}
+        onTraded={(count) => {
+          onTraded(count)
+          if (count >= song.copies) close()
+        }}
+      >
+        {closeButton}
+      </CardTrade>
+    </>
+  )
+}
+
+// What scrolls up under the showcase (`below`; the card's related cards by
+// default), mounted once the card has landed so its loading costs the flight
+// nothing.
+function ShowcaseBelow({
+  shown,
+  below,
+  song,
+  onRelated,
+}: {
+  shown: boolean
+  below: ReactNode
+  song: CollectedSong
+  onRelated: ComponentProps<typeof RelatedCards>["onOpen"]
+}) {
+  return (
+    <div
+      data-shown={shown || undefined}
+      className="max-w-2xl gap-4 pt-3 pb-12 mx-auto flex flex-col opacity-0 transition-opacity duration-300 data-shown:opacity-100"
+    >
+      {shown
+        ? (below ?? <RelatedCards song={song} onOpen={onRelated} />)
+        : null}
+    </div>
+  )
+}
+
+// The facts under the card: the screen's own, else the song's or artist's.
+function Facts({ facts, song }: { facts: ReactNode; song: CollectedSong }) {
+  return facts ?? <SongFacts song={song} />
+}
+
+// Points down to what's below the card's screen.
+function MoreBelow({ scroller }: { scroller: RefObject<HTMLElement | null> }) {
+  return (
+    <button
+      type="button"
+      className="flex text-ink/50 outline-none focus-visible:text-ink"
+      aria-label="More below"
+      onClick={() =>
+        scroller.current?.scrollTo({
+          top: innerHeight * 0.85,
+          behavior: "smooth",
+        })
+      }
+    >
+      <ChevronDownIcon aria-hidden="true" className="size-6 animate-bounce" />
+    </button>
+  )
+}
+
+// A song's release day, or an artist's monthly listeners.
+function SongFacts({ song }: { song: CollectedSong }) {
+  return song.kind === "song" ? (
+    <SongFact label="Released" value={releaseDay(song.releaseDate ?? "")} />
+  ) : (
+    <SongFact
+      label="Monthly listeners"
+      value={compact.format(song.monthlyListeners ?? 0)}
+    />
+  )
+}
+
+export function SongFact({
+  label,
+  value,
+}: {
+  label: string
+  value: ReactNode
+}) {
   return (
     <div className="text-center">
       <dt className="text-xs font-semibold tracking-wide text-ink/60 uppercase">

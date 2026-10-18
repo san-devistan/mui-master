@@ -7,16 +7,19 @@ import {
   useCutSlash,
 } from "@workspace/ui/components/cut-slash"
 import { GameMotes } from "@workspace/ui/components/game-motes"
-import { useReveal } from "@workspace/ui/hooks/use-reveal"
+import { PackGlow } from "@workspace/ui/components/pack-glow"
+import { useReveal, type Party } from "@workspace/ui/hooks/use-reveal"
 import {
+  glowHold,
   mountOpeningScene,
-  OPENED,
+  openedAfter,
   type OpeningPhase,
   type OpeningScene,
 } from "@workspace/ui/lib/game/opening-scene"
 import { REVEAL_PLAYED } from "@workspace/ui/lib/game/reveal-motion"
-import { play, sfx } from "@workspace/ui/lib/game/sfx"
-import type { GameSong } from "@workspace/ui/lib/game/theme"
+import { play } from "@workspace/ui/lib/game/sfx"
+import type { CssVars, GameSong } from "@workspace/ui/lib/game/theme"
+import { waitingMusic } from "@workspace/ui/lib/game/waiting-music"
 import { cn } from "@workspace/ui/lib/utils"
 import {
   useEffect,
@@ -37,8 +40,78 @@ const FLICK_MIN = 40
 const FLICK_WINDOW = 100
 // Seconds after a swipe before the new card's reveal cue.
 const REVEAL_AFTER = 0.2
+// Four-point stars twinkling across the reveal tint: x/y as %, then size px.
+const WASH_STARS = [
+  [12, 18, 18],
+  [84, 14, 14],
+  [24, 74, 13],
+  [76, 68, 19],
+  [48, 9, 11],
+  [92, 46, 12],
+  [7, 51, 15],
+  [58, 88, 14],
+  [33, 31, 10],
+  [68, 35, 11],
+  [18, 92, 10],
+  [89, 83, 11],
+].map(([x, y, size], star) => {
+  const vars: CssVars = {
+    "--star-x": `${String(x)}%`,
+    "--star-y": `${String(y)}%`,
+    "--star-size": `${String(size)}px`,
+    "--star-delay": `${String(-(star * 0.29) % 1.4)}s`,
+  }
+  return { id: `wash-star-${String(star)}`, vars }
+})
 
 type Phase = OpeningPhase | "cards"
+
+// The reveal's stars and full-stage motes, faint from the cut on, bright in a
+// first epic or legendary pull's tint.
+function WashSparkles() {
+  return (
+    <>
+      <GameMotes />
+      {WASH_STARS.map((star) => (
+        <i key={star.id} className="game-reveal-star" style={star.vars} />
+      ))}
+    </>
+  )
+}
+
+// Behind the pack in each phase: glowing motes while it waits, the light a
+// legendary sends pouring out of it as it opens, and a first epic or legendary
+// pull recolouring the stage, finishing even if swiped away.
+function Backdrop({
+  phase,
+  pulls,
+  party,
+}: {
+  phase: Phase
+  pulls: ReadonlyArray<PackPull>
+  party: Party | null
+}) {
+  if (phase === "idle") return <GameMotes />
+  const legendary = pulls.some((pull) => pull.rarity === "legendary")
+  return (
+    <>
+      <div className="game-reveal-wash" data-ambient aria-hidden="true">
+        <WashSparkles />
+      </div>
+      {phase === "open" && legendary ? <PackGlow /> : null}
+      {phase === "cards" && party ? (
+        <div
+          key={party.key}
+          className="game-reveal-wash"
+          data-rarity={party.rarity}
+          aria-hidden="true"
+        >
+          <WashSparkles />
+        </div>
+      ) : null}
+    </>
+  )
+}
 export type PackPull = GameSong & { isNew?: boolean }
 
 type Point = { x: number; y: number; at: number }
@@ -99,6 +172,8 @@ type PackOpeningProps = {
   onCard?: (pull: PackPull | null, revealed?: number) => void
   // Fly the waiting pack in; false shows it straight away.
   entrance?: boolean
+  // No pack to open: the waiting pack shows grayed out and can't be tapped.
+  locked?: boolean
   className?: string
 }
 
@@ -110,6 +185,7 @@ function PackOpening({
   onOpenChange,
   onCard,
   entrance = true,
+  locked,
   className,
 }: PackOpeningProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -150,6 +226,9 @@ function PackOpening({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [coverKey, pullKey, reset, reveal, entrance])
 
+  // Music while the opened pack waits to be cut; the cut fades it out.
+  useEffect(() => (phase === "cut" ? waitingMusic() : undefined), [phase])
+
   function enter(next: Phase) {
     setPhase(next)
     if (next !== "cards") sceneRef.current?.setPhase(next)
@@ -163,7 +242,6 @@ function PackOpening({
       Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8
     )
       return
-    void sfx.unlock()
     play("press")
     enter("cut")
     onOpenChange?.(true)
@@ -173,10 +251,13 @@ function PackOpening({
     dragRef.current = null
     cut.finish()
     sceneRef.current?.setCut(1)
-    play("swipe")
-    setTimeout(() => play("open"), 350)
+    play("rip")
+    // As the strip comes free and the pack drops away; with a legendary
+    // inside, one triumphant flourish through its light instead.
+    if (glowHold(pulls)) play("glow")
+    else play("open", 0.3)
     enter("open")
-    onCard?.(pulls[0] ?? null, revealedIn(pulls[0], OPENED))
+    onCard?.(pulls[0] ?? null, revealedIn(pulls[0], openedAfter(pulls)))
   }
 
   function cancelCut() {
@@ -259,7 +340,7 @@ function PackOpening({
         className
       )}
     >
-      {phase === "idle" || phase === "cut" ? <GameMotes /> : null}
+      <Backdrop phase={phase} pulls={pulls} party={party} />
       <canvas ref={canvasRef} className="game-canvas z-10" aria-hidden="true" />
       {phase === "open" && cut.slash ? <CutSlash slash={cut.slash} /> : null}
       {phase === "cards" && party?.index === index ? (
@@ -270,6 +351,7 @@ function PackOpening({
         <button
           type="button"
           aria-label="Open pack"
+          disabled={locked}
           className="inset-0 absolute z-20 rounded-4xl outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-inset"
           onPointerDown={(event) => {
             pressRef.current = { x: event.clientX, y: event.clientY }

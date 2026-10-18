@@ -1,6 +1,7 @@
 import { Toggle as TogglePrimitive } from "@base-ui/react/toggle"
 import { ToggleGroup as ToggleGroupPrimitive } from "@base-ui/react/toggle-group"
 import { toggleVariants } from "@workspace/ui/components/toggle"
+import type { CssVars } from "@workspace/ui/lib/game/theme"
 import { cn } from "@workspace/ui/lib/utils"
 import { type VariantProps } from "class-variance-authority"
 import * as React from "react"
@@ -30,6 +31,7 @@ function ToggleGroup({
     spacing?: number
     orientation?: "horizontal" | "vertical"
   }) {
+  const gap: CssVars = { "--gap": String(spacing) }
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
@@ -37,7 +39,7 @@ function ToggleGroup({
       data-size={size}
       data-spacing={spacing}
       data-orientation={orientation}
-      style={{ "--gap": spacing }}
+      style={gap}
       className={cn(
         "group/toggle-group gap-[--spacing(var(--gap))] flex w-fit flex-row items-center data-vertical:flex-col data-vertical:items-stretch data-[spacing=0]:data-[variant=outline]:rounded-2xl",
         className

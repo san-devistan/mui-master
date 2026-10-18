@@ -1,4 +1,4 @@
-import { PacksPage } from "@/game/_pages/packs-page"
 import { createFileRoute } from "@tanstack/react-router"
 
-export const Route = createFileRoute("/_game/")({ component: PacksPage })
+// The Packs page is kept mounted by GameLayout, so its 3D pack stays put across tabs.
+export const Route = createFileRoute("/_game/")({ component: () => null })

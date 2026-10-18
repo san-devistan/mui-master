@@ -211,12 +211,56 @@
 }
 
 /* Content scrolling under a header dissolves into the backdrop instead of cutting off. */
+/* Clips a card thumb just outside its edge: its canvas runs well past the card
+   for the 3D stage's margins, but the card's own rim and lift reach a little
+   further than its box. Keeps it out of a row's scroll size without cutting
+   the card. */
+@utility game-thumb-clip {
+  overflow: clip;
+  overflow-clip-margin: 0.5rem;
+}
+
+/* A Marquee line too long for its box: it slides left by `--marquee-shift`
+   until its end shows, rests, slides back and rests. Only the side with text
+   hidden past it fades, so a resting line's first or last letter stays clear. */
+@utility game-marquee-fade {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--marquee-fade-start),
+    #000 calc(100% - var(--marquee-fade-end)),
+    transparent
+  );
+  animation: game-marquee-edges ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+
+  /* Its timing comes from the box's animation-duration (set by Marquee). */
+  .game-marquee {
+    animation: game-marquee ease-in-out infinite;
+    animation-duration: inherit;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
 @utility game-scroll-fade {
   mask-image: linear-gradient(to bottom, transparent, #000 1.5rem);
 }
 
-@utility game-order {
-  order: var(--game-order);
+/* Content scrolling under it fades out into a game dialog's white over its
+   top 3rem (give it pt-12, so the fade ends where its content starts),
+   rather than meeting it at a hard edge. */
+@utility game-dialog-fade {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, #fff 90%, var(--lavender)) 3rem
+  );
 }
 
 /* A grid item that slides to its new place when the grid changes inside a
@@ -327,6 +371,41 @@
   }
 }
 
+/* The holo coin: the Holotrack icon's foil on a disc with an ink rim and an
+   ink H. Sized by font-size (1em is the text beside it), so it fits a pill,
+   a button or a sentence. */
+@utility game-holo-coin {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.3em;
+  height: 2.3em;
+  border: 0.24em solid var(--ink);
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      135deg,
+      transparent 38%,
+      rgb(255 255 255 / 0.55) 50%,
+      transparent 62%
+    ),
+    linear-gradient(
+      135deg,
+      #7ef9ff,
+      #a98bff 30%,
+      #ff7ad9 55%,
+      #ffd36e 80%,
+      #7effb2
+    );
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.7) inset;
+  color: var(--ink);
+  font-family: var(--font-heading);
+  font-size: 0.7em;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
 /* How many of a card you hold: the NEW sticker's brushed silver, quieter. No
    rainbow or tilt, just a soft sheen across, an ink rim and ink lettering.
    Sized by font-size (1em is the label), so it fits a card corner or the
@@ -365,9 +444,57 @@
   white-space: nowrap;
   animation: game-count-sheen 7s ease-in-out infinite;
 
+  /* The label's line trimmed to its capitals and baseline, so it sits in the
+     pill's optical middle, level with an icon beside it (Unbounded's line box
+     runs high). */
+  text-box: trim-both cap alphabetic;
+
+  /* What a badge holds besides its label (a price's coin, a time's icon)
+     sits a little smaller than the text, centred on it. */
+  & > [data-slot="holo-coin"] {
+    font-size: 0.5em;
+  }
+
+  & > svg {
+    width: 1.1em;
+    height: 1.1em;
+    stroke-width: 3;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+}
+
+/* Finishes for a GameBadge's silver, by what it shows. `price`: warm gold,
+   like coin metal, its sheen sweeping across. `time`: cool steel, a stopwatch's
+   case, its sheen at rest so only the digits move. */
+@utility game-badge-price {
+  background:
+    linear-gradient(
+        100deg,
+        transparent 40%,
+        rgb(255 255 255 / 0.7) 50%,
+        transparent 60%
+      )
+      0 0 / 250% 100%,
+    repeating-linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0.1) 0 1px,
+      transparent 1px 3px
+    ),
+    linear-gradient(#fff6d6, #f2c75c 50%, #fff2c4);
+}
+
+@utility game-badge-time {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0.1) 0 1px,
+      transparent 1px 3px
+    ),
+    linear-gradient(#eef4fb, #9fb3c8 50%, #eaf1f9);
+  animation: none;
 }
 
 /* App backdrop: lavender settling into off-white, like the lab's studio. */

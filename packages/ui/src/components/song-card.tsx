@@ -11,7 +11,9 @@ import {
 } from "@workspace/ui/lib/game/card-scene"
 import {
   cardThumbSlot,
+  filmKey,
   mountCardThumb,
+  watchNear,
 } from "@workspace/ui/lib/game/card-thumbs"
 import type { GameSong, Rarity } from "@workspace/ui/lib/game/theme"
 import { cn } from "@workspace/ui/lib/utils"
@@ -21,12 +23,16 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  type ReactNode,
   type Ref,
 } from "react"
 
 // Sends a flown-in card back to a slot (re-measured each frame); resolves
-// once it lands.
-type SongCardHandle = Pick<CardScene, "flyBack">
+// once it lands. `snapshot`: the card and its mirror image as a PNG, null
+// before it's drawn.
+type SongCardHandle = Pick<CardScene, "flyBack"> & {
+  snapshot: () => Blob | null
+}
 
 type SongCardProps = {
   song: GameSong
@@ -61,6 +67,7 @@ function SongCard({
 
   useImperativeHandle(ref, () => ({
     flyBack: (to) => sceneRef.current?.flyBack(to) ?? Promise.resolve(),
+    snapshot: () => sceneRef.current?.snapshot() ?? null,
   }))
 
   useEffect(() => {
@@ -103,33 +110,77 @@ type SongCardThumbProps = {
   copies?: number
   // While a big SongCard stands in for it, e.g. mid-flight.
   away?: boolean
+  // Holds its card before it's known to be near the view, e.g. at the top of
+  // a grid built hidden, so it's drawn when the grid shows.
+  eager?: boolean
+  // A card the player hasn't pulled: shown grayed out, and it doesn't react.
+  muted?: boolean
+  // More badges on the card, e.g. a price or a time left (see GameBadge).
+  children?: ReactNode
 }
 
-function LiveThumb({ song, copies = 1, away = false }: SongCardThumbProps) {
+// Holds a card only within reach of its scroller's view: a long grid keeps a
+// few screens of cards, not one per item. Its nodes stay put and only their
+// attributes change: inserting or removing nodes restyles the whole game
+// shell (its `:has()` rules), every time a card comes near or goes.
+function LiveThumb({
+  song,
+  copies = 1,
+  away = false,
+  eager = false,
+  muted = false,
+  children,
+}: SongCardThumbProps) {
+  const slotRef = useRef<HTMLSpanElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [near, setNear] = useState(eager)
   const [drawn, setDrawn] = useState(false)
+  // The card it was first drawn from, kept while the card's looks stay the
+  // same: data updates bring new objects every time (a live auction's every
+  // second), and redrawing each would blink.
+  const [drawnSong, setDrawnSong] = useState(song)
+  if (filmKey(song) !== filmKey(drawnSong)) setDrawnSong(song)
+
+  useEffect(() => {
+    const slot = slotRef.current
+    return slot ? watchNear(slot, setNear) : undefined
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return undefined
-    return mountCardThumb(canvas, song, () => setDrawn(true))
-  }, [song])
+    if (!near || !canvas) return undefined
+    const release = mountCardThumb(canvas, drawnSong, () => setDrawn(true))
+    return () => {
+      release()
+      // Frees its pixels while it's away.
+      canvas.width = 0
+      canvas.height = 0
+      setDrawn(false)
+    }
+  }, [drawnSong, near])
 
   return (
     <span
+      ref={slotRef}
       data-slot="song-card-thumb"
+      data-kind={song.kind}
       data-away={away || undefined}
-      className="group-hover/card:-translate-y-1 @container/thumb relative block aspect-5/7 w-full transition-transform group-active/card:scale-95 data-away:invisible"
+      data-muted={muted || undefined}
+      className="not-data-muted:group-hover/card:-translate-y-1 @container/thumb relative block aspect-5/7 w-full transition-transform not-data-muted:group-active/card:scale-95 data-away:invisible data-muted:opacity-45 data-muted:grayscale"
     >
-      {drawn ? null : (
-        <span className="animate-pulse inset-0 absolute rounded-2xl bg-muted" />
-      )}
+      <span
+        hidden={!near || drawn}
+        className="animate-pulse inset-0 absolute rounded-2xl bg-muted"
+      />
       <canvas
         ref={canvasRef}
         aria-hidden="true"
+        width={0}
+        height={0}
         className="game-card-snapshot absolute max-w-none"
       />
       <CountBadge count={copies} size="card" />
+      {children}
     </span>
   )
 }

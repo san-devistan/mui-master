@@ -5,7 +5,6 @@ import {
   usePreviewUrl,
   waitToFadeIn,
 } from "@/game/_hooks/use-song-preview"
-import { sfx } from "@workspace/ui/lib/game/sfx"
 import { useEffect, useRef } from "react"
 
 // A silent WAV: played inside the tap that opens the pack, so the browser
@@ -14,9 +13,8 @@ const SILENCE =
   "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA="
 
 // Plays each revealed card's preview while it's on show. On a swipe the
-// last song fades out fully, then the next fades in. Follows the game's sound
-// setting; silent for songs without a preview. `unlock` must run inside the
-// tap that opens the pack.
+// last song fades out fully, then the next fades in. Silent for songs without
+// a preview. `unlock` must run inside the tap that opens the pack.
 export function useRevealMusic() {
   const previewUrl = usePreviewUrl()
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -47,10 +45,6 @@ export function useRevealMusic() {
     stored: string | null = null
   ) {
     wantedRef.current = songId
-    if (!sfx.isEnabled()) {
-      stop()
-      return
-    }
     const end = performance.now() + by * 1000
     const audio = current()
     // The last song fades out while the next is looked up; only once it's

@@ -1,7 +1,19 @@
 import { CardDetail, type Showcase } from "@/game/_components/card-showcase"
+import {
+  CardToolbar,
+  OptionSelect,
+  RaritySelect,
+} from "@/game/_components/card-toolbar"
 import { CollectionCount } from "@/game/_components/collection-count"
-import { useCollectedCards, type CollectedSong } from "@/game/_lib/collection"
-import { getRouteApi, Link } from "@tanstack/react-router"
+import { CollectionCard, MoreCards } from "@/game/_components/collection-grid"
+import { PageHeader } from "@/game/_components/page-header"
+import { useArrivals } from "@/game/_hooks/use-arrivals"
+import { useCollection, type CollectedSong } from "@/game/_lib/collection"
+import { rarityArg, type RarityFilter } from "@/game/_lib/rarity-filter"
+import { convexQuery } from "@convex-dev/react-query"
+import { useQuery } from "@tanstack/react-query"
+import { Link } from "@tanstack/react-router"
+import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { GameMain, GameScroll } from "@workspace/ui/components/game-shell"
 import {
@@ -11,36 +23,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import {
-  SongCardThumb,
-  songCardThumbSlot,
-} from "@workspace/ui/components/song-card"
-import {
-  RARITY_ORDER,
-  type CssVars,
-  type Rarity,
-} from "@workspace/ui/lib/game/theme"
+import { songCardThumbSlot } from "@workspace/ui/components/song-card"
 import {
   ArrowDownAZIcon,
   ArrowDownUpIcon,
   ClockIcon,
   GemIcon,
   LayersIcon,
-  ListFilterIcon,
   MicVocalIcon,
   Music2Icon,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
-import { flushSync } from "react-dom"
-
-const FILTERS = {
-  all: "All rarities",
-  common: "Common",
-  rare: "Rare",
-  epic: "Epic",
-  legendary: "Legendary",
-} as const satisfies Record<"all" | Rarity, string>
-type Filter = keyof typeof FILTERS
 
 const KINDS = {
   all: { label: "All cards", Icon: LayersIcon },
@@ -52,87 +45,95 @@ const KIND_LABELS = Object.fromEntries(
   Object.entries(KINDS).map(([key, { label }]) => [key, label])
 )
 
-const rarityRank = (song: CollectedSong) => RARITY_ORDER.indexOf(song.rarity)
-
+// Sorted by the backend (convex/collection.ts).
 const SORTS = {
-  recent: {
-    label: "Recent",
-    Icon: ClockIcon,
-    compare: (a: CollectedSong, b: CollectedSong) => b.pulledAt - a.pulledAt,
-  },
-  rarest: {
-    label: "Rarest",
-    Icon: GemIcon,
-    compare: (a: CollectedSong, b: CollectedSong) =>
-      rarityRank(b) - rarityRank(a) || b.streams - a.streams,
-  },
-  title: {
-    label: "A–Z",
-    Icon: ArrowDownAZIcon,
-    compare: (a: CollectedSong, b: CollectedSong) =>
-      a.title.localeCompare(b.title),
-  },
+  recent: { label: "Recent", Icon: ClockIcon },
+  rarest: { label: "Rarest", Icon: GemIcon },
+  title: { label: "A–Z", Icon: ArrowDownAZIcon },
 } as const
 type SortKey = keyof typeof SORTS
-const SORT_LABELS = Object.fromEntries(
-  Object.entries(SORTS).map(([key, { label }]) => [key, label])
-)
 
-// Each card's place in the grid. Under "recent", just-pulled `added` cards
-// come first, newest first; a pack's cards share a pull time and come oldest
-// saved first (least rare), so reversed, ties go newest first, as they dropped in.
-function gridOrder(
-  collection: ReadonlyArray<CollectedSong>,
+// About a phone screen of cards, drawn even while the page is hidden.
+const EAGER = 8
+
+// The backend's arguments for the chosen sort and filters; "all" is no filter.
+const collectionQuery = (
   sort: SortKey,
-  added: ReadonlyArray<string>
-) {
-  const freshness = (song: CollectedSong) => {
-    const at = added.indexOf(song.id)
-    return at < 0 ? added.length : at
-  }
-  return new Map(
-    collection
-      .toReversed()
-      .toSorted((a, b) =>
-        sort === "recent"
-          ? freshness(a) - freshness(b) || SORTS.recent.compare(a, b)
-          : SORTS[sort].compare(a, b)
-      )
-      .map((song, at) => [song.id, at])
-  )
+  filter: RarityFilter,
+  kind: KindFilter
+) => ({
+  sort,
+  ...rarityArg(filter),
+  ...(kind === "all" ? {} : { kind }),
+})
+// A card out on show, and the related card's button it was opened from (null
+// for one picked from the grid); `key` tells apart the same card opened twice.
+type Opened = {
+  showcase: Showcase
+  opener: HTMLButtonElement | null
+  key: number
 }
+let opened = 0
+// The text a search looks for: opening or closing an empty search changes nothing found, so it
+// keeps the grid's scroll; typing starts the results at the top.
+const searched = (search: string | null) => search?.trim() ?? ""
 
-const TRIGGER_CLASS = "flex-1 sm:flex-none sm:min-w-48"
-// Seconds before the first just-pulled card drops into the collection, then
-// between each next one, and the drop itself (see game-drop).
-const FIRST_DROP = 0.35
-const DROP_STAGGER = 0.45
-const DROP = 0.6
-const route = getRouteApi("/_game/collection")
+// The showcase moved on to `phase`.
+const toPhase = (phase: Showcase["phase"]) => (current: Showcase) => ({
+  ...current,
+  phase,
+})
+// Applies `change` to the card at `depth` in the stack, if it's still open.
+const atDepth =
+  (depth: number, change: (showcase: Showcase) => Showcase) =>
+  (open: ReadonlyArray<Opened>) =>
+    open.map((card, at) =>
+      at === depth ? { ...card, showcase: change(card.showcase) } : card
+    )
 
-export function CollectionPage() {
-  const cards = useCollectedCards()
-  const collection = cards ?? []
-  // New cards just pulled from a pack, newest first: shown first, under all
-  // rarities and the recent order the page opens with, and badged NEW. They
-  // aren't in the grid on arrival; they're added one by one, first pulled
-  // first, each dropping in at the top and pushing the rest down. Leaving the
-  // page drops `added` from the URL, and the badges.
-  const { added = [] } = route.useSearch()
-  const fresh = new Set(added)
-  // How many of the new cards are in the grid so far, oldest pull first.
-  const [landed, setLanded] = useState(0)
-  const arriving = landed < added.length
-  // The tab bar stays away until the last one is in, so none falls over it.
-  const [settled, setSettled] = useState(!arriving)
-  const isLanded = (song: CollectedSong) => {
-    const at = added.indexOf(song.id)
-    return at < 0 || added.length - 1 - at < landed
-  }
-  const [filter, setFilter] = useState<Filter>("all")
+// Kept mounted by GameLayout, hidden (`shown` false) on other tabs: it keeps
+// its filters, scroll and drawn cards. Cards load a page at a time as the grid
+// nears its end, and only those near the view hold a 3D card.
+export function CollectionPage({ shown }: { shown: boolean }) {
+  const [filter, setFilter] = useState<RarityFilter>("all")
   const [kind, setKind] = useState<KindFilter>("all")
   const [sort, setSort] = useState<SortKey>("recent")
-  const [showcase, setShowcase] = useState<Showcase | null>(null)
+  // Null while the search field is closed.
+  const [search, setSearch] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // A pack's new cards arrive on the page as it opens: recent, all cards, top.
+  const { fresh, isLanded, dropping, unbadge } = useArrivals(() => {
+    setFilter("all")
+    setKind("all")
+    setSort("recent")
+    setSearch(null)
+    scrollRef.current?.scrollTo({ top: 0 })
+  })
+  const { cards, done, more } = useCollection(
+    collectionQuery(sort, filter, kind),
+    search
+  )
+  const scrollToTop = () => scrollRef.current?.scrollTo({ top: 0 })
+  // A new filter or order starts at the top.
+  const refine =
+    <Value,>(set: (value: Value) => void) =>
+    (value: Value) => {
+      set(value)
+      scrollToTop()
+    }
+  // Cards out on show: the one picked from the grid, then any opened from
+  // the related cards of the one under it, each over the last. Each keeps the
+  // button it was opened from, to fly back into.
+  const [stack, setStack] = useState<ReadonlyArray<Opened>>([])
+  const showcase = stack[0]?.showcase ?? null
+  const setShowcase = (next: Showcase | null) =>
+    setStack(next ? [{ showcase: next, opener: null, key: (opened += 1) }] : [])
+  // Left mid-showcase (browser back): they close, and their songs stop.
+  if (!shown && stack.length) setStack([])
+  const openCard = (next: Showcase) => {
+    setShowcase(next)
+    unbadge(next.song.id)
+  }
   const openerRef = useRef<HTMLButtonElement | null>(null)
   const selected = showcase?.song ?? null
   // By id: a live collection update brings new card objects.
@@ -141,142 +142,103 @@ export function CollectionPage() {
   // The page steps aside once the big card covers its thumb, and comes back
   // as it heads home.
   const immersive = showcase?.phase === "shown"
-  const order = gridOrder(collection, sort, added)
-  const isShown = (song: CollectedSong) =>
-    (filter === "all" || song.rarity === filter) &&
-    (kind === "all" || song.kind === kind)
 
   useEffect(() => {
     if (!showcase) openerRef.current?.focus({ preventScroll: true })
   }, [showcase])
-
-  useEffect(() => {
-    if (!arriving) return undefined
-    // The first lands as the page settles; each next once the last is in.
-    const timer = setTimeout(
-      () => {
-        // Slides the cards below down to make room, where supported.
-        if (!document.startViewTransition) {
-          return setLanded((count) => count + 1)
-        }
-        document.startViewTransition(() =>
-          flushSync(() => setLanded((count) => count + 1))
-        )
-      },
-      (landed === 0 ? FIRST_DROP : DROP_STAGGER) * 1000
-    )
-    return () => clearTimeout(timer)
-  }, [arriving, landed])
-
-  useEffect(() => {
-    if (arriving || settled) return undefined
-    const timer = setTimeout(() => setSettled(true), DROP * 1000)
-    return () => clearTimeout(timer)
-  }, [arriving, settled])
 
   return (
     // Like an opened pack: the page and tab bar step aside for the card,
     // which flies out of the grid and back into it.
     <div
       data-immersive={immersive || undefined}
+      data-dropping={dropping || undefined}
       className="min-h-0 relative flex flex-1 flex-col"
     >
-      {/* Sends only the tab bar away; the page itself stays. */}
-      {settled ? null : <span data-immersive hidden />}
+      {/* Sends only the tab bar away (and, by data-dropping, the floating
+          controls), so no card falls over them; the page itself stays. */}
+      {dropping ? <span data-immersive hidden /> : null}
       <GameMain inert={showcase !== null}>
-        <header className="gap-x-3 gap-y-3 flex flex-wrap items-center justify-between">
-          <h1 className="text-4xl font-black md:text-6xl tracking-tighter font-heading">
-            Collection
-          </h1>
-          <CollectionCount />
-        </header>
+        <PageHeader title="Collection" />
 
-        <CollectionFilters
-          filter={filter}
-          onFilter={setFilter}
-          sort={sort}
-          onSort={setSort}
-        />
+        <CardToolbar
+          label="Search your cards"
+          search={search}
+          onSearch={(next) => {
+            if (searched(search) !== searched(next)) scrollToTop()
+            setSearch(next)
+          }}
+        >
+          <RaritySelect value={filter} onValue={refine(setFilter)} />
+          <OptionSelect
+            options={SORTS}
+            value={sort}
+            onValue={refine(setSort)}
+            label="Sort cards"
+            Icon={ArrowDownUpIcon}
+          />
+        </CardToolbar>
 
-        <GameScroll>
-          {cards?.length === 0 ? <EmptyCollection /> : null}
+        <GameScroll ref={scrollRef}>
+          {/* Counted by the backend, so it's known before any card loads. */}
+          <EmptyCollection />
+          <NoMatch search={search} found={done ? cards : null} />
           <ul className="gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 grid grid-cols-2">
-            {/* Keep WebGL cards mounted while filtering; hide and reorder instead. */}
-            {collection.map((song) => {
-              const isNew = fresh.has(song.id)
-              const orderStyle: CssVars = {
-                "--game-order": String(order.get(song.id)),
-                "--game-card": `card-${song.id}`,
-              }
-              return (
-                <li
-                  key={song.id}
-                  hidden={!isShown(song) || !isLanded(song)}
-                  className={
-                    isNew
-                      ? "game-drop game-order game-slides"
-                      : "game-order game-slides"
-                  }
-                  style={orderStyle}
-                >
-                  <button
-                    type="button"
-                    className="group/card @container relative block w-full rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-ring"
-                    aria-label={`${song.kind === "artist" ? `${song.title}, artist` : `${song.title} by ${song.artist}`}, ${song.rarity}${isNew ? ", new" : ""}`}
-                    onClick={(event) => {
-                      openerRef.current = event.currentTarget
-                      setShowcase({
-                        song,
-                        from:
-                          songCardThumbSlot(event.currentTarget) ?? undefined,
-                        phase: "lifting",
-                      })
-                    }}
-                  >
-                    <SongCardThumb
-                      song={song}
-                      copies={song.copies}
-                      away={isAway(song)}
-                    />
-                    {isNew ? (
-                      <span
-                        className="group-hover/card:-translate-y-1 game-new-badge transition-transform"
-                        aria-hidden="true"
-                      >
-                        NEW
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              )
-            })}
+            {cards?.map((song, at) => (
+              <CollectionCard
+                key={song.id}
+                song={song}
+                isNew={fresh.has(song.id)}
+                landed={isLanded(song)}
+                away={isAway(song)}
+                // New cards draw while still hidden, so they drop in drawn.
+                eager={at < EAGER || fresh.has(song.id)}
+                openerRef={openerRef}
+                onShowcase={openCard}
+              />
+            ))}
+            {/* Remounted as each page comes in, so it looks again. */}
+            {done ? null : (
+              <MoreCards key={more ? "ready" : "loading"} onNear={more} />
+            )}
           </ul>
         </GameScroll>
       </GameMain>
       <CardKindSelect kind={kind} onKind={setKind} />
+      <CollectionCount />
 
-      {showcase ? (
+      {stack.map(({ showcase: card, opener, key }, depth) => (
         <CardDetail
-          showcase={showcase}
-          home={() => songCardThumbSlot(openerRef.current)}
-          onShown={() =>
-            setShowcase((current) =>
-              current ? { ...current, phase: "shown" } : null
-            )
+          key={key}
+          showcase={card}
+          home={() => songCardThumbSlot(opener ?? openerRef.current)}
+          onShown={() => setStack(atDepth(depth, toPhase("shown")))}
+          onReturn={() => setStack(atDepth(depth, toPhase("returning")))}
+          onClose={() => setStack((above) => above.slice(0, depth))}
+          // Under another card it steps aside, as the page does for it, and
+          // comes back as that card heads home to it.
+          covered={
+            depth < stack.length - 1 &&
+            stack[depth + 1]?.showcase.phase !== "returning"
           }
-          onReturn={() =>
-            setShowcase((current) =>
-              current ? { ...current, phase: "returning" } : null
-            )
-          }
-          onClose={() => setShowcase(null)}
+          onRelated={(song, from, button) => {
+            const next = {
+              showcase: { song, from, phase: "lifting" as const },
+              opener: button,
+              key: (opened += 1),
+            }
+            setStack((above) => [...above.slice(0, depth + 1), next])
+          }}
         />
-      ) : null}
+      ))}
     </div>
   )
 }
 
+// Shown once the backend counts no cards at all.
 function EmptyCollection() {
+  const { data: count } = useQuery(convexQuery(api.collection.count, {}))
+  if (count !== 0) return null
   return (
     <div className="gap-4 pt-16 flex flex-col items-center text-center">
       <p className="text-lg font-bold">No cards yet</p>
@@ -289,74 +251,21 @@ function EmptyCollection() {
   )
 }
 
-// Rarity and sort, side by side.
-function CollectionFilters({
-  filter,
-  onFilter,
-  sort,
-  onSort,
+// Shown once a search has found nothing: `found`, the cards it found, null
+// while it's still looking.
+function NoMatch({
+  search,
+  found,
 }: {
-  filter: Filter
-  onFilter: (filter: Filter) => void
-  sort: SortKey
-  onSort: (sort: SortKey) => void
+  search: string | null
+  found: ReadonlyArray<unknown> | null
 }) {
+  const text = search?.trim()
+  if (!text || found?.length !== 0) return null
   return (
-    <div className="mt-5 gap-3 flex">
-      <Select
-        items={FILTERS}
-        value={filter}
-        onValueChange={(value) => {
-          if (value) onFilter(value)
-        }}
-      >
-        <SelectTrigger
-          variant="game"
-          aria-label="Filter by rarity"
-          className={TRIGGER_CLASS}
-        >
-          <ListFilterIcon aria-hidden="true" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent variant="game">
-          {Object.entries(FILTERS).map(([key, label]) => (
-            <SelectItem key={key} value={key}>
-              <span
-                data-rarity={key === "all" ? undefined : key}
-                className="size-3 self-center rounded-full border-2 border-ink not-data-rarity:game-rarity-grid data-rarity:game-fill"
-                aria-hidden="true"
-              />
-              {label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
-        items={SORT_LABELS}
-        value={sort}
-        onValueChange={(value) => {
-          if (value) onSort(value)
-        }}
-      >
-        <SelectTrigger
-          variant="game"
-          aria-label="Sort cards"
-          className={TRIGGER_CLASS}
-        >
-          <ArrowDownUpIcon aria-hidden="true" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent variant="game">
-          {Object.entries(SORTS).map(([key, { label, Icon }]) => (
-            <SelectItem key={key} value={key}>
-              <Icon aria-hidden="true" strokeWidth={2.5} />
-              {label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <p className="pt-16 text-lg font-bold text-center">
+      No cards match “{text}”
+    </p>
   )
 }
 
@@ -370,7 +279,7 @@ function CardKindSelect({
   onKind: (kind: KindFilter) => void
 }) {
   return (
-    <div className="right-4 md:right-8 md:bottom-8 mb-20 ease-out md:mb-0 in-data-immersive:translate-y-4 pointer-events-none fixed game-safe-bottom z-40 transition duration-300 in-data-immersive:invisible in-data-immersive:opacity-0">
+    <div className="right-4 md:right-8 md:bottom-8 mb-20 ease-out md:mb-0 in-data-immersive:translate-y-4 in-data-dropping:translate-y-4 pointer-events-none fixed game-safe-bottom z-40 transition duration-300 in-data-dropping:invisible in-data-dropping:opacity-0 in-data-immersive:invisible in-data-immersive:opacity-0">
       <Select
         items={KIND_LABELS}
         value={kind}

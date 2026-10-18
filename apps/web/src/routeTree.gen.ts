@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as GameRouteImport } from './routes/_game'
 import { Route as GameIndexRouteImport } from './routes/_game.index'
 import { Route as GameCollectionRouteImport } from './routes/_game.collection'
+import { Route as GameMarketRouteImport } from './routes/_game.market'
 import { Route as GameProfileRouteImport } from './routes/_game.profile'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
@@ -29,6 +30,11 @@ const GameCollectionRoute = GameCollectionRouteImport.update({
   path: '/collection',
   getParentRoute: () => GameRoute,
 } as any)
+const GameMarketRoute = GameMarketRouteImport.update({
+  id: '/market',
+  path: '/market',
+  getParentRoute: () => GameRoute,
+} as any)
 const GameProfileRoute = GameProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -43,11 +49,13 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof GameIndexRoute
   '/collection': typeof GameCollectionRoute
+  '/market': typeof GameMarketRoute
   '/profile': typeof GameProfileRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/collection': typeof GameCollectionRoute
+  '/market': typeof GameMarketRoute
   '/profile': typeof GameProfileRoute
   '/': typeof GameIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -56,19 +64,21 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_game': typeof GameRouteWithChildren
   '/_game/collection': typeof GameCollectionRoute
+  '/_game/market': typeof GameMarketRoute
   '/_game/profile': typeof GameProfileRoute
   '/_game/': typeof GameIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/collection' | '/profile' | '/api/auth/$'
+  fullPaths: '/' | '/collection' | '/market' | '/profile' | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/collection' | '/profile' | '/' | '/api/auth/$'
+  to: '/collection' | '/market' | '/profile' | '/' | '/api/auth/$'
   id:
     | '__root__'
     | '/_game'
     | '/_game/collection'
+    | '/_game/market'
     | '/_game/profile'
     | '/_game/'
     | '/api/auth/$'
@@ -102,6 +112,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameCollectionRouteImport
       parentRoute: typeof GameRoute
     }
+    '/_game/market': {
+      id: '/_game/market'
+      path: '/market'
+      fullPath: '/market'
+      preLoaderRoute: typeof GameMarketRouteImport
+      parentRoute: typeof GameRoute
+    }
     '/_game/profile': {
       id: '/_game/profile'
       path: '/profile'
@@ -121,12 +138,14 @@ declare module '@tanstack/react-router' {
 
 interface GameRouteChildren {
   GameCollectionRoute: typeof GameCollectionRoute
+  GameMarketRoute: typeof GameMarketRoute
   GameProfileRoute: typeof GameProfileRoute
   GameIndexRoute: typeof GameIndexRoute
 }
 
 const GameRouteChildren: GameRouteChildren = {
   GameCollectionRoute: GameCollectionRoute,
+  GameMarketRoute: GameMarketRoute,
   GameProfileRoute: GameProfileRoute,
   GameIndexRoute: GameIndexRoute,
 }

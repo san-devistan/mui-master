@@ -40,23 +40,33 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  variant = "default",
+  compact = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  // `game`: a chunky panel on an ink ledge, like the game select (game.css).
+  // Its close button sits in the footer (`<DialogFooter variant="game">`).
+  variant?: "default" | "game"
+  // Tighter padding and gaps, for a dialog that's mostly content (e.g. a
+  // card picker).
+  compact?: boolean
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay data-variant={variant} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        data-variant={variant}
+        data-compact={compact || undefined}
         className={cn(
-          "gap-6 p-6 text-sm shadow-xl sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-[min(var(--radius-4xl),24px)] bg-popover text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none dark:ring-foreground/10",
+          "gap-6 p-6 data-compact:gap-3 text-sm shadow-xl sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-[min(var(--radius-4xl),24px)] bg-popover text-popover-foreground ring-1 ring-foreground/5 duration-100 outline-none dark:ring-foreground/10",
           className
         )}
         {...props}
       >
         {children}
-        {showCloseButton && (
+        {showCloseButton && variant === "default" ? (
           <DialogPrimitive.Close
             data-slot="dialog-close"
             render={
@@ -70,7 +80,7 @@ function DialogContent({
             <XIcon />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
-        )}
+        ) : null}
       </DialogPrimitive.Popup>
     </DialogPortal>
   )
@@ -89,11 +99,32 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
 function DialogFooter({
   className,
   showCloseButton = false,
+  variant = "default",
   children,
   ...props
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
+  // `game`: the game dialog's round close button, beside the actions.
+  variant?: "default" | "game"
 }) {
+  if (variant === "game") {
+    return (
+      <div
+        data-slot="dialog-footer"
+        className={cn("gap-3 flex items-center", className)}
+        {...props}
+      >
+        <DialogPrimitive.Close
+          data-slot="dialog-close"
+          render={<Button variant="game" size="icon-game" />}
+        >
+          <XIcon />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+        {children}
+      </div>
+    )
+  }
   return (
     <div
       data-slot="dialog-footer"

@@ -68,7 +68,11 @@ export function cameraDistance(height: number) {
   return height / 2 / Math.tan(THREE.MathUtils.degToRad(FOV / 2))
 }
 
-export function createStage(canvas: HTMLCanvasElement): Stage {
+// `shown`: when given, frames are skipped while it's false.
+export function createStage(
+  canvas: HTMLCanvasElement,
+  shown: () => boolean = () => true
+): Stage {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     alpha: true,
@@ -103,6 +107,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const clock = new THREE.Timer()
   renderer.setAnimationLoop((stamp: DOMHighResTimeStamp) => {
     clock.update(stamp)
+    if (!shown()) return
     const delta = Math.min(clock.getDelta(), 0.1)
     if (!still) time.value += delta
     for (const update of updates) update(time.value, delta)
@@ -302,12 +307,14 @@ export function trackPointer(
 }
 
 // One film on its own stage: sways, bobs and turns towards the pointer.
+// `shown`: frames are skipped while it's false (see createStage).
 export function mountFilmScene(
   canvas: HTMLCanvasElement,
   spec: FilmSpec,
-  mirror = true
+  mirror = true,
+  shown?: () => boolean
 ) {
-  const stage = createStage(canvas)
+  const stage = createStage(canvas, shown)
   // Mirror floor just under the lowest bob (+6).
   const film = addFilm(stage, spec, {
     floorY: mirror ? -spec.height / 2 + 4 : undefined,

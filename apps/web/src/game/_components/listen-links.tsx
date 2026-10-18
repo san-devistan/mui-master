@@ -1,5 +1,8 @@
 import type { GameCard } from "@/game/_lib/cards"
+import { sharePicture } from "@/game/_lib/share"
 import { Button } from "@workspace/ui/components/button"
+import { ShareIcon } from "lucide-react"
+import type { ReactNode } from "react"
 
 // Brand marks from Simple Icons (CC0), 24px grid.
 const SERVICES = [
@@ -17,9 +20,16 @@ const SERVICES = [
   },
 ] as const
 
-// The song or artist on each streaming service it's on, opened in a new tab.
-export function ListenLinks({ song }: { song: GameCard }) {
-  return SERVICES.map(({ key, label, path, href }) => {
+// The song or artist on each streaming service it's on, opened in a new tab,
+// with `between` set between the first and the second.
+export function ListenLinks({
+  song,
+  between,
+}: {
+  song: GameCard
+  between?: ReactNode
+}) {
+  const [first, ...rest] = SERVICES.map(({ key, label, path, href }) => {
     const url = href(song)
     return url ? (
       <Button
@@ -38,4 +48,58 @@ export function ListenLinks({ song }: { song: GameCard }) {
       />
     ) : null
   })
+  return (
+    <>
+      {first}
+      {between}
+      {rest}
+    </>
+  )
+}
+
+// The showcase's row: the streaming links, and the share button between them.
+export function ListenRow({
+  song,
+  picture,
+}: {
+  song: GameCard
+  picture: () => Blob | null
+}) {
+  return (
+    <div className="gap-3 flex items-center justify-center">
+      <ListenLinks
+        song={song}
+        between={<ShareCard song={song} picture={picture} />}
+      />
+    </div>
+  )
+}
+
+// Shares a picture of the card through the device's share sheet, or saves it
+// where there's none. `picture`: the card as a PNG, null before it's drawn.
+export function ShareCard({
+  song,
+  picture,
+}: {
+  song: GameCard
+  picture: () => Blob | null
+}) {
+  function share() {
+    const blob = picture()
+    if (!blob) return
+    const text =
+      song.kind === "artist" ? song.title : `${song.title} by ${song.artist}`
+    void sharePicture(blob, song.title, text)
+  }
+
+  return (
+    <Button
+      variant="game"
+      size="icon-game"
+      aria-label="Share this card"
+      onClick={share}
+    >
+      <ShareIcon aria-hidden="true" />
+    </Button>
+  )
 }

@@ -11,6 +11,8 @@ const toggleVariants = cva(
       variant: {
         default: "bg-transparent",
         outline: "border border-input bg-transparent hover:bg-muted",
+        // Chunky chip, pressed in brand colours (game.css).
+        game: "",
       },
       size: {
         default:

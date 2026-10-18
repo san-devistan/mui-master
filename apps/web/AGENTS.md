@@ -10,8 +10,17 @@ belongs in `packages/ui` rather than in the app.
 
 The game reads everything from Convex (`convex/packs.ts`): `packs.next` is the
 player's waiting pack, `packs.claim` opens it into their collection,
-`packs.collection` lists their cards, `packs.catalog` gives the card count and
-pack covers. Cards are songs or artists (`src/game/_lib/cards.ts`). On app
+`collection.list` pages through their cards (filtered and sorted by the
+backend), `collection.count` counts them, `packs.catalog` gives the catalog size
+and pack covers. The Packs, Collection and Market pages stay mounted by the game
+layout, hidden on other tabs, so they keep their state; grid thumbs hold a 3D card
+only near the view. Collection and Market share their toolbar (rarity, a second
+select, search; `src/game/_components/card-toolbar.tsx`); the market's second
+select picks other players' auctions, the player's own, or those they've bid on
+(`market.auctions` `scope`), and a tapped auction opens on its own card page with
+its bid history. A showcased card scrolls down to its related cards
+(`related.*`: an artist's songs and collaborators, a song's artists and their
+songs); owned ones open over it, the rest show grayed out. Cards are songs or artists (`src/game/_lib/cards.ts`). On app
 open, `packs.upgrades` cards that went up a rarity climb one rarity per tap on
 their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
 is empty for now.

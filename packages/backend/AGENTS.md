@@ -95,7 +95,15 @@ platform.
   only for now; `playerId(ctx)` is the signed-in user's id. Needs the Convex
   env vars `BETTER_AUTH_SECRET` and `SITE_URL` (the web app's URL).
 - Collection: `collection` holds one row per player and card (copies, first
-  pull, and `seenRarity`, the rarity they last saw it at); `pendingPacks` holds
+  pull, and `seenRarity`, the rarity they last saw it at), plus the card's
+  kind, rarity rank, title key and streams, copied in by `packs:claim` and
+  `packs:seeUpgrade` so `collection:list` pages through any filter and sort
+  with one index read. `players` keeps each player's card count for
+  `collection:count`. `searchText` (title, plus a song's artists) backs
+  `collection:search`, with the same kind and rarity filters. `credits` has one row per song–artist credit, kept by
+  `catalog:save` and `catalog:refresh` (`syncCredits`), so `related:*` reads
+  an artist's songs and collaborators with an index for the showcase's related
+  cards. `pendingPacks` holds
   each player's waiting pack, drawn once by `packs:next` and kept until
   `packs:claim` adds it to the collection. `packs:upgrades` lists owned cards
   whose rarity rose past `seenRarity` in a catalog refresh, and
@@ -110,6 +118,21 @@ platform.
   artist card plays the preview of its `topSongId`, its most played catalog
   song. `catalog:updateRarities` keeps `topSongId`, `drawKey` and
   `catalogStats` current.
+- Economy (rules and numbers in `songs/_lib/economy.ts`; check:
+  `node packages/backend/convex/songs/_lib/economy.check.mjs`): coins and
+  free packs live on the `players` row (`wallet.ts`), keyed by the Better
+  Auth user id like all game state, not in the auth component, so a guest's
+  progress can move to a linked account. Free packs come back one per 8 hours,
+  3 held at most (`freePacks`, counted from `freePacksSince`); `packs:claim`
+  uses one or, with `buy`, costs coins. `market.ts`: `sell` gives a
+  copy to the bank (the last one too); `list`/`bid`/`cancel` run auctions, the listed copy
+  and the top bid's coins held until `settle` (scheduled at `endsAt`, and again
+  if a late bid pushed it back) hands over the card and pays the seller the
+  whole top bid. Every card or coin move is one mutation. Each bid is also a
+  `bids` row; `auction` returns one auction with its newest 50 bids;
+  `auctions` pages through other players' open auctions (`scope` "live", searchable
+  by `searchText`), or lists the player's own ("mine") or those they've bid on
+  ("bids").
 - Titles: `displayTitle` (`songs/_lib/dedupe.ts`) strips featurings (feat,
   ft, with, con, w/, part.), live, remix, remaster/year and Taylor's Version
   suffixes, for the Deezer preview search. Check:

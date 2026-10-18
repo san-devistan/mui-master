@@ -8,3 +8,5 @@ export const cardRarity = v.union(
 )
 
 export type CardRarity = Infer<typeof cardRarity>
+
+export const cardKind = v.union(v.literal("song"), v.literal("artist"))

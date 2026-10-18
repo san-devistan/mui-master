@@ -1,8 +1,14 @@
-import { v } from "convex/values"
+import { ConvexError, v } from "convex/values"
 
 import type { Doc, Id } from "./_generated/dataModel"
-import { mutation, query, type QueryCtx } from "./_generated/server"
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server"
 import { playerId } from "./auth"
+import { normalizeText } from "./songs/_lib/dedupe"
 import {
   drawRarity,
   godPackChance,
@@ -11,11 +17,12 @@ import {
   rarityOrder,
 } from "./songs/_lib/rarity"
 import type { CardRarity } from "./songs/_lib/validators"
+import { ensurePlayer, payForPack } from "./wallet"
 
 // The game's cards: songs and artists, as the web app shows them. A card's id is its song or
 // artist id; `kind` says which.
 
-type Card = {
+export type Card = {
   kind: "song" | "artist"
   id: Id<"songs"> | Id<"artists">
   title: string
@@ -35,7 +42,10 @@ type Card = {
   monthlyListeners?: number
 }
 
-const songCard = async (ctx: QueryCtx, song: Doc<"songs">): Promise<Card> => {
+export const songCard = async (
+  ctx: QueryCtx,
+  song: Doc<"songs">
+): Promise<Card> => {
   const artists = await Promise.all(
     song.artistIds.map((id) => ctx.db.get("artists", id))
   )
@@ -59,7 +69,7 @@ const songCard = async (ctx: QueryCtx, song: Doc<"songs">): Promise<Card> => {
   }
 }
 
-const artistCard = async (
+export const artistCard = async (
   ctx: QueryCtx,
   artist: Doc<"artists">
 ): Promise<Card> => {
@@ -119,7 +129,7 @@ const drawArtist = async (ctx: QueryCtx, rarity: CardRarity) => {
 }
 
 // A card by id, song or artist; null when it's gone.
-const cardById = async (ctx: QueryCtx, id: string) => {
+export const cardById = async (ctx: QueryCtx, id: string) => {
   const songId = ctx.db.normalizeId("songs", id)
   const song = songId ? await ctx.db.get("songs", songId) : null
   if (song) return await songCard(ctx, song)
@@ -128,7 +138,7 @@ const cardById = async (ctx: QueryCtx, id: string) => {
   return artist ? await artistCard(ctx, artist) : null
 }
 
-const ownedCard = (ctx: QueryCtx, player: string, cardId: string) =>
+export const ownedCard = (ctx: QueryCtx, player: string, cardId: string) =>
   ctx.db
     .query("collection")
     .withIndex("by_playerId_and_cardId", (q) =>
@@ -141,6 +151,79 @@ const pendingPack = (ctx: QueryCtx, player: string) =>
     .query("pendingPacks")
     .withIndex("by_playerId", (q) => q.eq("playerId", player))
     .unique()
+
+// What a collection row is filtered and sorted by, from its card seen at `rarity` (see schema.ts).
+export const sortKeys = (card: Card, rarity = card.rarity) => ({
+  kind: card.kind,
+  rarityRank: rarityRank(rarity),
+  titleKey: normalizeText(card.title),
+  streams: card.streams,
+  // A song's subtitle is its artists' names; an artist's is just "Artist".
+  searchText:
+    card.kind === "song" ? `${card.title} ${card.subtitle}` : card.title,
+})
+
+// 0 for common up to 3 for legendary.
+export const rarityRank = (rarity: CardRarity) =>
+  rarityOrder.length - 1 - rarityOrder.indexOf(rarity)
+
+// Counts `added` more different cards for the player (see schema.ts).
+export const countCards = async (
+  ctx: MutationCtx,
+  player: string,
+  added: number
+) => {
+  const tally = await ensurePlayer(ctx, player)
+  await ctx.db.patch("players", tally._id, { cards: tally.cards + added })
+}
+
+// Puts a copy of the card in the player's collection, seen at its current rarity: a copy more
+// for one they own, else a new card from `pulledAt`.
+export const addCopy = async (
+  ctx: MutationCtx,
+  player: string,
+  card: Card,
+  pulledAt = Date.now()
+) => {
+  const seen = { seenRarity: card.rarity, ...sortKeys(card) }
+  const owned = await ownedCard(ctx, player, card.id)
+  if (owned) {
+    await ctx.db.patch("collection", owned._id, {
+      copies: owned.copies + 1,
+      ...seen,
+    })
+    return
+  }
+  await ctx.db.insert("collection", {
+    playerId: player,
+    cardId: card.id,
+    copies: 1,
+    pulledAt,
+    ...seen,
+  })
+  await countCards(ctx, player, 1)
+}
+
+// Takes `count` copies of a card out of the player's collection; the card leaves it with its last.
+export const takeCopy = async (
+  ctx: MutationCtx,
+  player: string,
+  cardId: string,
+  count = 1
+) => {
+  const owned = await ownedCard(ctx, player, cardId)
+  if (!owned || owned.copies < count) {
+    throw new ConvexError(owned ? "Not that many copies" : "Card not owned")
+  }
+  if (owned.copies > count) {
+    await ctx.db.patch("collection", owned._id, {
+      copies: owned.copies - count,
+    })
+  } else {
+    await ctx.db.delete("collection", owned._id)
+    await countCards(ctx, player, -1)
+  }
+}
 
 // Five cards, each with its position's odds (packOdds, or godPackOdds for the rare god pack),
 // then a song or an artist of the rarity rolled, in proportion to how many of each there are, so
@@ -172,7 +255,6 @@ const drawPack = async (ctx: QueryCtx) => {
 
 // The signed-in player's waiting pack: drawn the first time, then the same cards until they open
 // it, so reloading never rerolls it. `isNew` marks the cards they don't own yet.
-// shortcut: no limit on packs per player; add one (daily packs, a currency) when the game needs it.
 export const next = mutation({
   args: {},
   handler: async (ctx) => {
@@ -202,64 +284,30 @@ export const next = mutation({
 })
 
 // Opens the waiting pack: its cards go into the player's collection, a copy more for one they
-// own. Does nothing without one, so a double tap can't add a pack twice.
+// own. It uses one of the free packs held, or with `buy`, once they're gone, costs coins
+// (wallet.ts). Does nothing without one, so a double tap can't add a pack twice.
 export const claim = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { buy: v.optional(v.boolean()) },
+  handler: async (ctx, { buy = false }) => {
     const player = await playerId(ctx)
     if (!player) throw new Error("Not signed in")
     const pending = await pendingPack(ctx, player)
     if (!pending) return
+    await payForPack(ctx, player, buy)
     const pulledAt = Date.now()
     for (const cardId of pending.cardIds) {
-      const owned = await ownedCard(ctx, player, cardId)
-      if (owned) {
-        // A pull shows the card at its current rarity, so a pending upgrade is seen.
-        const card = await cardById(ctx, cardId)
-        await ctx.db.patch("collection", owned._id, {
-          copies: owned.copies + 1,
-          ...(card ? { seenRarity: card.rarity } : {}),
-        })
-      } else {
-        const card = await cardById(ctx, cardId)
-        await ctx.db.insert("collection", {
-          playerId: player,
-          cardId,
-          copies: 1,
-          pulledAt,
-          ...(card ? { seenRarity: card.rarity } : {}),
-        })
-      }
+      const card = await cardById(ctx, cardId)
+      // Gone since the pack was drawn: nothing to show for it.
+      // A pull shows the card at its current rarity, so a pending upgrade is seen.
+      if (card) await addCopy(ctx, player, card, pulledAt)
     }
     await ctx.db.delete("pendingPacks", pending._id)
   },
 })
 
-// The signed-in player's cards, with their copies and first pull; empty for a visitor.
-// shortcut: the whole collection in one query, fine up to a few thousand cards; paginate past that.
-export const collection = query({
-  args: {},
-  handler: async (ctx) => {
-    const player = await playerId(ctx)
-    if (!player) return []
-    const rows = await ctx.db
-      .query("collection")
-      .withIndex("by_playerId", (q) => q.eq("playerId", player))
-      .take(5000)
-    // Read together, not one card after another.
-    const found = await Promise.all(
-      rows.map(async ({ cardId, copies, pulledAt }) => {
-        const card = await cardById(ctx, cardId)
-        return card ? [{ ...card, copies, pulledAt }] : []
-      })
-    )
-    return found.flat()
-  },
-})
-
 // The signed-in player's cards whose rarity went up since they last saw them, rarest first, each
 // with the rarity it was at; empty for a visitor.
-// shortcut: reads the whole collection like `collection` does; keep a list of pending upgrades
+// shortcut: reads the whole collection (and re-runs on every pull); keep a list of pending upgrades
 // per player if collections grow past a few thousand cards.
 export const upgrades = query({
   args: {},
@@ -268,7 +316,7 @@ export const upgrades = query({
     if (!player) return []
     const rows = await ctx.db
       .query("collection")
-      .withIndex("by_playerId", (q) => q.eq("playerId", player))
+      .withIndex("by_playerId_and_pulledAt", (q) => q.eq("playerId", player))
       .take(5000)
     const found = (
       await Promise.all(
@@ -299,7 +347,10 @@ export const seeUpgrade = mutation({
     const owned = await ownedCard(ctx, player, cardId)
     const card = await cardById(ctx, cardId)
     if (owned && card) {
-      await ctx.db.patch("collection", owned._id, { seenRarity: card.rarity })
+      await ctx.db.patch("collection", owned._id, {
+        seenRarity: card.rarity,
+        ...sortKeys(card),
+      })
     }
   },
 })

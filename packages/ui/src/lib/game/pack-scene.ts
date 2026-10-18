@@ -34,6 +34,10 @@ function bulge(x: number, y: number) {
   return PUFF * across * along * (1 + 0.6 * pleats)
 }
 
+// How far the front film stands out at the middle of the tear: the front lip
+// of the opened mouth.
+export const LIP_PUFF = bulge(0, TEAR_Y)
+
 // The film's top `band` px (all of it by default), mapped as on the full pack.
 function filmGeometry(band = PACK_H) {
   const geometry = new THREE.PlaneGeometry(

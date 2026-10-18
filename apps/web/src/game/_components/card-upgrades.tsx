@@ -11,8 +11,7 @@ import {
   UpgradingCard,
   type UpgradingCardHandle,
 } from "@workspace/ui/components/song-card"
-import { UPGRADE } from "@workspace/ui/lib/game/reveal-motion"
-import { play, REVEAL, sfx } from "@workspace/ui/lib/game/sfx"
+import { play } from "@workspace/ui/lib/game/sfx"
 import { RARITY_ORDER, type Rarity } from "@workspace/ui/lib/game/theme"
 import { useMutation } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
@@ -100,7 +99,6 @@ function UpgradeShow({
 
   async function climbOnce() {
     if (!ready || turning) return
-    void sfx.unlock()
     if (top) {
       play("swipe")
       onNext()
@@ -108,10 +106,10 @@ function UpgradeShow({
     }
     const to = rarities[step + 1] ?? card.rarity
     setTurning(true)
-    play("swipe")
-    // The cue lands as the new rarity shows, halfway round.
-    setTimeout(() => play(REVEAL[to]), (UPGRADE / 2) * 1000)
+    play("spin")
     await cardRef.current?.step()
+    // Rings out as the card faces front in its new rarity.
+    play(to)
     setStep(step + 1)
     setTurning(false)
     if (step + 1 === rarities.length - 1) onSeen()

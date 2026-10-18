@@ -210,6 +210,7 @@
 [data-slot="pack-opening"] > .game-canvas {
   transition:
     opacity 0.25s ease-out,
+    filter 0.25s ease-out,
     scale 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -223,6 +224,13 @@
 
 [data-slot="pack-opening"] > .game-canvas:not([data-drawn], [data-entrance]) {
   scale: 0.96;
+}
+
+/* No pack to open (its open button disabled): grayed out like a related card
+   not collected yet. */
+[data-slot="pack-opening"]:has(> button:disabled) > .game-canvas[data-drawn] {
+  opacity: 0.45;
+  filter: grayscale(1);
 }
 
 .game-pack-motes > i {
@@ -347,6 +355,18 @@
   box-shadow: var(--chunky-bevel);
 }
 
+[data-slot="game-avatar"] {
+  border: 3px solid var(--ink);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.45) inset,
+    0 5px 0 var(--ink),
+    var(--chunky-drop);
+
+  &::after {
+    display: none;
+  }
+}
+
 [data-slot="game-tab-bar"] {
   border: 2.5px solid var(--ink);
   background: var(--chunky-fill);
@@ -354,6 +374,119 @@
     var(--chunky-bevel),
     0 6px 0 var(--ink),
     var(--chunky-drop);
+}
+
+/* The free-pack meter: a chunky pill of mini packs standing up out of it, gray
+   until held, the next filling with the pack's foil from the bottom as it
+   comes, and a badge hanging under it. */
+[data-slot="pack-meter"] {
+  display: flex;
+  align-items: center;
+}
+
+[data-slot="pack-meter-track"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2.75rem;
+  padding-inline: 0.625rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--chunky-fill);
+  box-shadow:
+    var(--chunky-bevel),
+    0 4px 0 var(--ink);
+}
+
+/* A mini pack: crimped seals top and bottom and a shine, on the
+   pack's foil. Gray under it all; the foil shows from the bottom up to --fill
+   (0 to 1). Turned a little, like the pack on the page. */
+[data-slot="pack-meter-pack"] {
+  --crimp: repeating-linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.7) 0 1.5px,
+    rgb(20 12 40 / 0.18) 1.5px 3px
+  );
+  --shine: linear-gradient(
+    135deg,
+    transparent 35%,
+    rgb(255 255 255 / 0.6) 50%,
+    transparent 65%
+  );
+  --fill-line: calc((1 - var(--fill, 0)) * 100%);
+  position: relative;
+  width: 1.375rem;
+  height: 1.875rem;
+  border: 2px solid var(--ink);
+  border-radius: 0.3rem;
+  overflow: hidden;
+  background:
+    var(--crimp) top / 100% 0.3rem no-repeat,
+    var(--crimp) bottom / 100% 0.3rem no-repeat,
+    var(--shine),
+    linear-gradient(135deg, #d8d3e2, #b9b2c9);
+  box-shadow: 0 2px 0 var(--ink);
+  translate: 0 -0.5rem;
+  rotate: -6deg;
+  transform: perspective(6rem) rotateY(-18deg);
+
+  /* The color, risen to --fill from the bottom. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      var(--crimp) top / 100% 0.3rem no-repeat,
+      var(--crimp) bottom / 100% 0.3rem no-repeat,
+      var(--shine),
+      var(--foil);
+    clip-path: inset(var(--fill-line) 0 0 0);
+    transition: clip-path 0.6s ease-out;
+  }
+
+  /* The filling line, a bright edge on the rising color. */
+  &:not([data-held])::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: var(--fill-line);
+    height: 2px;
+    background: #fff;
+    box-shadow: 0 0 6px #fff;
+    opacity: min(1, calc(var(--fill, 0) * 20));
+  }
+}
+
+[data-slot="pack-meter-badge"] {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.5rem;
+  padding-inline: 0.625rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+  translate: -50% 65%;
+
+  & svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    stroke-width: 3;
+  }
+
+  [data-slot="pack-meter"][data-full] & {
+    background: var(--brand-mesh);
+    color: var(--brand-foreground);
+    letter-spacing: 0.08em;
+  }
 }
 
 [data-slot="game-tab"] {
@@ -380,7 +513,8 @@
 
 /* Chunky press-in select with a floating menu, and buttons to match. */
 [data-slot="select-trigger"][data-variant="game"],
-[data-slot="button"][data-variant="game"] {
+[data-slot="button"][data-variant="game"],
+[data-slot="dialog-close"][data-variant="game"] {
   height: 3rem;
   gap: 0.5rem;
   padding-inline: 0.75rem 1rem;
@@ -424,7 +558,8 @@
 }
 
 [data-slot="select-trigger"][data-variant="game"],
-[data-slot="button"][data-variant="game"] {
+[data-slot="button"][data-variant="game"],
+[data-slot="dialog-close"][data-variant="game"] {
   & > svg:first-child {
     box-sizing: content-box;
     padding: 0.375rem;
@@ -447,7 +582,8 @@
   }
 }
 
-[data-slot="button"][data-variant="game"] svg {
+[data-slot="button"][data-variant="game"] svg,
+[data-slot="dialog-close"][data-variant="game"] svg {
   stroke-width: 3;
 }
 
@@ -498,6 +634,11 @@
     0 22px 36px -10px rgb(56 36 110 / 0.55);
   /* Leave room for the ink ledge so the bottom edge is never clipped. */
   margin-bottom: 0.5rem;
+  /* At least its trigger's width, wider when a choice needs it (up to the
+     screen's width); a choice still too long scrolls (Marquee). */
+  width: max-content;
+  min-width: var(--anchor-width);
+  max-width: calc(100vw - 2rem);
 
   &[data-open] {
     animation: game-select-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -552,6 +693,197 @@
   }
 }
 
+/* A game dialog: the select's floating panel, bigger, with its heading type. */
+[data-slot="dialog-content"][data-variant="game"] {
+  padding: 1.5rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 2rem;
+  background: linear-gradient(
+    #fff,
+    color-mix(in oklab, #fff 90%, var(--lavender))
+  );
+  color: var(--ink);
+  box-shadow:
+    0 2px 0 rgb(255 255 255 / 0.9) inset,
+    0 6px 0 var(--ink),
+    0 22px 36px -10px rgb(56 36 110 / 0.55);
+  font-weight: 600;
+
+  &[data-open] {
+    animation: game-dialog-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  &[data-closed] {
+    animation: game-dialog-unpop 0.28s cubic-bezier(0.36, 0, 0.66, -0.56)
+      forwards;
+  }
+
+  & [data-slot="dialog-title"] {
+    font-size: 1.5rem;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  & [data-slot="dialog-description"] {
+    color: color-mix(in oklab, var(--ink) 65%, transparent);
+    font-weight: 600;
+  }
+
+  & [data-slot="dialog-footer"] {
+    padding-bottom: 5px;
+  }
+
+  &[data-compact] {
+    padding: 1rem;
+  }
+}
+
+/* The pop played back: a little swell, then it shrinks away. */
+@keyframes game-dialog-unpop {
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.85;
+  }
+}
+
+/* Its backdrop fades out with it, and stays out until both are gone. */
+[data-slot="dialog-overlay"][data-variant="game"][data-closed] {
+  animation: game-backdrop-out 0.28s ease-in forwards;
+}
+
+@keyframes game-backdrop-out {
+  40% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Scale only: the dialog's translate centres it. */
+@keyframes game-dialog-pop {
+  from {
+    opacity: 0;
+    scale: 0.85;
+  }
+  60% {
+    opacity: 1;
+  }
+}
+
+/* Chunky chips; the pressed one wears the brand mesh, like a selected game select item. */
+[data-slot="toggle-group-item"][data-variant="game"] {
+  height: 2.75rem;
+  padding-inline: 0.875rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--chunky-fill);
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow:
+    var(--chunky-bevel),
+    0 4px 0 var(--ink);
+  transition:
+    translate 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+
+  &:hover {
+    background: var(--chunky-fill);
+    color: var(--ink);
+  }
+
+  &[aria-pressed="true"] {
+    translate: 0 3px;
+    background: var(--brand-mesh);
+    color: var(--brand-foreground);
+    box-shadow:
+      var(--chunky-chip),
+      0 1px 0 var(--ink);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--brand);
+    outline-offset: 3px;
+  }
+}
+
+/* A sunk-in field, the select's pressed state at rest. A search field keeps
+   no browser clear button: the game puts its own beside it. */
+[data-slot="input"][data-variant="game"]::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+[data-slot="input"][data-variant="game"] {
+  height: 3rem;
+  padding-inline: 1rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow: 0 3px 0 color-mix(in oklab, var(--lavender) 60%, transparent)
+    inset;
+
+  &::placeholder {
+    color: color-mix(in oklab, var(--ink) 40%, transparent);
+  }
+
+  &:focus-visible {
+    border-color: var(--ink);
+    outline: 3px solid var(--brand);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
+
+/* A thick ink track filled with the brand mesh, and a chunky thumb. */
+[data-slot="slider"][data-variant="game"] {
+  padding-block: 0.75rem;
+
+  & [data-slot="slider-track"] {
+    height: 0.875rem;
+    border: 2.5px solid var(--ink);
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 2px 0 color-mix(in oklab, var(--lavender) 60%, transparent)
+      inset;
+  }
+
+  & [data-slot="slider-range"] {
+    background: var(--brand-mesh);
+  }
+
+  & [data-slot="slider-thumb"] {
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 2.5px solid var(--ink);
+    border-radius: 999px;
+    background: var(--chunky-fill);
+    box-shadow:
+      var(--chunky-bevel),
+      0 3px 0 var(--ink);
+    transition: scale 0.12s ease-out;
+
+    &:hover,
+    &:focus-visible,
+    &[data-dragging] {
+      scale: 1.1;
+      box-shadow:
+        var(--chunky-bevel),
+        0 3px 0 var(--ink);
+    }
+
+    &:focus-visible {
+      outline: 3px solid var(--brand);
+      outline-offset: 2px;
+    }
+  }
+}
+
 @keyframes game-select-unpop {
   40% {
     opacity: 1;
@@ -560,6 +892,152 @@
     opacity: 0;
     scale: 0.85;
     translate: 0 -8px;
+  }
+}
+
+/* The flash of light out of an opened pack with a legendary inside, anchored
+   on its mouth (--mouth-y, --mouth-width, set by opening-scene.ts): a pale
+   wash, soft rainbow beams rising from all along the mouth, a white-hot glow
+   along the lip, and star glints thrown up through it. It flares, flickers
+   and is gone before the pack drops away. Over the pack, but cut off at the
+   mouth, so it pours out of the opening rather than from behind the pack. */
+[data-slot="pack-glow"] {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  animation: game-glow-life 1s ease-out forwards;
+}
+
+/* Nothing below the mouth: the pack's front stays clear. */
+[data-slot="pack-glow-wash"],
+[data-slot="pack-glow-rays"] {
+  mask-image: linear-gradient(
+    to top,
+    transparent calc(100% - var(--mouth-y, 60%) - 6px),
+    #000 calc(100% - var(--mouth-y, 60%) + 4px)
+  );
+}
+
+[data-slot="pack-glow-wash"] {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 75% 32% at 50% var(--mouth-y, 60%),
+    rgb(255 255 255 / 0.7),
+    rgb(214 226 255 / 0.35) 45%,
+    transparent 80%
+  );
+}
+
+/* Beams start at the lip and fade out well before the top. */
+[data-slot="pack-glow-rays"] {
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: plus-lighter;
+  filter: blur(5px);
+}
+
+[data-slot="pack-glow-ray"] {
+  position: absolute;
+  bottom: calc(100% - var(--mouth-y, 60%) - 6px);
+  left: calc(50% + var(--mouth-width, 80%) / 2 * var(--ray-x));
+  width: var(--ray-width);
+  height: var(--ray-height);
+  margin-left: calc(var(--ray-width) / -2);
+  background: linear-gradient(
+    to top,
+    rgb(255 255 255 / 0.95),
+    hsl(var(--ray-hue) 95% 75% / 0.7) 25%,
+    hsl(calc(var(--ray-hue) + 60deg) 95% 80% / 0.3) 60%,
+    transparent
+  );
+  clip-path: polygon(30% 100%, 70% 100%, 100% 0, 0 0);
+  transform-origin: 50% 100%;
+  rotate: var(--ray-angle);
+  animation:
+    game-ray-rise 0.35s cubic-bezier(0.2, 0.8, 0.3, 1) both,
+    game-ray-pulse 0.28s var(--ray-delay) ease-in-out infinite alternate;
+}
+
+[data-slot="pack-glow-lip"] {
+  position: absolute;
+  top: var(--mouth-y, 60%);
+  left: calc(50% - var(--mouth-width, 80%) * 0.55);
+  width: calc(var(--mouth-width, 80%) * 1.1);
+  height: 36px;
+  background: radial-gradient(
+    closest-side,
+    #fff 20%,
+    rgb(214 232 255 / 0.85) 50%,
+    transparent
+  );
+  filter: blur(4px);
+  translate: 0 -50%;
+}
+
+[data-slot="pack-glow-glint"] {
+  position: absolute;
+  top: var(--mouth-y, 60%);
+  left: calc(50% + var(--glint-x) * 0.7);
+  width: var(--glint-size);
+  height: var(--glint-size);
+  margin: calc(var(--glint-size) / -2) 0 0 calc(var(--glint-size) / -2);
+  background:
+    radial-gradient(circle, #fff 0 18%, transparent 45%),
+    linear-gradient(#fff, #fff) center / 100% 2px no-repeat,
+    linear-gradient(#fff, #fff) center / 2px 100% no-repeat;
+  filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 8px rgb(190 210 255));
+  opacity: 0;
+  animation: game-glint-rise 0.8s var(--glint-delay) ease-out forwards;
+}
+
+@keyframes game-glow-life {
+  0% {
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes game-ray-rise {
+  from {
+    scale: 1 0;
+  }
+}
+
+@keyframes game-ray-pulse {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes game-glint-rise {
+  0% {
+    opacity: 0;
+    scale: 0.3;
+    translate: 0 0;
+  }
+  25% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 0.6;
+    translate: 0 calc(var(--glint-rise) * -1);
   }
 }
 
@@ -657,6 +1135,170 @@
   background: #ffe08a;
   animation: game-celebrate-spark 1.3s calc(0.85s + var(--spark-delay))
     cubic-bezier(0.2, 0.8, 0.4, 1) both;
+}
+
+/* The whole stage changes colour for a first epic or legendary pull: epic
+   tints violet and drifts cyan; legendary tints indigo through the spin, then
+   warms gold as the card lands. Edge-weighted tints keep the stage readable. */
+.game-reveal-wash {
+  --reveal-star-glow: #aed2ff;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+
+/* A faint sparkle under the whole opening, from the cut on. */
+.game-reveal-wash[data-ambient] {
+  animation: game-reveal-ambient 0.8s ease-out forwards;
+}
+
+.game-reveal-wash::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  opacity: 0;
+}
+
+.game-reveal-wash[data-rarity="epic"] {
+  background: radial-gradient(
+    ellipse 90% 70% at 50% 45%,
+    rgb(168 104 223 / 0.06),
+    rgb(141 112 220 / 0.24)
+  );
+  animation: game-reveal-wash 1.9s ease-in-out forwards;
+}
+
+.game-reveal-wash[data-rarity="epic"]::after {
+  background: linear-gradient(
+    to top,
+    rgb(111 200 238 / 0.18),
+    rgb(122 168 223 / 0.06) 55%,
+    transparent
+  );
+  animation: game-reveal-epic-drift 1.9s ease-in-out forwards;
+}
+
+.game-reveal-wash[data-rarity="legendary"] {
+  background: radial-gradient(
+    ellipse 90% 70% at 50% 45%,
+    rgb(90 74 168 / 0.08),
+    rgb(64 59 146 / 0.28)
+  );
+  animation: game-reveal-legendary 2.6s ease-in-out forwards;
+}
+
+.game-reveal-wash[data-rarity="legendary"]::after {
+  background: radial-gradient(
+    ellipse 90% 70% at 50% 45%,
+    rgb(255 242 173 / 0.06),
+    rgb(255 178 30 / 0.12) 45%,
+    rgb(201 109 37 / 0.2)
+  );
+  animation: game-reveal-gold 2.6s ease-out forwards;
+}
+
+.game-reveal-wash .game-pack-motes {
+  z-index: 1;
+}
+
+/* The waiting motes sit in the upper sky; here they fill the whole stage. */
+.game-reveal-wash .game-pack-motes > i {
+  top: calc(var(--mote-y) * 2.2);
+  width: calc(var(--mote-size) * 1.5);
+  height: calc(var(--mote-size) * 1.5);
+}
+
+.game-reveal-wash[data-rarity="epic"] .game-pack-motes > i {
+  box-shadow:
+    0 0 10px 3px rgb(255 255 255 / 0.95),
+    0 0 26px 8px rgb(224 92 240 / 0.65);
+}
+
+.game-reveal-wash[data-rarity="legendary"] .game-pack-motes > i {
+  box-shadow:
+    0 0 10px 3px rgb(255 248 210 / 0.95),
+    0 0 26px 8px rgb(255 178 30 / 0.7);
+}
+
+.game-reveal-star {
+  position: absolute;
+  z-index: 1;
+  top: var(--star-y);
+  left: var(--star-x);
+  width: var(--star-size);
+  height: var(--star-size);
+  margin: calc(var(--star-size) / -2) 0 0 calc(var(--star-size) / -2);
+  background: #fff;
+  clip-path: polygon(
+    50% 0,
+    61% 39%,
+    100% 50%,
+    61% 61%,
+    50% 100%,
+    39% 61%,
+    0 50%,
+    39% 39%
+  );
+  filter: drop-shadow(0 0 6px #fff)
+    drop-shadow(0 0 16px var(--reveal-star-glow));
+  opacity: 0;
+  animation: game-reveal-twinkle 1.4s var(--star-delay) ease-in-out infinite;
+}
+
+.game-reveal-wash[data-rarity="epic"] {
+  --reveal-star-glow: #e05cf0;
+}
+
+.game-reveal-wash[data-rarity="legendary"] {
+  --reveal-star-glow: #ffb21e;
+}
+
+/* Rests at its start, slides until its end shows (by --marquee-shift), rests
+   there, slides back. Shares match Marquee's SLIDE_SHARE. */
+@keyframes game-marquee {
+  0%,
+  20% {
+    translate: 0 0;
+  }
+  50%,
+  70% {
+    translate: var(--marquee-shift) 0;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+/* The Marquee box's fades, in step with its line: at the start only the end
+   (where text is hidden) fades; at the end, only the start. */
+@property --marquee-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --marquee-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 8px;
+}
+
+@keyframes game-marquee-edges {
+  0%,
+  20%,
+  100% {
+    --marquee-fade-start: 0px;
+    --marquee-fade-end: 8px;
+  }
+  50%,
+  70% {
+    --marquee-fade-start: 8px;
+    --marquee-fade-end: 0px;
+  }
 }
 
 @keyframes game-spin {
@@ -861,6 +1503,78 @@
   }
 }
 
+@keyframes game-reveal-wash {
+  24%,
+  78% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes game-reveal-epic-drift {
+  45% {
+    opacity: 0;
+  }
+  75%,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes game-reveal-legendary {
+  30%,
+  80% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes game-reveal-gold {
+  32% {
+    opacity: 0;
+  }
+  38% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes game-reveal-soft {
+  35%,
+  70% {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes game-reveal-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    scale: 0.35;
+    rotate: 0deg;
+  }
+  45% {
+    opacity: 1;
+    scale: 1;
+    rotate: 45deg;
+  }
+}
+
+@keyframes game-reveal-ambient {
+  to {
+    opacity: 0.35;
+  }
+}
+
 @keyframes game-celebrate-ring {
   from {
     opacity: 1;
@@ -890,13 +1604,36 @@
   .game-pack-motes > i,
   .game-cut-flash,
   .game-cut-flash *,
+  [data-slot="pack-glow"],
+  [data-slot="pack-glow"] *,
   [data-slot="pack-opening"] > .game-canvas,
-  [data-slot="select-content"][data-variant="game"] {
+  [data-slot="select-content"][data-variant="game"],
+  [data-slot="dialog-content"][data-variant="game"],
+  [data-slot="dialog-overlay"][data-variant="game"],
+  [data-slot="slider"][data-variant="game"] * {
     animation: none !important;
     transition: none !important;
   }
 
   .game-cut-flash {
     opacity: 0;
+  }
+
+  .game-reveal-wash[data-rarity] {
+    animation: game-reveal-soft 1.2s ease both;
+  }
+
+  .game-reveal-wash[data-ambient] {
+    animation: none;
+    opacity: 0.25;
+  }
+
+  .game-reveal-wash::after {
+    display: none;
+  }
+
+  .game-reveal-star {
+    animation: none;
+    opacity: 0.6;
   }
 }

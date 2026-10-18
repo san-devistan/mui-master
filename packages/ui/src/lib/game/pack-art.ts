@@ -7,7 +7,7 @@ export const PACK_H = 380
 export const SEAL = 26
 // Where the opening cut runs, from the top edge: just under the top seal.
 export const CUT = SEAL + 14
-const SCALE = 4
+export const SCALE = 4
 
 export function loadImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -87,13 +87,13 @@ function cutTeeth(ctx: CanvasRenderingContext2D, edge: number, inward: number) {
   ctx.restore()
 }
 
-export function blankCanvas(width = PACK_W, height = PACK_H) {
+export function blankCanvas(width = PACK_W, height = PACK_H, scale = SCALE) {
   const canvas = document.createElement("canvas")
-  canvas.width = width * SCALE
-  canvas.height = height * SCALE
+  canvas.width = width * scale
+  canvas.height = height * scale
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("2D canvas unavailable")
-  ctx.scale(SCALE, SCALE)
+  ctx.scale(scale, scale)
   return { canvas, ctx }
 }
 
@@ -146,6 +146,6 @@ export async function drawPackArt(covers: ReadonlyArray<string>) {
   rear.ctx.fillStyle = "#121016"
   rear.ctx.textAlign = "center"
   rear.ctx.font = "900 16px 'Unbounded Variable'"
-  rear.ctx.fillText("MUSI MASTER", PACK_W / 2, PACK_H / 2)
+  rear.ctx.fillText("HOLOTRACK", PACK_W / 2, PACK_H / 2)
   return { front: front.canvas, rear: rear.canvas, shape: packShape() }
 }

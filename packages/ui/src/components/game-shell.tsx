@@ -1,5 +1,6 @@
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
+import { soundTaps } from "@workspace/ui/lib/game/sfx"
 import { cn } from "@workspace/ui/lib/utils"
 import { cva, type VariantProps } from "class-variance-authority"
 import type * as React from "react"
@@ -23,6 +24,7 @@ function GameShell({
   nav,
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof gameShellVariants>) {
+  useEffect(soundTaps, [])
   return (
     <div
       data-slot="game-shell"
@@ -152,7 +154,7 @@ function GamePill({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="game-pill"
       className={cn(
-        "h-11 gap-1.5 pl-1.5 pr-3 text-sm has-data-[slot=game-avatar]:pl-1 inline-flex shrink-0 items-center rounded-full whitespace-nowrap",
+        "h-12 gap-1.5 px-4 text-sm inline-flex shrink-0 items-center rounded-full whitespace-nowrap",
         className
       )}
       {...props}

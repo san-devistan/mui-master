@@ -7,18 +7,25 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  variant = "default",
   ...props
-}: SliderPrimitive.Root.Props) {
-  const _values = Array.isArray(value)
-    ? value
-    : Array.isArray(defaultValue)
-      ? defaultValue
-      : [min, max]
+}: SliderPrimitive.Root.Props & {
+  // `game`: a chunky ink track and a brand-chip thumb (game.css).
+  variant?: "default" | "game"
+}) {
+  // One thumb per value: a single number is one thumb, no value a range.
+  const given = value ?? defaultValue
+  const thumbs = Array.isArray(given)
+    ? given.length
+    : given === undefined
+      ? 2
+      : 1
 
   return (
     <SliderPrimitive.Root
       className={cn("data-horizontal:w-full data-vertical:h-full", className)}
       data-slot="slider"
+      data-variant={variant}
       defaultValue={defaultValue}
       value={value}
       min={min}
@@ -36,7 +43,7 @@ function Slider({
             className="bg-primary select-none data-horizontal:h-full data-vertical:w-full"
           />
         </SliderPrimitive.Track>
-        {Array.from({ length: _values.length }, (_, index) => (
+        {Array.from({ length: thumbs }, (_, index) => (
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}

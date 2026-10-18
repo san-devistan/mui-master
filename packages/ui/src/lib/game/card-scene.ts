@@ -6,13 +6,14 @@ import {
   drawCardBack,
   drawSticker,
   STICKER,
-  WAVE,
   wavyOutline,
 } from "@workspace/ui/lib/game/card-art"
 import { canvasTexture } from "@workspace/ui/lib/game/film-material"
 import {
   addFilm,
+  cameraDistance,
   createStage,
+  mirrorPose,
   mountFilmScene,
   trackPointer,
   type FilmSpec,
@@ -36,6 +37,7 @@ import {
   upgradePose,
   type Pose,
 } from "@workspace/ui/lib/game/reveal-motion"
+import { pngBlob, withBrand } from "@workspace/ui/lib/game/share-art"
 import {
   RARITIES,
   type GameSong,
@@ -72,9 +74,9 @@ const RARITY = {
   legendary: { level: 1.2, trim: GOLD, metal: 1, sparkle: "stars" },
 } as const
 
-// The card stock's cut edge: the outline extruded, walls only (the printed
-// faces cover the caps).
-function cardEdge(color: string, metal: number, kind: GameSong["kind"]) {
+// The card's outline in film units (y-up from its middle): rounded, or
+// rippled like the 2D art for an artist card.
+function cardOutline(kind: GameSong["kind"]) {
   const outline = new THREE.Shape()
   if (kind === "artist") {
     // Card px are y-down from the corner; the film is y-up from its middle.
@@ -83,18 +85,24 @@ function cardEdge(color: string, metal: number, kind: GameSong["kind"]) {
         ([x, y]) => new THREE.Vector2(x - CARD_W / 2, CARD_H / 2 - y)
       )
     )
-  } else {
-    outline.moveTo(-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2)
-    for (const [x, y, angle] of [
-      [CARD_W / 2 - CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, -Math.PI / 2],
-      [CARD_W / 2 - CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, 0],
-      [-CARD_W / 2 + CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, Math.PI / 2],
-      [-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, Math.PI],
-    ] as const) {
-      outline.absarc(x, y, CARD_RADIUS, angle, angle + Math.PI / 2)
-    }
+    return outline
   }
-  const geometry = new THREE.ExtrudeGeometry(outline, {
+  outline.moveTo(-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2)
+  for (const [x, y, angle] of [
+    [CARD_W / 2 - CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, -Math.PI / 2],
+    [CARD_W / 2 - CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, 0],
+    [-CARD_W / 2 + CARD_RADIUS, CARD_H / 2 - CARD_RADIUS, Math.PI / 2],
+    [-CARD_W / 2 + CARD_RADIUS, -CARD_H / 2 + CARD_RADIUS, Math.PI],
+  ] as const) {
+    outline.absarc(x, y, CARD_RADIUS, angle, angle + Math.PI / 2)
+  }
+  return outline
+}
+
+// The card stock's cut edge: the outline extruded, walls only (the printed
+// faces cover the caps).
+function cardEdge(color: string, metal: number, kind: GameSong["kind"]) {
+  const geometry = new THREE.ExtrudeGeometry(cardOutline(kind), {
     depth: THICKNESS,
     bevelEnabled: false,
     curveSegments: 16,
@@ -116,7 +124,8 @@ function cardEdge(color: string, metal: number, kind: GameSong["kind"]) {
 
 export const CARD_THICKNESS = THICKNESS
 
-export function cardFilm(song: GameSong): FilmSpec {
+// `scale`: the art's texels per card px (see drawCardArt).
+export function cardFilm(song: GameSong, scale?: number): FilmSpec {
   const { metal, ...look } = RARITY[song.rarity]
   const stops = RARITIES[song.rarity]
   return {
@@ -137,7 +146,7 @@ export function cardFilm(song: GameSong): FilmSpec {
         song.kind
       ),
     ],
-    draw: () => drawCardArt(song),
+    draw: () => drawCardArt(song, scale),
   }
 }
 
@@ -344,15 +353,10 @@ const SHINE_VERTEX = /* glsl */ `
 
 const SHINE_FRAGMENT = /* glsl */ `
   uniform float progress;
-  uniform float inset;
   varying vec2 vUv;
   void main() {
-    // Rounded card outline (inset inside a wavy edge), so the light
-    // stays on the card.
+    // Drawn on the card's own outline (cardOutline), so it keeps its shape.
     vec2 size = vec2( ${CARD_W.toFixed(1)}, ${CARD_H.toFixed(1)} );
-    vec2 inside = abs( ( vUv - 0.5 ) * size ) - ( 0.5 * size - ${CARD_RADIUS.toFixed(1)} );
-    float edge = length( max( inside, 0.0 ) ) - ${CARD_RADIUS.toFixed(1)} + inset;
-    float card = 1.0 - smoothstep( -1.0, 0.0, edge );
     // A wide soft band with a bright core and a thin trailing glint, sweeping
     // from the bottom-left corner to the top-right one. Measured across the
     // card's real diagonal, so the band stays at the same angle on screen.
@@ -363,15 +367,23 @@ const SHINE_FRAGMENT = /* glsl */ `
       + 1.6 * exp( -pow( ( along - at ) / 0.025, 2.0 ) )
       + 0.7 * exp( -pow( ( along - at + 0.13 ) / 0.015, 2.0 ) );
     float fade = smoothstep( 0.0, 0.08, progress ) * ( 1.0 - smoothstep( 0.92, 1.0, progress ) );
-    gl_FragColor = vec4( vec3( 1.0, 0.94, 0.78 ) * band * fade * card * 0.9, 1.0 );
+    gl_FragColor = vec4( vec3( 1.0, 0.94, 0.78 ) * band * fade * 0.9, 1.0 );
   }
 `
 
-// Light sweeping across a card's face: set `progress` 0..1 to move it, and
-// `inset` with shineInset for the card it is on.
-export function cardShine() {
-  const uniforms = { progress: { value: 0 }, inset: { value: 0 } }
-  const geometry = new THREE.PlaneGeometry(CARD_W, CARD_H)
+// Light sweeping across a card's face, cut to its outline (wavy for an artist
+// card): set `progress` 0..1 to move it.
+export function cardShine(kind: GameSong["kind"]) {
+  const uniforms = { progress: { value: 0 } }
+  const geometry = new THREE.ShapeGeometry(cardOutline(kind), 16)
+  // The card's own uv: 0..1 across it, as the sweep is measured.
+  const { position } = geometry.attributes
+  const uv = new Float32Array(position.count * 2)
+  for (let index = 0; index < position.count; index++) {
+    uv[index * 2] = position.getX(index) / CARD_W + 0.5
+    uv[index * 2 + 1] = position.getY(index) / CARD_H + 0.5
+  }
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2))
   const material = new THREE.ShaderMaterial({
     uniforms,
     transparent: true,
@@ -398,9 +410,6 @@ export function cardShine() {
     },
   }
 }
-
-export const shineInset = (kind: GameSong["kind"]) =>
-  kind === "artist" ? WAVE.depth : 0
 
 // Where a card sits on screen (CSS px): its middle and width, plus the light
 // tilt and foil clock it is drawn with there, so a handover doesn't flicker.
@@ -429,6 +438,77 @@ export type CardScene = {
   ready: Promise<void>
   // Sends the card back to a slot; resolves once it is there.
   flyBack: (to: () => CardSlot | null) => Promise<void>
+  // The card head-on with its mirror image under it and the app's name and
+  // icon below, as a transparent PNG.
+  snapshot: () => Blob
+}
+
+// A share image: its width in px, the card's margin as a share of its width,
+// and how far below the card its mirror image shows (it has faded out by then).
+const SNAPSHOT_W = 1080
+const SNAPSHOT_PAD = 0.1
+const SNAPSHOT_MIRROR = 0.16
+// Where the card rests on its stage: the bottom of its bob (mountFilmScene).
+const REST_Y = 6
+
+// The card head-on and still, its mirror image under it at full and the app's
+// name under that, on a transparent PNG. Drawn by the card's own renderer,
+// resized for the shot and back within one task, so the page never shows that
+// frame; synchronous, so a share sheet can still open from the tap that asked
+// for it.
+function snapshot(stage: CardStage): Blob {
+  const { renderer, scene, film } = stage
+  const pad = CARD_W * SNAPSHOT_PAD
+  const top = CARD_H / 2 + REST_Y + pad
+  // The mirror image fades out within SNAPSHOT_MIRROR of the card: no margin
+  // under it.
+  const bottom = -CARD_H / 2 - CARD_H * SNAPSHOT_MIRROR
+  const frameW = CARD_W + 2 * pad
+  const frameH = top - bottom
+  const width = SNAPSHOT_W
+  const height = Math.round((width * frameH) / frameW)
+  const camera = new THREE.PerspectiveCamera(22, frameW / frameH, 10, 8000)
+  camera.position.set(0, (top + bottom) / 2, cameraDistance(frameH))
+  // The groups carrying the card and its mirror image through the showcase,
+  // over the film's own sway and bob; all set head-on for the shot.
+  const { subject, reflection } = film
+  const posed = [
+    subject,
+    subject.parent === scene ? null : subject.parent,
+    reflection.parent?.parent === scene ? null : reflection.parent,
+  ].flatMap((group) => (group ? [group] : []))
+  const saved = posed.map((group) => ({
+    group,
+    position: group.position.clone(),
+    rotation: group.rotation.clone(),
+    scale: group.scale.clone(),
+  }))
+  const mirror = film.mirror.value
+  const size = renderer.getSize(new THREE.Vector2())
+  const ratio = renderer.getPixelRatio()
+  for (const group of posed) {
+    group.position.set(0, 0, 0)
+    group.rotation.set(0, 0, 0)
+    group.scale.setScalar(1)
+  }
+  subject.position.y = REST_Y
+  film.mirror.value = 1
+  mirrorPose(film)
+  renderer.setPixelRatio(1)
+  renderer.setSize(width, height, false)
+  renderer.render(scene, camera)
+  const picture = withBrand(renderer.domElement)
+  for (const { group, position, rotation, scale } of saved) {
+    group.position.copy(position)
+    group.rotation.copy(rotation)
+    group.scale.copy(scale)
+  }
+  film.mirror.value = mirror
+  mirrorPose(film)
+  renderer.setPixelRatio(ratio)
+  renderer.setSize(size.x, size.y, false)
+  renderer.render(scene, stage.camera)
+  return pngBlob(picture)
 }
 
 export function mountCardScene(
@@ -436,7 +516,13 @@ export function mountCardScene(
   song: GameSong,
   { mirror = true, reveal = false, from, land }: CardSceneOptions = {}
 ): CardScene {
-  const stage = mountFilmScene(canvas, cardFilm(song), mirror)
+  // Under another showcased card it can't be seen: it holds still.
+  const stage = mountFilmScene(
+    canvas,
+    cardFilm(song),
+    mirror,
+    () => !canvas.closest("[data-covered]")
+  )
   const flight = from && !stage.still ? flyCard(stage, song, from, land) : null
   if (!flight && land) frame(stage, land)
   if (!flight && reveal && !stage.still) revealCard(stage, song, !land)
@@ -448,6 +534,7 @@ export function mountCardScene(
     dispose: stage.dispose,
     ready,
     flyBack: (to) => flight?.flyBack(to) ?? Promise.resolve(),
+    snapshot: () => snapshot(stage),
   }
 }
 
@@ -461,8 +548,7 @@ function entrance(stage: CardStage, kind: GameSong["kind"]) {
   // The legendary spin turns the card round, so it needs its back.
   const back = cardBack(stage.renderer, kind)
   subject.add(new THREE.Mesh(back.geometry, back.material))
-  const shine = cardShine()
-  shine.uniforms.inset.value = shineInset(kind)
+  const shine = cardShine(kind)
   subject.add(shine.mesh)
   stage.disposables.push(back, shine)
   const motion = new THREE.Group()

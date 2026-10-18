@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
 
-import { cardRarity } from "./songs/_lib/validators"
+import { cardKind, cardRarity } from "./songs/_lib/validators"
 
 const tierCounts = v.object({ songs: v.number(), artists: v.number() })
 
@@ -93,13 +93,143 @@ export default defineSchema({
     // The rarity the player last saw the card at. Below the card's current rarity, it went up in
     // a catalog refresh and the app plays its upgrade (packs:upgrades); unset counts as seen.
     seenRarity: v.optional(cardRarity),
+    // What the collection is filtered and sorted by, copied from the card so a page of it is one
+    // index read (packs:collection): its kind, its seen rarity as 0 (common) to 3 (legendary),
+    // its title lowercased without accents or punctuation, and its streams when last seen.
+    kind: v.optional(cardKind),
+    rarityRank: v.optional(v.number()),
+    titleKey: v.optional(v.string()),
+    streams: v.optional(v.number()),
+    // The card's title and, for a song, its artists' names, for the collection search
+    // (collection:search).
+    searchText: v.optional(v.string()),
   })
-    .index("by_playerId", ["playerId"])
-    .index("by_playerId_and_cardId", ["playerId", "cardId"]),
+    .searchIndex("search_searchText", {
+      searchField: "searchText",
+      filterFields: ["playerId", "kind", "rarityRank"],
+    })
+    .index("by_playerId_and_cardId", ["playerId", "cardId"])
+    // One index per filter (kind, rarity, both or neither) and sort (recent, rarest, A–Z).
+    .index("by_playerId_and_pulledAt", ["playerId", "pulledAt"])
+    .index("by_playerId_and_kind_and_pulledAt", [
+      "playerId",
+      "kind",
+      "pulledAt",
+    ])
+    .index("by_playerId_and_rarityRank_and_pulledAt", [
+      "playerId",
+      "rarityRank",
+      "pulledAt",
+    ])
+    .index("by_playerId_and_kind_and_rarityRank_and_pulledAt", [
+      "playerId",
+      "kind",
+      "rarityRank",
+      "pulledAt",
+    ])
+    .index("by_playerId_and_rarityRank_and_streams", [
+      "playerId",
+      "rarityRank",
+      "streams",
+    ])
+    .index("by_playerId_and_kind_and_rarityRank_and_streams", [
+      "playerId",
+      "kind",
+      "rarityRank",
+      "streams",
+    ])
+    .index("by_playerId_and_titleKey", ["playerId", "titleKey"])
+    .index("by_playerId_and_kind_and_titleKey", [
+      "playerId",
+      "kind",
+      "titleKey",
+    ])
+    .index("by_playerId_and_rarityRank_and_titleKey", [
+      "playerId",
+      "rarityRank",
+      "titleKey",
+    ])
+    .index("by_playerId_and_kind_and_rarityRank_and_titleKey", [
+      "playerId",
+      "kind",
+      "rarityRank",
+      "titleKey",
+    ]),
+  // Each player's tallies: how many different cards they own (packs.ts), their coins, and the
+  // time their free packs count from, one per 8 hours (wallet.ts). Game state is keyed by the
+  // Better Auth user id rather than kept in its component, so a guest's progress can move to an
+  // account they link later.
+  players: defineTable({
+    playerId: v.string(),
+    cards: v.number(),
+    coins: v.number(),
+    freePacksSince: v.number(),
+    // Up to 6 card ids the player shows on their profile, in order (profile.ts).
+    showcase: v.optional(v.array(v.string())),
+  }).index("by_playerId", ["playerId"]),
   // The pack waiting for each player, drawn ahead so its cards are ready once it's cut open; it's
   // the same pack until they open it (packs:claim), whatever reloads or double draws happen.
   pendingPacks: defineTable({
     playerId: v.string(),
     cardIds: v.array(v.string()),
   }).index("by_playerId", ["playerId"]),
+  // A card copy up for auction: out of the seller's collection until it sells (to the top
+  // bidder) or comes back (no bid, or cancelled before any). The top bid's coins are held off
+  // the bidder's balance and given back when outbid. Settled by market:settle at `endsAt`.
+  auctions: defineTable({
+    sellerId: v.string(),
+    cardId: v.string(),
+    // Copied from the card, for the rarity filter.
+    rarity: cardRarity,
+    startPrice: v.number(),
+    topBid: v.optional(v.number()),
+    topBidderId: v.optional(v.string()),
+    endsAt: v.number(),
+    // The card's title and, for a song, its artists' names, for the market search.
+    // shortcut: unset on auctions listed before the search, which don't show in it; they're all
+    // over within a day, so no backfill.
+    searchText: v.optional(v.string()),
+    status: v.union(
+      v.literal("open"),
+      v.literal("sold"),
+      v.literal("unsold"),
+      v.literal("cancelled")
+    ),
+  })
+    .searchIndex("search_searchText", {
+      searchField: "searchText",
+      filterFields: ["status", "rarity"],
+    })
+    .index("by_status_and_endsAt", ["status", "endsAt"])
+    .index("by_status_and_rarity_and_endsAt", ["status", "rarity", "endsAt"])
+    .index("by_sellerId_and_status_and_endsAt", [
+      "sellerId",
+      "status",
+      "endsAt",
+    ])
+    .index("by_topBidderId_and_status_and_endsAt", [
+      "topBidderId",
+      "status",
+      "endsAt",
+    ]),
+  // Every bid made on an auction, newest last, for its history (market:auction) and the auctions
+  // a player has bid on (market:auctions). Coins move on `auctions` itself; this only records who
+  // bid what and when.
+  bids: defineTable({
+    auctionId: v.id("auctions"),
+    bidderId: v.string(),
+    amount: v.number(),
+  })
+    .index("by_auctionId", ["auctionId"])
+    .index("by_bidderId", ["bidderId"]),
+  // One row per artist credited on a song, so an artist's songs (and through them, who they've
+  // worked with) are one index read; kept with songs.artistIds by catalog:save. `playcount` is the
+  // song's, so an artist's songs come most played first.
+  credits: defineTable({
+    songId: v.id("songs"),
+    artistId: v.id("artists"),
+    playcount: v.number(),
+  })
+    .index("by_songId", ["songId"])
+    .index("by_artistId_and_playcount", ["artistId", "playcount"]),
 })

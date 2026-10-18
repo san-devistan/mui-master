@@ -1,53 +1,62 @@
 import { CardUpgrades } from "@/game/_components/card-upgrades"
-import { toGameCard } from "@/game/_lib/cards"
+import { CollectionPage } from "@/game/_pages/collection-page"
+import { MarketPage } from "@/game/_pages/market-page"
+import { PacksPage } from "@/game/_pages/packs-page"
 import { authClient } from "@/lib/auth-client"
-import { convexQuery } from "@convex-dev/react-query"
-import { useQueryClient } from "@tanstack/react-query"
-import { Link, Outlet } from "@tanstack/react-router"
-import { api } from "@workspace/backend/api"
+import { Link, Outlet, useRouterState } from "@tanstack/react-router"
 import {
   GameShell,
   GameTab,
   GameTabBar,
 } from "@workspace/ui/components/game-shell"
-import { warmCardThumbs } from "@workspace/ui/lib/game/card-thumbs"
-import { BoxIcon, LayersIcon, UserIcon } from "lucide-react"
-import { useEffect, useRef } from "react"
+import { BoxIcon, GavelIcon, LayersIcon, UserIcon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 
 const TABS = [
   { to: "/", label: "Packs", Icon: BoxIcon },
   { to: "/collection", label: "Collection", Icon: LayersIcon },
+  { to: "/market", label: "Market", Icon: GavelIcon },
   { to: "/profile", label: "Profile", Icon: UserIcon },
 ] as const
-// About a phone screen of the collection: its newest cards, which it opens on.
-const WARM_CARDS = 8
 
 export function GameLayout() {
   const ready = useGuestSession()
-  const queryClient = useQueryClient()
-
-  useEffect(() => {
-    if (!ready) return
-    // The collection subscribes up front and its first cards are built in idle
-    // time, so its tab opens on drawn cards, not a wait.
-    queryClient
-      .query(convexQuery(api.packs.collection, {}))
-      .then((cards) =>
-        warmCardThumbs(
-          // In the grid's "recent" order: newest pull first, a pack's last saved first.
-          cards
-            .toReversed()
-            .toSorted((a, b) => b.pulledAt - a.pulledAt)
-            .slice(0, WARM_CARDS)
-            .map(toGameCard)
-        )
-      )
-      .catch(() => undefined)
-  }, [ready, queryClient])
+  const path = useRouterState({ select: (state) => state.location.pathname })
+  const onPacks = path === "/"
+  // Once shown, the Packs page stays mounted, hidden on other tabs, so coming
+  // back finds its pack just as it was: no rebuild, no blink. An opened pack
+  // isn't kept: leaving it mounts a fresh page, with the next pack.
+  const [packsShown, setPacksShown] = useState(onPacks)
+  const [packOpened, setPackOpened] = useState(false)
+  if (onPacks && !packsShown) setPacksShown(true)
+  if (!onPacks && packOpened) {
+    setPackOpened(false)
+    setPacksShown(false)
+  }
 
   return (
     <GameShell>
-      {ready ? <Outlet /> : <div className="min-h-0 flex-1" />}
+      {ready ? <Outlet /> : null}
+      {ready && packsShown ? (
+        <div className="contents" hidden={!onPacks}>
+          <PacksPage onOpen={() => setPackOpened(true)} />
+        </div>
+      ) : null}
+      {/* Mounted from the start, hidden: its first cards load and draw while
+          the player is on another tab, so it opens ready. */}
+      {ready ? (
+        <div className="contents" hidden={path !== "/collection"}>
+          <CollectionPage shown={path === "/collection"} />
+        </div>
+      ) : null}
+      {/* The same for the market: it keeps its filters, scroll and drawn
+          cards across tabs. */}
+      {ready ? (
+        <div className="contents" hidden={path !== "/market"}>
+          <MarketPage shown={path === "/market"} />
+        </div>
+      ) : null}
+      {ready ? null : <div className="min-h-0 flex-1" />}
       {ready ? <CardUpgrades /> : null}
       <GameTabBar aria-label="Main">
         {TABS.map(({ to, label, Icon }) => (

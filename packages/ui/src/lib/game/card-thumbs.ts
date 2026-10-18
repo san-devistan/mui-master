@@ -21,6 +21,9 @@ const TILT = { across: 0.5, down: 0.8 }
 // further (tilt per px/s, capped), which also sets the sparkles flaring.
 const SWAY = 0.22
 const KICK = { perSpeed: 0.0008, max: 0.9 }
+// Texels per card px: the stage draws a card 240 px wide at pixel ratio 2, so
+// more would only cost memory (a quarter of the big card's, at its 4).
+const THUMB_SCALE = 2
 
 type Thumb = {
   film: Film
@@ -40,26 +43,24 @@ let last = 0
 let tick = 0
 let kicking = false
 const thumbs = new Map<Element, Thumb>()
-// Thumbs waiting for their film (by canvas; warm-ups by card), and which are
-// on screen: films load one at a time, those on screen first, so a long grid
-// shows its top at once.
+// Thumbs waiting for their film, and which are on screen: films load one at a
+// time, those on screen first and the rest in idle time, so a long grid shows
+// its top at once and the rest (or a hidden grid's) cost no frames.
 const waiting = new Map<
-  Element | string,
+  Element,
   { song: GameSong; load: () => Promise<void> }
 >()
 const onScreen = new Set<Element>()
 let loadingAny = false
-// Cards a mounted thumb shows or is loading, so a warm-up doesn't build them twice.
-const live = new Set<string>()
-// Films of thumbs that unmounted, by card, so a grid shown again (back on its
-// tab, or after a data refresh) draws at once instead of rebuilding each card.
-// shortcut: kept for the session, the oldest dropped past PARK_MAX; free them
-// on memory pressure if phones struggle.
+// Films of thumbs that unmounted, by card, so cards scrolled back to (or
+// redrawn after a data refresh) show at once instead of rebuilding.
+// shortcut: the newest PARK_MAX are kept (about 3.5 MB of GPU memory each);
+// size it to the device's memory if phones struggle.
 const parked = new Map<string, Built>()
-const PARK_MAX = 200
+const PARK_MAX = 24
 
-// Everything the film is drawn from.
-const filmKey = (song: GameSong) =>
+// Everything the film is drawn from: the same key, the same card.
+export const filmKey = (song: GameSong) =>
   [
     song.id,
     song.kind,
@@ -94,7 +95,7 @@ function unpark(key: string) {
 async function build(song: GameSong): Promise<Built> {
   const scene = thumbStage()
   const before = scene.disposables.length
-  const film = addFilm(scene, cardFilm(song))
+  const film = addFilm(scene, cardFilm(song, THUMB_SCALE))
   film.subject.visible = false
   film.subject.position.y = LIFT
   try {
@@ -105,30 +106,6 @@ async function build(song: GameSong): Promise<Built> {
     throw error
   }
   return { film, parts: scene.disposables.splice(before) }
-}
-
-// Builds the films of cards about to be shown (the newest of the collection)
-// in idle time, so their thumbs draw as soon as they mount.
-export function warmCardThumbs(songs: ReadonlyArray<GameSong>) {
-  for (const song of songs) {
-    const key = filmKey(song)
-    if (parked.has(key) || live.has(key) || waiting.has(key)) continue
-    waiting.set(key, {
-      song,
-      async load() {
-        if (parked.has(key) || live.has(key)) return
-        const built = await build(song)
-        const { renderer, scene, camera } = thumbStage()
-        // Drawn once off screen, so its textures and shaders are on the GPU.
-        built.film.subject.visible = true
-        renderer.render(scene, camera)
-        built.film.subject.visible = false
-        scene.remove(built.film.subject)
-        park(key, built)
-      },
-    })
-  }
-  void loadWaiting()
 }
 
 // Waits for the page to be idle, or for a thumb to come on screen.
@@ -151,15 +128,10 @@ function schedule() {
 async function loadWaiting() {
   if (loadingAny || !waiting.size) return
   loadingAny = true
-  const urgent = () =>
-    [...waiting.keys()].find(
-      (key) => typeof key !== "string" && onScreen.has(key)
-    )
+  const urgent = () => [...waiting.keys()].find((key) => onScreen.has(key))
   // Work off screen only takes idle time, so it costs no frames.
   if (urgent() === undefined) await whenIdle()
-  const keys = [...waiting.keys()]
-  const next =
-    urgent() ?? keys.find((key) => typeof key === "string") ?? keys[0]
+  const next = urgent() ?? waiting.keys().next().value
   const thumb = next === undefined ? undefined : waiting.get(next)
   if (next !== undefined) waiting.delete(next)
   await thumb?.load().catch(() => undefined)
@@ -188,6 +160,93 @@ function watcher() {
     void loadWaiting()
   })
   return observer
+}
+
+// Elements watched for coming near their scroller's view: the callbacks
+// waiting on each, and whether it was last near, so a later one hears at once.
+type Watch = { callbacks: Set<(near: boolean) => void>; near: boolean | null }
+const watches = new Map<Element, Watch>()
+// One watcher per scroller (null: the viewport), and how many it watches.
+const scrollers = new Map<
+  Element | null,
+  { observer: IntersectionObserver; items: number }
+>()
+
+// Tells `onNear` whether `element` is within `margin` of `root`'s view. An
+// element not laid out (its tab hidden) keeps what it had.
+function watchIn(
+  element: Element,
+  root: Element | null,
+  margin: string,
+  onNear: (near: boolean) => void
+) {
+  const known = watches.get(element)
+  if (known) {
+    known.callbacks.add(onNear)
+    if (known.near !== null) onNear(known.near)
+  } else {
+    watches.set(element, { callbacks: new Set([onNear]), near: null })
+    let scroller = scrollers.get(root)
+    if (!scroller) {
+      const near = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const watch = watches.get(entry.target)
+            if (!watch || !entry.target.checkVisibility()) continue
+            watch.near = entry.isIntersecting
+            for (const callback of watch.callbacks) callback(watch.near)
+          }
+        },
+        { root, rootMargin: margin }
+      )
+      scroller = { observer: near, items: 0 }
+      scrollers.set(root, scroller)
+    }
+    scroller.items += 1
+    scroller.observer.observe(element)
+  }
+  return () => {
+    const watch = watches.get(element)
+    watch?.callbacks.delete(onNear)
+    if (watch?.callbacks.size) return
+    watches.delete(element)
+    const scroller = scrollers.get(root)
+    if (!scroller) return
+    scroller.observer.unobserve(element)
+    scroller.items -= 1
+    if (scroller.items) return
+    scroller.observer.disconnect()
+    scrollers.delete(root)
+  }
+}
+
+// Grid items within half a screen of their scroller's view (a GameScroll, or
+// a dialog that scrolls), so only those hold a card. In a sideways row
+// (data-slot=card-row): within half a row of the row's view, and the row
+// itself within half a screen of the page's.
+export function watchNear(element: Element, onNear: (near: boolean) => void) {
+  const row = element.parentElement?.closest("[data-slot=card-row]")
+  if (!row) {
+    const root = element.closest("[data-slot=game-scroll], dialog")
+    return watchIn(element, root, "50% 0px", onNear)
+  }
+  let inRow: boolean | null = null
+  let rowNear: boolean | null = null
+  const tell = () => {
+    if (inRow !== null && rowNear !== null) onNear(inRow && rowNear)
+  }
+  const stopRow = watchNear(row, (near) => {
+    rowNear = near
+    tell()
+  })
+  const stopItem = watchIn(element, row, "0px 50%", (near) => {
+    inRow = near
+    tell()
+  })
+  return () => {
+    stopItem()
+    stopRow()
+  }
 }
 
 // One shared WebGL context, so a collection grid can show many real cards.
@@ -247,12 +306,15 @@ function draw(stamp: number) {
   kicking = false
   for (const [canvas, thumb] of thumbs) {
     if (!(canvas instanceof HTMLCanvasElement)) continue
-    if (!thumb.shown) continue
+    // Drawn once as soon as it's built, even off screen or under a hidden
+    // tab, so it's ready when it shows; after that, only while on screen.
+    if (thumb.drawn && !thumb.shown) continue
     running = true
     // Faded out under a showcase: keep the loop, skip the work. Inert alone
     // isn't enough, the page is back on screen while the card flies home.
     if (still && thumb.drawn) continue
-    if (!canvas.checkVisibility({ opacityProperty: true })) continue
+    const visible = canvas.checkVisibility({ opacityProperty: true })
+    if (thumb.drawn && !visible) continue
     const box = canvas.getBoundingClientRect()
     const across = (box.left + box.width / 2) / innerWidth - 0.5
     const down = (box.top + box.height / 2) / innerHeight - 0.5
@@ -297,9 +359,7 @@ export function mountCardThumb(
   let built: Built | null = null
   let disposed = false
   let loading = false
-  live.add(key)
   const release = () => {
-    live.delete(key)
     waiting.delete(canvas)
     onScreen.delete(canvas)
     thumbs.delete(canvas)
@@ -310,9 +370,11 @@ export function mountCardThumb(
   }
 
   function show(film: Film) {
-    const scene = thumbStage()
-    canvas.width = scene.renderer.domElement.width
-    canvas.height = scene.renderer.domElement.height
+    const { width, height } = thumbStage().renderer.domElement
+    // Resizing clears it: a card redrawn after a data refresh keeps its last
+    // frame until the next one.
+    if (canvas.width !== width) canvas.width = width
+    if (canvas.height !== height) canvas.height = height
     thumbs.set(canvas, {
       film,
       shown: onScreen.has(canvas),

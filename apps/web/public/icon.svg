@@ -1,7 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#111111"/>
-  <rect x="136" y="76" width="240" height="336" rx="28" fill="#1f1f1f" stroke="#e8b84a" stroke-width="16" transform="rotate(-8 256 244)"/>
-  <circle cx="256" cy="232" r="88" fill="#e8b84a"/>
-  <circle cx="256" cy="232" r="26" fill="#111111"/>
-  <rect x="186" y="356" width="140" height="18" rx="9" fill="#fafafa" opacity=".8"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7ef9ff"/>
+      <stop offset=".3" stop-color="#a98bff"/>
+      <stop offset=".55" stop-color="#ff7ad9"/>
+      <stop offset=".8" stop-color="#ffd36e"/>
+      <stop offset="1" stop-color="#7effb2"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="1">
+      <stop offset=".38" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset=".62" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="23" fill="url(#foil)"/>
+  <rect width="100" height="100" rx="23" fill="url(#shine)"/>
+  <g fill="#0f0d13" fill-opacity=".9">
+    <rect x="22.2" y="42" width="5.2" height="16" rx="2.6"/>
+    <rect x="30.6" y="35" width="5.2" height="30" rx="2.6"/>
+    <rect x="39" y="26" width="5.2" height="48" rx="2.6"/>
+    <rect x="47.4" y="19" width="5.2" height="62" rx="2.6"/>
+    <rect x="55.8" y="30" width="5.2" height="40" rx="2.6"/>
+    <rect x="64.2" y="37" width="5.2" height="26" rx="2.6"/>
+    <rect x="72.6" y="43" width="5.2" height="14" rx="2.6"/>
+  </g>
 </svg>

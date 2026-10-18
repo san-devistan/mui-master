@@ -1,5 +1,5 @@
 import type { Marquee } from "@workspace/ui/lib/game/film-material"
-import { blankCanvas, loadImage } from "@workspace/ui/lib/game/pack-art"
+import { blankCanvas, loadImage, SCALE } from "@workspace/ui/lib/game/pack-art"
 import { BRAND, type GameSong } from "@workspace/ui/lib/game/theme"
 
 // Song card artwork drawn to a canvas, in the song card layout
@@ -179,7 +179,8 @@ const MAX_CAPTION_PX = 4096
 function caption(
   text: string,
   line: keyof typeof CAPTIONS,
-  inset: number
+  inset: number,
+  scale: number
 ): Marquee {
   const { font, spacing, color, baseline, top, height } = CAPTIONS[line]
   const boxWidth = CAPTION_BOX.width - 2 * inset
@@ -189,13 +190,13 @@ function caption(
   const width = measure.measureText(text).width
   const scrolls = width > boxWidth - 2 * CAPTION_BOX.pad
   const length = scrolls ? CAPTION_BOX.pad + width + CAPTION_GAP : boxWidth
-  const scale = Math.min(4, MAX_CAPTION_PX / length)
+  const texels = Math.min(scale, MAX_CAPTION_PX / length)
   const canvas = document.createElement("canvas")
-  canvas.width = Math.ceil(length * scale)
-  canvas.height = Math.ceil(height * scale)
+  canvas.width = Math.ceil(length * texels)
+  canvas.height = Math.ceil(height * texels)
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("2D canvas unavailable")
-  ctx.scale(scale, scale)
+  ctx.scale(texels, texels)
   ctx.font = font
   ctx.letterSpacing = spacing
   ctx.fillStyle = color
@@ -203,7 +204,7 @@ function caption(
   return {
     art: canvas,
     box: { x: CAPTION_BOX.x + inset, y: top, width: boxWidth, height },
-    cycle: canvas.width / scale,
+    cycle: canvas.width / texels,
     speed: scrolls ? CAPTION_SPEED : 0,
     fade: scrolls ? CAPTION_BOX.pad : 0,
   }
@@ -303,8 +304,8 @@ export async function drawCardBack(kind: GameSong["kind"]) {
 
 // Card outline for the alpha test (green), with the card border and
 // the cover ring marked in red so rarer cards can foil them alike.
-function cardShape(kind: GameSong["kind"]) {
-  const { canvas, ctx } = blankCanvas(CARD_W, CARD_H)
+function cardShape(kind: GameSong["kind"], scale: number) {
+  const { canvas, ctx } = blankCanvas(CARD_W, CARD_H, scale)
   ctx.fillStyle = "#00ff00"
   ctx.beginPath()
   outline(ctx, kind)
@@ -319,26 +320,27 @@ function cardShape(kind: GameSong["kind"]) {
   return canvas
 }
 
-export async function drawCardArt(song: GameSong) {
+// `scale`: texels per card px; thumbs need fewer than a full-screen card.
+export async function drawCardArt(song: GameSong, scale = SCALE) {
   // The cover downloads while the fonts load, not after.
   const [image] = await Promise.all([
     loadImage(song.imageUrl),
     ...[DISPLAY, UI, STREAMS].map((font) => document.fonts.load(font)),
   ])
-  const front = blankCanvas(CARD_W, CARD_H)
+  const front = blankCanvas(CARD_W, CARD_H, scale)
   cover(front.ctx, song, image)
   stats(front.ctx, song)
   border(front.ctx, song.kind)
   return {
     front: front.canvas,
-    shape: cardShape(song.kind),
+    shape: cardShape(song.kind, scale),
     // Artist cards show just the name: their wavy edge already says what they are.
     marquees:
       song.kind === "artist"
-        ? [caption(song.title, "title", padding(song.kind))]
+        ? [caption(song.title, "title", padding(song.kind), scale)]
         : [
-            caption(song.title, "title", padding(song.kind)),
-            caption(song.artist, "artist", padding(song.kind)),
+            caption(song.title, "title", padding(song.kind), scale),
+            caption(song.artist, "artist", padding(song.kind), scale),
           ],
   }
 }

@@ -103,12 +103,12 @@ export function upgradePose(at: Pose, t: number): Pose {
   }
 }
 
-// Seconds after a card lands until its reveal cue (uisfx lengths) and
-// celebration have played out: when its song should be in. Legendary's cue
-// comes 0.85s in and its light sweep ends at 2.1s.
+// Seconds after a card lands until its reveal cue and celebration have played
+// out: when its song should be in. Legendary's cue hits 0.85s in and its
+// light sweep ends at 2.1s.
 export const REVEAL_PLAYED: Record<Rarity, number> = {
   common: 0.4,
   rare: 0.75,
   epic: Math.max(CELEBRATION.epic, 0.95),
-  legendary: Math.max(SHINE[1], 0.85 + 1.2),
+  legendary: SHINE[1],
 }

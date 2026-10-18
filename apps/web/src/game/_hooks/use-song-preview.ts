@@ -1,5 +1,4 @@
 import { api } from "@workspace/backend/api"
-import { sfx } from "@workspace/ui/lib/game/sfx"
 import { useConvex } from "convex/react"
 import { useEffect, useRef } from "react"
 
@@ -138,7 +137,7 @@ export function useSongPreview(
   )
 
   async function start(by: number) {
-    if (!sfx.isEnabled() || !songId) return
+    if (!songId) return
     wantedRef.current = true
     const end = performance.now() + by * 1000
     const url = await previewUrl(songId, stored).catch(() => null)

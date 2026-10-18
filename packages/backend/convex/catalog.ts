@@ -9,6 +9,7 @@ import {
   internalQuery,
   type MutationCtx,
 } from "./_generated/server"
+import { syncCredits } from "./related"
 import { isBetterRelease } from "./songs/_lib/dedupe"
 import {
   artistRarityForStreams,
@@ -172,6 +173,7 @@ export const refresh = internalMutation({
           playcount,
           rarity: songRarity(playcount, row.rarity),
         })
+        await syncCredits(ctx, { ...row, playcount })
       }
     }
     for (const { spotify, monthlyListeners } of args.artists) {
@@ -351,12 +353,13 @@ async function upsertSong(
 ) {
   const spotify = doc.ids.spotify
   if (!existing) {
-    await ctx.db.insert("songs", {
+    const id = await ctx.db.insert("songs", {
       ...doc,
       ids: { ...doc.ids, duplicates: [] },
       rarity: songRarity(doc.playcount),
       drawKey: Math.random(),
     })
+    await syncCredits(ctx, { ...doc, _id: id })
     return
   }
   const sameRelease = existing.ids.spotify === spotify
@@ -370,6 +373,7 @@ async function upsertSong(
     rarity: songRarity(doc.playcount, existing.rarity),
     drawKey: existing.drawKey,
   })
+  await syncCredits(ctx, { ...doc, _id: existing._id })
 }
 
 // Saves what passes the rules and returns the Spotify ids of the songs it skipped. Credits keep
