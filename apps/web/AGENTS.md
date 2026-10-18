@@ -23,7 +23,8 @@ its bid history. A showcased card scrolls down to its related cards
 songs); owned ones open over it, the rest show grayed out. Cards are songs or artists (`src/game/_lib/cards.ts`). On app
 open, `packs.upgrades` cards that went up a rarity climb one rarity per tap on
 their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
-is empty for now.
+shows the player and their showcase, and turns this device's notifications on
+(`public/sw.js` shows them; iOS only once added to the Home Screen).
 
 ## Auth
 

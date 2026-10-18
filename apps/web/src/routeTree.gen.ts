@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as GameRouteImport } from './routes/_game'
+import { Route as MeterPreviewRouteImport } from './routes/meter-preview'
 import { Route as GameIndexRouteImport } from './routes/_game.index'
 import { Route as GameCollectionRouteImport } from './routes/_game.collection'
 import { Route as GameMarketRouteImport } from './routes/_game.market'
@@ -18,6 +19,11 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
 const GameRoute = GameRouteImport.update({
   id: '/_game',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeterPreviewRoute = MeterPreviewRouteImport.update({
+  id: '/meter-preview',
+  path: '/meter-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GameIndexRoute = GameIndexRouteImport.update({
@@ -48,12 +54,14 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof GameIndexRoute
+  '/meter-preview': typeof MeterPreviewRoute
   '/collection': typeof GameCollectionRoute
   '/market': typeof GameMarketRoute
   '/profile': typeof GameProfileRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
+  '/meter-preview': typeof MeterPreviewRoute
   '/collection': typeof GameCollectionRoute
   '/market': typeof GameMarketRoute
   '/profile': typeof GameProfileRoute
@@ -63,6 +71,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_game': typeof GameRouteWithChildren
+  '/meter-preview': typeof MeterPreviewRoute
   '/_game/collection': typeof GameCollectionRoute
   '/_game/market': typeof GameMarketRoute
   '/_game/profile': typeof GameProfileRoute
@@ -71,12 +80,25 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/collection' | '/market' | '/profile' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/meter-preview'
+    | '/collection'
+    | '/market'
+    | '/profile'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/collection' | '/market' | '/profile' | '/' | '/api/auth/$'
+  to:
+    | '/meter-preview'
+    | '/collection'
+    | '/market'
+    | '/profile'
+    | '/'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/_game'
+    | '/meter-preview'
     | '/_game/collection'
     | '/_game/market'
     | '/_game/profile'
@@ -86,6 +108,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   GameRoute: typeof GameRouteWithChildren
+  MeterPreviewRoute: typeof MeterPreviewRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -96,6 +119,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof GameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meter-preview': {
+      id: '/meter-preview'
+      path: '/meter-preview'
+      fullPath: '/meter-preview'
+      preLoaderRoute: typeof MeterPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_game/': {
@@ -154,6 +184,7 @@ const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   GameRoute: GameRouteWithChildren,
+  MeterPreviewRoute: MeterPreviewRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

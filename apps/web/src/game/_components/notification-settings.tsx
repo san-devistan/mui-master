@@ -16,7 +16,9 @@ export function NotificationSettings() {
     try {
       await toggle(next)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Something went wrong")
+      setError(
+        caught instanceof Error ? caught.message : "Something went wrong"
+      )
     } finally {
       setBusy(false)
     }
@@ -34,9 +36,9 @@ export function NotificationSettings() {
         <label htmlFor={id} className="gap-1 grid">
           <span className="font-bold">Packs and auctions</span>
           <span className="text-sm text-ink/60">
-            {supported
-              ? "A free pack ready, a bid on your auction, or being outbid."
-              : "Add Holotrack to your Home Screen to get notifications."}
+            {supported === false
+              ? "Add Holotrack to your Home Screen to get notifications."
+              : "A free pack ready, a bid on your auction, or being outbid."}
           </span>
         </label>
         <Switch

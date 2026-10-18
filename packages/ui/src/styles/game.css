@@ -677,9 +677,8 @@ button[data-slot="game-pill"] {
 }
 
 /* Bought packs past the free ones: one more full pack, set off by a divider,
-   with a ×count chip on its corner. */
+   with a ×count chip hanging under it like the time's badge. */
 [data-slot="pack-meter-extra"] {
-  position: relative;
   display: flex;
   align-items: center;
   margin-left: 0.25rem;
@@ -687,41 +686,37 @@ button[data-slot="game-pill"] {
   border-left: 2px dashed color-mix(in oklab, var(--ink) 30%, transparent);
 }
 
-[data-slot="pack-meter-count"] {
-  position: absolute;
-  top: -1.1rem;
-  right: -0.6rem;
-  min-width: 1.5rem;
-  height: 1.25rem;
-  padding-inline: 0.3rem;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--brand-mesh);
-  color: var(--brand-foreground);
-  font-size: 0.6875rem;
-  font-weight: 900;
-  line-height: 1rem;
-  text-align: center;
-  white-space: nowrap;
-  box-shadow: 0 2px 0 var(--ink);
-}
-
+[data-slot="pack-meter-count"],
 [data-slot="pack-meter-badge"] {
   position: absolute;
   bottom: 0;
-  left: 50%;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
   height: 1.5rem;
-  padding-inline: 0.625rem;
   border: 2px solid var(--ink);
   border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
   font-size: 0.75rem;
   font-weight: 800;
   white-space: nowrap;
+}
+
+/* Hangs from the track's bottom, under its own pack, as the time badge does. */
+[data-slot="pack-meter-count"] {
+  /* The extra pack's center: the track's end, less its padding and half a pack. */
+  left: calc(100% - 1.3125rem);
+  padding-inline: 0.45rem;
+  background: var(--brand-mesh);
+  color: var(--brand-foreground);
+  font-weight: 900;
+  translate: -50% 65%;
+}
+
+[data-slot="pack-meter-badge"] {
+  left: 50%;
+  gap: 0.25rem;
+  padding-inline: 0.625rem;
+  background: var(--ink);
+  color: #fff;
   translate: -50% 65%;
 
   & svg {

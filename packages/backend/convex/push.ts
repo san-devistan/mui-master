@@ -46,6 +46,36 @@ const playerRow = (ctx: QueryCtx, player: string) =>
     .withIndex("by_playerId", (q) => q.eq("playerId", player))
     .unique()
 
+// The browsers' push services; the backend posts to a subscription's endpoint, so no other host.
+const PUSH_HOSTS = [
+  "fcm.googleapis.com",
+  "push.services.mozilla.com",
+  "push.apple.com",
+  "notify.windows.com",
+]
+const isPushEndpoint = (endpoint: string) => {
+  if (!URL.canParse(endpoint)) return false
+  const { protocol, hostname } = new URL(endpoint)
+  return (
+    protocol === "https:" &&
+    PUSH_HOSTS.some(
+      (host) => hostname === host || hostname.endsWith(`.${host}`)
+    )
+  )
+}
+
+// The free packs the player holds now and when the next comes, at their plan's pace.
+const freePacksNow = (
+  row: Pick<Doc<"players">, "freePacksSince" | "proUntil">
+) => {
+  const now = Date.now()
+  return freePacks(
+    row.freePacksSince,
+    now,
+    freePackPlan(isPro(row.proUntil, now))
+  )
+}
+
 // Pushes `message` to the player's devices once the calling mutation commits; nothing without one.
 export const notify = async (
   ctx: MutationCtx,
@@ -70,12 +100,7 @@ export const scheduleFreePackPush = async (
     "_id" | "playerId" | "freePacksSince" | "proUntil" | "freePackPushAt"
   >
 ) => {
-  const now = Date.now()
-  const { nextAt } = freePacks(
-    row.freePacksSince,
-    now,
-    freePackPlan(isPro(row.proUntil, now))
-  )
+  const { nextAt } = freePacksNow(row)
   if (nextAt === null || nextAt === row.freePackPushAt) return
   if (!(await deviceOf(ctx, row.playerId))) return
   await ctx.db.patch("players", row._id, { freePackPushAt: nextAt })
@@ -90,12 +115,15 @@ export const freePackReady = internalMutation({
   handler: async (ctx, { playerId: player, at }) => {
     const row = await playerRow(ctx, player)
     if (!row || row.freePackPushAt !== at) return
-    await notify(ctx, player, {
-      title: "Free pack ready",
-      body: "A free pack is waiting for you. Rip it open!",
-      url: "/",
-      tag: "free-pack",
-    })
+    // Pro may have run out since, putting the pack off: then only the new time is scheduled.
+    if (freePacksNow(row).count > 0) {
+      await notify(ctx, player, {
+        title: "Free pack ready",
+        body: "A free pack is waiting for you. Rip it open!",
+        url: "/",
+        tag: "free-pack",
+      })
+    }
     await scheduleFreePackPush(ctx, row)
   },
 })
@@ -116,10 +144,8 @@ export const subscribe = mutation({
   handler: async (ctx, { endpoint, keys }) => {
     const player = await playerId(ctx)
     if (!player) throw new ConvexError("Not signed in")
-    // The backend posts to it: only a push service's https address.
-    if (!URL.canParse(endpoint) || new URL(endpoint).protocol !== "https:") {
+    if (!isPushEndpoint(endpoint))
       throw new ConvexError("Not a push subscription")
-    }
     const device = await byEndpoint(ctx, endpoint)
     if (device) {
       await ctx.db.patch("pushSubscriptions", device._id, {

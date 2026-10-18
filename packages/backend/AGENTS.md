@@ -144,6 +144,12 @@ platform.
   ft, with, con, w/, part.), live, remix, remaster/year and Taylor's Version
   suffixes, for the Deezer preview search. Check:
   `node packages/backend/convex/songs/_lib/dedupe.check.mjs`.
+- Notifications (`push.ts`, sent by `notify.ts`): Web Push to each device in
+  `pushSubscriptions`, turned on from the profile. A free pack ready (scheduled
+  at its `nextAt` when one is opened or Pro changes), a bid on the player's
+  auction, and being outbid. Needs the env vars `VAPID_PUBLIC_KEY` and
+  `VAPID_PRIVATE_KEY` (`pnpm exec web-push generate-vapid-keys`) plus
+  `SITE_URL`; a device the push service says is gone is dropped.
 - Previews (`playback.ts`, takes a `songs` id): the stored Spotify `preview`
   if present, otherwise a fresh Deezer link found by exact title and lead
   artist. Deezer links expire, so don't store them.

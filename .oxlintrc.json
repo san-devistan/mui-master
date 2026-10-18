@@ -139,7 +139,11 @@
       }
     },
     {
-      "files": ["scripts/**", "**/*.config.{js,cjs,mjs,ts}"],
+      "files": [
+        "scripts/**",
+        "**/*.config.{js,cjs,mjs,ts}",
+        "apps/web/public/sw.js"
+      ],
       "rules": {
         "no-console": "off",
         "typescript/no-unsafe-argument": "off",

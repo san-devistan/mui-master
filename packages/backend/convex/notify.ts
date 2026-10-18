@@ -19,7 +19,9 @@ export const send = internalAction({
   handler: async (ctx, { playerId, ...message }) => {
     const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, SITE_URL } = process.env
     if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !SITE_URL) {
-      console.warn("Push skipped: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY or SITE_URL unset")
+      console.warn(
+        "Push skipped: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY or SITE_URL unset"
+      )
       return
     }
     const vapidDetails = {

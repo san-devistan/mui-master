@@ -58,8 +58,9 @@ const PACK_TOP = PACK_Y + PACK_H / 2
 // Camera zoom on the waiting pack and on the opened pile.
 const IDLE_ZOOM = 1.3
 // Idle camera height: above the pack's middle, so it sits clear of the free
-// packs pill, its mirror fading out under the tab bar.
-const IDLE_CAMERA_Y = 60
+// packs pill, its mirror fading out under the tab bar. The camera sits a
+// little low, which shows the pack 12 CSS px higher on a phone.
+const IDLE_CAMERA_Y = 60 - 12 / IDLE_ZOOM
 // Cut view: zoomed in so the pack spans the screen and runs past its bottom,
 // with its top at mid-screen and the cut line just under it.
 const CUT_ZOOM = 1.62
