@@ -15,14 +15,16 @@ import { addCopy, cardById, sortKeys, takeCopy } from "./packs"
 import { normalizeText } from "./songs/_lib/dedupe"
 import {
   auctionHours,
+  isPro,
   maxOpenAuctions,
   maxStartPrice,
   minBid,
+  proMaxOpenAuctions,
   sellPrice,
   snipeWindowMs,
 } from "./songs/_lib/economy"
 import { cardRarity, type CardRarity } from "./songs/_lib/validators"
-import { addCoins } from "./wallet"
+import { addCoins, ensurePlayer } from "./wallet"
 
 // Coins for cards: selling a copy to the bank, and auctions between players. Every move of
 // a card or coins happens in one mutation, so none is lost or doubled (see schema.ts, auctions).
@@ -78,14 +80,18 @@ export const list = mutation({
     ) {
       throw new ConvexError("The start price must be a whole number of holos")
     }
+    const seller = await ensurePlayer(ctx, player)
+    const most = isPro(seller.proUntil, Date.now())
+      ? proMaxOpenAuctions
+      : maxOpenAuctions
     const open = await ctx.db
       .query("auctions")
       .withIndex("by_sellerId_and_status_and_endsAt", (q) =>
         q.eq("sellerId", player).eq("status", "open")
       )
-      .take(maxOpenAuctions)
-    if (open.length >= maxOpenAuctions) {
-      throw new ConvexError(`${maxOpenAuctions} auctions at most at a time`)
+      .take(most)
+    if (open.length >= most) {
+      throw new ConvexError(`${most} auctions at most at a time`)
     }
     const card = await cardById(ctx, cardId)
     if (!card) throw new ConvexError("Card not found")
@@ -256,8 +262,8 @@ const views = async (
 // 200 bids a day. Keep a row per auction and bidder if anyone bids that much.
 const BIDS_SCANNED = 200
 
-// The player's open auctions: those they sell ("mine", at most maxOpenAuctions) or have bid on
-// ("bids"), leading or not.
+// The player's open auctions: those they sell ("mine", at most proMaxOpenAuctions, the most
+// anyone can run, so none drops out after Pro ends) or have bid on ("bids"), leading or not.
 const playerAuctions = async (
   ctx: QueryCtx,
   player: string,
@@ -269,7 +275,7 @@ const playerAuctions = async (
       .withIndex("by_sellerId_and_status_and_endsAt", (q) =>
         q.eq("sellerId", player).eq("status", "open")
       )
-      .take(maxOpenAuctions)
+      .take(proMaxOpenAuctions)
   }
   const bids = await ctx.db
     .query("bids")
@@ -305,14 +311,52 @@ const openAuctions = (
   return open.withIndex("by_status_and_endsAt", (q) => q.eq("status", "open"))
 }
 
-// Open auctions of one rarity or all, a page at a time: other players' ("live", by default), or
-// the player's own ("mine") or those they've bid on ("bids"), ending soonest first. With `text`,
-// those whose card's title or artists match it, best match first for other players'.
+// The auctions `player` won, of one rarity or all: matching `search`, best first, or the latest
+// won first without.
+const wonAuctions = (
+  ctx: QueryCtx,
+  player: string,
+  rarity: CardRarity | undefined,
+  search: string | undefined
+) => {
+  const all = ctx.db.query("auctions")
+  if (search) {
+    return all.withSearchIndex("search_searchText", (q) => {
+      const found = q
+        .search("searchText", search)
+        .eq("status", "sold")
+        .eq("topBidderId", player)
+      return rarity ? found.eq("rarity", rarity) : found
+    })
+  }
+  if (rarity) {
+    return all
+      .withIndex("by_topBidderId_and_status_and_rarity_and_endsAt", (q) =>
+        q.eq("topBidderId", player).eq("status", "sold").eq("rarity", rarity)
+      )
+      .order("desc")
+  }
+  return all
+    .withIndex("by_topBidderId_and_status_and_endsAt", (q) =>
+      q.eq("topBidderId", player).eq("status", "sold")
+    )
+    .order("desc")
+}
+
+// Auctions of one rarity or all, a page at a time: other players' open ones ("live", by default,
+// ending soonest first), the player's own open ones ("mine") or those they've bid on ("bids"),
+// both ending soonest first, or those they won ("won", latest first). With `text`, those whose
+// card's title or artists match it, best match first for "live" and "won".
 export const auctions = query({
   args: {
     paginationOpts: paginationOptsValidator,
     scope: v.optional(
-      v.union(v.literal("live"), v.literal("mine"), v.literal("bids"))
+      v.union(
+        v.literal("live"),
+        v.literal("mine"),
+        v.literal("bids"),
+        v.literal("won")
+      )
     ),
     rarity: v.optional(cardRarity),
     text: v.optional(v.string()),
@@ -320,7 +364,7 @@ export const auctions = query({
   handler: async (ctx, { paginationOpts, scope = "live", rarity, text }) => {
     const player = await playerId(ctx)
     const search = text?.trim()
-    if (scope !== "live") {
+    if (scope === "mine" || scope === "bids") {
       // A few dozen at most: filtered here, all on one page.
       const rows = player ? await playerAuctions(ctx, player, scope) : []
       const wanted = normalizeText(search ?? "")
@@ -335,10 +379,17 @@ export const auctions = query({
       )
       return { page, isDone: true, continueCursor: "" }
     }
+    if (scope === "won") {
+      if (!player) return { page: [], isDone: true, continueCursor: "" }
+      const rows = await wonAuctions(ctx, player, rarity, search).paginate(
+        paginationOpts
+      )
+      return { ...rows, page: await views(ctx, rows.page, player) }
+    }
     const rows = await openAuctions(ctx, rarity, search).paginate(
       paginationOpts
     )
-    // Their own are under "mine": a page can come back short by those (maxOpenAuctions at most),
+    // Their own are under "mine": a page can come back short by those (proMaxOpenAuctions at most),
     // which the cursor still moves past.
     const others = rows.page.filter((row) => row.sellerId !== player)
     return { ...rows, page: await views(ctx, others, player) }

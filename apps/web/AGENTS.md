@@ -16,8 +16,8 @@ and pack covers. The Packs, Collection and Market pages stay mounted by the game
 layout, hidden on other tabs, so they keep their state; grid thumbs hold a 3D card
 only near the view. Collection and Market share their toolbar (rarity, a second
 select, search; `src/game/_components/card-toolbar.tsx`); the market's second
-select picks other players' auctions, the player's own, or those they've bid on
-(`market.auctions` `scope`), and a tapped auction opens on its own card page with
+select picks other players' auctions, the player's own, those they've bid on, or
+those they won (`market.auctions` `scope`), and a tapped auction opens on its own card page with
 its bid history. A showcased card scrolls down to its related cards
 (`related.*`: an artist's songs and collaborators, a song's artists and their
 songs); owned ones open over it, the rest show grayed out. Cards are songs or artists (`src/game/_lib/cards.ts`). On app

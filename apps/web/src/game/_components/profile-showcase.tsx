@@ -1,9 +1,9 @@
+import { MoreCards } from "@/game/_components/collection-grid"
 import { toGameCard } from "@/game/_lib/cards"
 import { useCollection } from "@/game/_lib/collection"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@workspace/backend/api"
-import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
@@ -109,7 +109,8 @@ export function ProfileShowcase() {
 
 // The player's cards to pick one from, searchable; those already shown are
 // grayed out. It opens once its first cards are in, so it never shows empty.
-// The cards scroll on under the footer, which fades them out.
+// The cards scroll on under the footer, which fades them out; more load as
+// the end comes near, like the collection's.
 function ShowcasePicker({
   shown,
   onPick,
@@ -120,7 +121,7 @@ function ShowcasePicker({
   onClose: () => void
 }) {
   const [text, setText] = useState("")
-  const { cards, more } = useCollection({ sort: "rarest" }, text)
+  const { cards, more, done } = useCollection({ sort: "rarest" }, text)
 
   return (
     <Dialog
@@ -175,14 +176,11 @@ function ShowcasePicker({
                 </li>
               )
             })}
+            {/* Remounted as each page comes in, so it looks again. */}
+            {done ? null : (
+              <MoreCards key={more ? "ready" : "loading"} onNear={more} />
+            )}
           </ul>
-          {more ? (
-            <div className="pt-4 flex justify-center">
-              <Button variant="game" onClick={more}>
-                Show more
-              </Button>
-            </div>
-          ) : null}
         </div>
         <div className="-mx-4 px-4 pt-12 -mb-4 pb-3 relative z-1 rounded-b-4xl game-dialog-fade">
           <DialogFooter variant="game" className="justify-center" />

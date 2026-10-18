@@ -164,6 +164,11 @@ export default defineSchema({
     cards: v.number(),
     coins: v.number(),
     freePacksSince: v.number(),
+    // Pro until then (ms); unset or past, the free game. Paid monthly; no checkout yet, so for
+    // now only the dev switch sets it (wallet:setPro).
+    proUntil: v.optional(v.number()),
+    // When Pro's daily holos were last given (wallet:claimDaily).
+    dailyHolosAt: v.optional(v.number()),
     // Up to 6 card ids the player shows on their profile, in order (profile.ts).
     showcase: v.optional(v.array(v.string())),
   }).index("by_playerId", ["playerId"]),
@@ -198,7 +203,7 @@ export default defineSchema({
   })
     .searchIndex("search_searchText", {
       searchField: "searchText",
-      filterFields: ["status", "rarity"],
+      filterFields: ["status", "rarity", "topBidderId"],
     })
     .index("by_status_and_endsAt", ["status", "endsAt"])
     .index("by_status_and_rarity_and_endsAt", ["status", "rarity", "endsAt"])
@@ -210,6 +215,13 @@ export default defineSchema({
     .index("by_topBidderId_and_status_and_endsAt", [
       "topBidderId",
       "status",
+      "endsAt",
+    ])
+    // A player's won auctions ("sold" to them), newest first, of one rarity or all.
+    .index("by_topBidderId_and_status_and_rarity_and_endsAt", [
+      "topBidderId",
+      "status",
+      "rarity",
       "endsAt",
     ]),
   // Every bid made on an auction, newest last, for its history (market:auction) and the auctions

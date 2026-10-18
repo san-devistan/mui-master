@@ -187,6 +187,18 @@
   bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+@utility game-viewport {
+  height: 100dvh;
+
+  /* iOS 26 home-screen apps lay out in a viewport short by the status bar
+     (WebKit 301108), leaving a strip at the bottom. Fill the screen and make
+     this the box fixed layers (shell, tab bar, dialogs) fill. */
+  @media (display-mode: standalone) {
+    height: min(100lvh, 100dvh + env(safe-area-inset-top));
+    transform: translateZ(0);
+  }
+}
+
 @utility game-stage-height {
   width: auto;
   max-width: 100%;

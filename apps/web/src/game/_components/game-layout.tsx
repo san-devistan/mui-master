@@ -4,11 +4,13 @@ import { MarketPage } from "@/game/_pages/market-page"
 import { PacksPage } from "@/game/_pages/packs-page"
 import { authClient } from "@/lib/auth-client"
 import { Link, Outlet, useRouterState } from "@tanstack/react-router"
+import { api } from "@workspace/backend/api"
 import {
   GameShell,
   GameTab,
   GameTabBar,
 } from "@workspace/ui/components/game-shell"
+import { useMutation } from "convex/react"
 import { BoxIcon, GavelIcon, LayersIcon, UserIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
@@ -21,6 +23,7 @@ const TABS = [
 
 export function GameLayout() {
   const ready = useGuestSession()
+  useDailyHolos(ready)
   const path = useRouterState({ select: (state) => state.location.pathname })
   const onPacks = path === "/"
   // Once shown, the Packs page stays mounted, hidden on other tabs, so coming
@@ -97,4 +100,13 @@ function useGuestSession() {
   }, [isPending, session])
 
   return Boolean(session)
+}
+
+// Pro's daily holos, given once the session is ready: each day the app is opened. The backend
+// gives them at most once a day, so a remount or a second tab adds nothing.
+function useDailyHolos(ready: boolean) {
+  const claimDaily = useMutation(api.wallet.claimDaily)
+  useEffect(() => {
+    if (ready) void claimDaily().catch(() => undefined)
+  }, [ready, claimDaily])
 }

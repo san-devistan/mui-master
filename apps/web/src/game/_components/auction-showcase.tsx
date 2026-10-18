@@ -12,6 +12,7 @@ import {
   timeLeft,
   useNow,
   useWallet,
+  wonOn,
 } from "@/game/_lib/wallet"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -53,7 +54,8 @@ const timeOfDay = new Intl.DateTimeFormat("en", {
 
 // An auction picked from the market, on the card's own page as in the collection: the card
 // flies out of the grid, with its price and time left under it, then a bid (or taking it
-// back, for the player's own), and every bid below. `phase` and the handlers are the showcase's.
+// back, for the player's own), and every bid below. One the player won shows what it went for
+// and the day. `phase` and the handlers are the showcase's.
 export function AuctionShowcase({
   auction,
   from,
@@ -84,6 +86,7 @@ export function AuctionShowcase({
     pulledAt: 0,
   }))
   const price = shown.topBid ?? shown.startPrice
+  const won = shown.status === "sold"
 
   return (
     <CardDetail
@@ -96,10 +99,16 @@ export function AuctionShowcase({
         facts: (
           <>
             <SongFact
-              label={shown.topBid ? "Top bid" : "Starts at"}
+              label={
+                (won && "Won for") || (shown.topBid ? "Top bid" : "Starts at")
+              }
               value={<Holos amount={price} />}
             />
-            <SongFact label="Ends in" value={timeLeft(shown.endsAt, now)} />
+            {won ? (
+              <SongFact label="Won on" value={wonOn(shown.endsAt)} />
+            ) : (
+              <SongFact label="Ends in" value={timeLeft(shown.endsAt, now)} />
+            )}
           </>
         ),
         Actions: AuctionActions,
@@ -147,16 +156,7 @@ function AuctionActions({
 
   return (
     <div className="gap-3 flex w-full flex-col items-center">
-      {auction.isMine ? (
-        <SellerActions
-          auction={auction}
-          busy={busy}
-          run={run}
-          onTaken={onDone}
-        />
-      ) : (
-        <BidForm auction={auction} busy={busy} run={run} />
-      )}
+      <Standing auction={auction} busy={busy} run={run} onTaken={onDone} />
       {error ? (
         <p role="alert" className="text-sm font-bold text-destructive">
           {error}
@@ -168,6 +168,40 @@ function AuctionActions({
 }
 
 type Run = (action: () => Promise<unknown>, after?: () => void) => Promise<void>
+
+// The player's part in it: over (won, the card in their collection), theirs to manage, or a bid.
+function Standing({
+  auction,
+  busy,
+  run,
+  onTaken,
+}: {
+  auction: Auction
+  busy: boolean
+  run: Run
+  onTaken: () => void
+}) {
+  if (auction.status !== "open") {
+    return (
+      <p className="text-sm font-bold text-center">
+        {auction.isLeading
+          ? "You won it: the card is in your collection."
+          : "This auction is over."}
+      </p>
+    )
+  }
+  if (auction.isMine) {
+    return (
+      <SellerActions
+        auction={auction}
+        busy={busy}
+        run={run}
+        onTaken={onTaken}
+      />
+    )
+  }
+  return <BidForm auction={auction} busy={busy} run={run} />
+}
 
 // The player's own auction: taken back while nobody has bid; after that it runs to the end.
 function SellerActions({

@@ -71,7 +71,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body className="h-dvh overflow-hidden overscroll-none bg-lavender text-foreground antialiased">
+      <body className="game-viewport overflow-hidden overscroll-none bg-lavender text-foreground antialiased">
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           {children}
         </ThemeProvider>

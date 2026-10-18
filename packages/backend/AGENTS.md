@@ -124,15 +124,20 @@ platform.
   Auth user id like all game state, not in the auth component, so a guest's
   progress can move to a linked account. Free packs come back one per 8 hours,
   3 held at most (`freePacks`, counted from `freePacksSince`); `packs:claim`
-  uses one or, with `buy`, costs coins. `market.ts`: `sell` gives a
+  uses one or, with `buy`, costs coins. Pro (`players.proUntil` ahead; no
+  checkout yet) gets one free pack per 4 hours, 6 held, 100 holos a day
+  (`wallet:claimDaily`, called as the app opens, once per UTC day) and 30 open
+  auctions instead of 10. `wallet:setPro` and `wallet:addHolos` are dev tools
+  for testing, refused unless the env var `DEV_TOOLS=1` is set (dev only, never
+  prod). `market.ts`: `sell` gives a
   copy to the bank (the last one too); `list`/`bid`/`cancel` run auctions, the listed copy
   and the top bid's coins held until `settle` (scheduled at `endsAt`, and again
   if a late bid pushed it back) hands over the card and pays the seller the
   whole top bid. Every card or coin move is one mutation. Each bid is also a
   `bids` row; `auction` returns one auction with its newest 50 bids;
   `auctions` pages through other players' open auctions (`scope` "live", searchable
-  by `searchText`), or lists the player's own ("mine") or those they've bid on
-  ("bids").
+  by `searchText`), lists the player's own ("mine") or those they've bid on
+  ("bids"), or pages through those they won ("won", latest first).
 - Titles: `displayTitle` (`songs/_lib/dedupe.ts`) strips featurings (feat,
   ft, with, con, w/, part.), live, remix, remaster/year and Taylor's Version
   suffixes, for the Deezer preview search. Check:

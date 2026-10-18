@@ -13,7 +13,7 @@ import { PageHeader } from "@/game/_components/page-header"
 import { toGameCard } from "@/game/_lib/cards"
 import { useAuctions, type AuctionScope } from "@/game/_lib/market"
 import { rarityArg, type RarityFilter } from "@/game/_lib/rarity-filter"
-import { timeLeft, useNow } from "@/game/_lib/wallet"
+import { timeLeft, useNow, wonOn } from "@/game/_lib/wallet"
 import { useSearch } from "@tanstack/react-router"
 import { GameBadge } from "@workspace/ui/components/count-badge"
 import { GameMain, GameScroll } from "@workspace/ui/components/game-shell"
@@ -23,14 +23,22 @@ import {
   songCardThumbSlot,
 } from "@workspace/ui/components/song-card"
 import type { CardSlot } from "@workspace/ui/lib/game/card-scene"
-import { GavelIcon, HandCoinsIcon, RadioIcon, TimerIcon } from "lucide-react"
+import {
+  CalendarCheckIcon,
+  GavelIcon,
+  HandCoinsIcon,
+  RadioIcon,
+  TimerIcon,
+  TrophyIcon,
+} from "lucide-react"
 import { memo, useMemo, useRef, useState, type RefObject } from "react"
 
-// Other players' auctions, the player's own, or those they've bid on.
+// Other players' auctions, the player's own, those they've bid on, or those they won.
 const SCOPES = {
   live: { label: "Live auctions", Icon: RadioIcon },
   mine: { label: "My auctions", Icon: GavelIcon },
   bids: { label: "My bids", Icon: HandCoinsIcon },
+  won: { label: "Won auctions", Icon: TrophyIcon },
 } as const satisfies Record<AuctionScope, unknown>
 
 // What shows when a scope has nothing to show.
@@ -38,6 +46,7 @@ const EMPTY = {
   live: "No auctions right now. Put a card up from your collection.",
   mine: "You have no auctions running. Put a card up from your collection.",
   bids: "You haven't bid on any running auction.",
+  won: "You haven't won an auction yet.",
 } as const satisfies Record<AuctionScope, string>
 
 // About a phone screen of cards, drawn before they're known to be in view.
@@ -136,7 +145,11 @@ export function MarketPage({ shown }: { shown: boolean }) {
               <AuctionCard
                 key={auction.id}
                 auction={auction}
-                left={timeLeft(auction.endsAt, now)}
+                left={
+                  auction.status === "open"
+                    ? timeLeft(auction.endsAt, now)
+                    : wonOn(auction.endsAt)
+                }
                 away={auction.id === away}
                 eager={at < EAGER}
                 openerRef={openerRef}
@@ -188,9 +201,9 @@ function NoAuctions({
   )
 }
 
-// An auction's card, with its price and time left (`left`) on its corners; a tap opens it, to
-// bid or manage it. Memoized, like the collection's cards: a page coming in, or the clock
-// ticking, renders only the cards that changed.
+// An auction's card, with its price and time left (`left`) on its corners, or for one won, what
+// it went for and the day; a tap opens it, to bid or manage it. Memoized, like the collection's
+// cards: a page coming in, or the clock ticking, renders only the cards that changed.
 const AuctionCard = memo(function AuctionCard({
   auction,
   left,
@@ -209,7 +222,9 @@ const AuctionCard = memo(function AuctionCard({
 }) {
   const card = useMemo(() => toGameCard(auction.card), [auction.card])
   const price = auction.topBid ?? auction.startPrice
+  const won = auction.status === "sold"
   const role =
+    (won && `won ${left}`) ||
     (auction.isMine && "your auction") ||
     (auction.isLeading && "you lead") ||
     "bid"
@@ -236,14 +251,22 @@ const AuctionCard = memo(function AuctionCard({
             <HoloCoin />
             {price.toLocaleString("en")}
             <span className="sr-only">
-              {auction.topBid ? " top bid" : " start price"}
+              {(won && " paid") ||
+                (auction.topBid ? " top bid" : " start price")}
             </span>
           </GameBadge>
-          <GameBadge size="card" finish="time">
-            <TimerIcon aria-hidden="true" />
-            {left}
-            <span className="sr-only"> left</span>
-          </GameBadge>
+          {won ? (
+            <GameBadge size="card" finish="time" aria-hidden="true">
+              <CalendarCheckIcon />
+              {left}
+            </GameBadge>
+          ) : (
+            <GameBadge size="card" finish="time">
+              <TimerIcon aria-hidden="true" />
+              {left}
+              <span className="sr-only"> left</span>
+            </GameBadge>
+          )}
         </SongCardThumb>
       </button>
     </li>

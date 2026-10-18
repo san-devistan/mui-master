@@ -149,17 +149,26 @@ function GameTab({
   })
 }
 
-function GamePill({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="game-pill"
-      className={cn(
-        "h-12 gap-1.5 px-4 text-sm inline-flex shrink-0 items-center rounded-full whitespace-nowrap",
-        className
-      )}
-      {...props}
-    />
-  )
+// A chunky pill; `render` a button to make it open something.
+function GamePill({
+  className,
+  render,
+  ...props
+}: useRender.ComponentProps<"div">) {
+  return useRender({
+    defaultTagName: "div",
+    props: mergeProps<"div">(
+      {
+        className: cn(
+          "h-12 gap-1.5 px-4 text-sm inline-flex shrink-0 items-center rounded-full whitespace-nowrap",
+          className
+        ),
+      },
+      props
+    ),
+    render,
+    state: { slot: "game-pill" },
+  })
 }
 
 function GameStat({

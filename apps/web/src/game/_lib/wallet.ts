@@ -17,31 +17,32 @@ export function useNow(every = 1000) {
   return now
 }
 
-// The signed-in player's coins, their free packs (one per freePackHours, maxFreePacks held at
-// most, counted like freePacks in convex/songs/_lib/economy.ts) and the prices. The free packs
-// are recounted every `tick` ms; a countdown asks for every second.
+// The signed-in player's coins, Pro, their free packs (one per freePackHours, maxFreePacks held
+// at most, or Pro's faster plan; counted like freePacks in convex/songs/_lib/economy.ts) and the
+// prices. The free packs are recounted every `tick` ms; a countdown asks for every second.
 export function useWallet(tick = 30_000) {
   const { data } = useQuery(convexQuery(api.wallet.get, {}))
   const now = useNow(tick)
   if (!data) return null
-  const every = data.freePackHours * HOUR
-  const from = Math.max(data.freePacksSince, now - data.maxFreePacks * every)
+  const pro = (data.proUntil ?? 0) > now
+  const maxFreePacks = pro ? data.proMaxFreePacks : data.maxFreePacks
+  const every = (pro ? data.proFreePackHours : data.freePackHours) * HOUR
+  const from = Math.max(data.freePacksSince, now - maxFreePacks * every)
   const freePacks = Math.floor((now - from) / every)
   return {
     coins: data.coins,
+    pro,
     freePacks,
-    maxFreePacks: data.maxFreePacks,
+    maxFreePacks,
     // How far toward the next free pack, 0 to 1; 0 while they're all held.
     nextFreeProgress:
-      freePacks < data.maxFreePacks
-        ? (now - from - freePacks * every) / every
-        : 0,
+      freePacks < maxFreePacks ? (now - from - freePacks * every) / every : 0,
     // When the next free pack comes; null while they're all held.
     nextFreeAt:
-      freePacks < data.maxFreePacks ? from + (freePacks + 1) * every : null,
+      freePacks < maxFreePacks ? from + (freePacks + 1) * every : null,
     // What's left until then, as "7h 59m"; null while they're all held.
     nextFreeIn:
-      freePacks < data.maxFreePacks
+      freePacks < maxFreePacks
         ? timeLeft(from + (freePacks + 1) * every, now)
         : null,
     packPrice: data.packPrice,
@@ -59,6 +60,10 @@ export function timeLeft(at: number, now: number) {
     ? `${hours}h ${pad(minutes)}m`
     : `${minutes}m ${pad(seconds % 60)}s`
 }
+
+// "18 Oct": the day an auction was won, in the player's own time zone.
+export const wonOn = (at: number) =>
+  new Date(at).toLocaleDateString("en", { day: "numeric", month: "short" })
 
 // "1 holo", "1,200 holos": an amount of the game currency.
 export const holos = (amount: number) =>

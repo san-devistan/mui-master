@@ -13,11 +13,11 @@ export type AuctionScope = NonNullable<AuctionsQuery["scope"]>
 // About two phone screens of cards.
 const PAGE = 24
 
-// Open auctions matching `query` and, with `search` text, whose card matches it, a page at a time;
-// `more` loads the next, null once all are in. Those ended by `now` but not settled yet (a moment
-// from leaving) are left out. Like useCollection: while a new query's first page loads, the last
-// one's auctions stay, so a filter or a keystroke swaps the grid rather than blanking it. Null
-// until the first page is in.
+// Auctions matching `query` and, with `search` text, whose card matches it, a page at a time;
+// `more` loads the next, null once all are in. Open ones ended by `now` but not settled yet (a
+// moment from leaving) are left out. Like useCollection: while a new query's first page loads,
+// the last one's auctions stay, so a filter or a keystroke swaps the grid rather than blanking
+// it. Null until the first page is in.
 export function useAuctions(
   query: AuctionsQuery,
   search: string | null,
@@ -32,7 +32,10 @@ export function useAuctions(
   const [kept, setKept] = useState<typeof results | null>(null)
   if (status !== "LoadingFirstPage" && results !== kept) setKept(results)
   return {
-    auctions: kept?.filter((auction) => auction.endsAt > now) ?? null,
+    auctions:
+      kept?.filter(
+        (auction) => auction.status !== "open" || auction.endsAt > now
+      ) ?? null,
     done: status === "Exhausted",
     more: status === "CanLoadMore" ? () => loadMore(PAGE) : null,
   }

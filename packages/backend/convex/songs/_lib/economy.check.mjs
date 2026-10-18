@@ -1,7 +1,15 @@
 // Run: node packages/backend/convex/songs/_lib/economy.check.mjs
 import assert from "node:assert/strict"
 
-import { freePacks, minBid, packPrice, sellPrice } from "./economy.ts"
+import {
+  dailyHolosDue,
+  freePackPlan,
+  freePacks,
+  isPro,
+  minBid,
+  packPrice,
+  sellPrice,
+} from "./economy.ts"
 import { packOdds } from "./rarity.ts"
 
 assert.equal(minBid(50, undefined), 50)
@@ -27,6 +35,21 @@ assert.equal(freePacks(since, now).count, 0)
 assert.equal(freePacks(since, now + 8 * hour).count, 1)
 assert.equal(freePacks(since, now + 24 * hour).count, 3)
 assert.equal(freePacks(since, now + 100 * hour).count, 3)
+
+// Pro: one per 4 hours, six held.
+const proPlan = freePackPlan(true)
+assert.equal(freePacks(0, now, proPlan).count, 6)
+const proOpened = freePacks(0, now, proPlan).usedSince
+assert.equal(freePacks(proOpened, now, proPlan).nextAt, now + 4 * hour)
+assert.equal(freePacks(proOpened, now + 4 * hour, proPlan).count, 6)
+assert.ok(isPro(now + 1, now) && !isPro(now, now) && !isPro(undefined, now))
+
+// Pro's daily holos: once per UTC day.
+const midnight = Date.UTC(2026, 9, 19)
+assert.ok(dailyHolosDue(undefined, now))
+assert.ok(!dailyHolosDue(now, now + hour))
+assert.ok(!dailyHolosDue(midnight - 1, midnight - 1))
+assert.ok(dailyHolosDue(midnight - 1, midnight))
 
 // Selling a whole pack back must stay well under its price, or packs print coins.
 const resale = packOdds.reduce((sum, odds) => {

@@ -1,6 +1,8 @@
+import { DevTools } from "@/game/_components/dev-tools"
 import { PageHeader } from "@/game/_components/page-header"
 import { ProfileShowcase } from "@/game/_components/profile-showcase"
 import { sharePicture } from "@/game/_lib/share"
+import { useWallet } from "@/game/_lib/wallet"
 import { authClient } from "@/lib/auth-client"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -13,7 +15,7 @@ import {
   drawProfileShare,
   pngBlob,
 } from "@workspace/ui/lib/game/share-art"
-import { ShareIcon } from "lucide-react"
+import { CrownIcon, ShareIcon } from "lucide-react"
 import { useRef } from "react"
 
 const DAY = 86_400_000
@@ -40,6 +42,7 @@ function playingFor(since: Date) {
 export function ProfilePage() {
   const { data: session } = authClient.useSession()
   const { data: cards } = useQuery(convexQuery(api.collection.count, {}))
+  const wallet = useWallet()
   const showcaseRef = useRef<HTMLDivElement>(null)
   const user = session?.user
   const name = user && !user.isAnonymous && user.name ? user.name : "Anonymous"
@@ -73,9 +76,17 @@ export function ProfilePage() {
       <section className="mt-6 gap-4 md:gap-6 flex items-center">
         <GameAvatar name={name} image={user?.image} />
         <div className="min-w-0 gap-2 flex flex-1 flex-col">
-          <h2 className="text-2xl md:text-3xl font-black tracking-tighter truncate font-heading">
-            {name}
-          </h2>
+          <div className="min-w-0 gap-x-2 gap-y-1 flex flex-wrap items-center">
+            <h2 className="text-2xl md:text-3xl font-black tracking-tighter truncate font-heading">
+              {name}
+            </h2>
+            {wallet?.pro ? (
+              <span data-slot="pro-badge">
+                <CrownIcon aria-hidden="true" />
+                Pro
+              </span>
+            ) : null}
+          </div>
           <dl className="gap-x-5 gap-y-1 text-sm flex flex-wrap">
             {stats.map((stat) => (
               <ProfileStat key={stat.label} {...stat} />
@@ -95,6 +106,7 @@ export function ProfilePage() {
       <div ref={showcaseRef} className="contents">
         <ProfileShowcase />
       </div>
+      <DevTools />
     </GameMain>
   )
 }

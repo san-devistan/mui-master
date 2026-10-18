@@ -5,25 +5,53 @@ import type { CardRarity } from "./validators"
 export const startingCoins = 100
 
 // Free packs: one every 8 hours, up to 3 held, so 3 a day at most and none lost overnight. Past
-// them a pack costs packPrice.
+// them a pack costs packPrice. Pro gets one every 4 hours, up to 6 held.
 export const freePackHours = 8
 export const maxFreePacks = 3
 export const packPrice = 100
-const freePackMs = freePackHours * 3_600_000
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+
+// Pro, billed monthly: what it adds over the free game.
+export const proFreePackHours = 4
+export const proMaxFreePacks = 6
+export const proDailyHolos = 100
+export const proMaxOpenAuctions = 30
+export const proMonthDays = 30
+
+// Pro while paid up: `proUntil` (players.proUntil) is still ahead.
+export const isPro = (proUntil: number | undefined, now: number) =>
+  (proUntil ?? 0) > now
+
+// How fast free packs come and how many are held, for a Pro player or not.
+export const freePackPlan = (pro: boolean) =>
+  pro
+    ? { hours: proFreePackHours, max: proMaxFreePacks }
+    : { hours: freePackHours, max: maxFreePacks }
 
 // The free packs held at `now`, counted from `since` (players.freePacksSince): one per 8 hours,
 // at most maxFreePacks. `from` is `since` moved up while full, so time spent full isn't banked;
 // opening one sets `since` to `from` plus 8 hours. `nextAt`: when another comes, null when full.
-export function freePacks(since: number, now: number) {
-  const from = Math.max(since, now - maxFreePacks * freePackMs)
-  const count = Math.floor((now - from) / freePackMs)
+// Pro's `plan` counts them every 4 hours, 6 held, the same way.
+export function freePacks(
+  since: number,
+  now: number,
+  plan = freePackPlan(false)
+) {
+  const every = plan.hours * HOUR
+  const from = Math.max(since, now - plan.max * every)
+  const count = Math.floor((now - from) / every)
   return {
     count,
     from,
-    usedSince: from + freePackMs,
-    nextAt: count < maxFreePacks ? from + (count + 1) * freePackMs : null,
+    usedSince: from + every,
+    nextAt: count < plan.max ? from + (count + 1) * every : null,
   }
 }
+
+// Pro's daily holos are due once each (UTC) day: none yet, or the last were on an earlier one.
+export const dailyHolosDue = (lastAt: number | undefined, now: number) =>
+  lastAt === undefined || Math.floor(lastAt / DAY) < Math.floor(now / DAY)
 
 // What the bank pays for a copy. A pack averages under half its price back, so buying packs
 // to sell them never pays.
@@ -35,12 +63,36 @@ export const sellPrice: Record<CardRarity, number> = {
 }
 
 // Auctions: the seller gets the whole top bid, a bid beats the last by 5% (at least a coin), a
-// bid in the last two minutes pushes the end to two minutes after it, and a player runs ten at most.
+// bid in the last two minutes pushes the end to two minutes after it, and a player runs ten at
+// most (Pro: proMaxOpenAuctions).
 export const minRaise = 0.05
 export const snipeWindowMs = 2 * 60 * 1000
 export const maxOpenAuctions = 10
 export const auctionHours = [1, 3, 6, 12, 24] as const
 export const maxStartPrice = 1_000_000
+
+// The shop (no checkout yet). Holo bundles, best value last, and Pro, billed monthly.
+// Prices in euro cents, so checkout can take them as they are.
+export const holoBundles = [
+  { id: "pouch", holos: 500, priceCents: 199 },
+  { id: "chest", holos: 1_500, priceCents: 499 },
+  { id: "vault", holos: 4_000, priceCents: 999 },
+] as const
+export const pro = {
+  priceCents: 499,
+  perks: [
+    {
+      id: "freePacks",
+      label: `A free pack every ${proFreePackHours} hours, ${proMaxFreePacks} held`,
+    },
+    { id: "dailyHolos", label: `${proDailyHolos} holos every day` },
+    {
+      id: "auctions",
+      label: `Up to ${proMaxOpenAuctions} auctions at once`,
+    },
+    { id: "badge", label: "A Pro badge on your profile" },
+  ],
+} as const
 
 // The lowest bid an auction takes: its start price before any bid, then a raise on the top bid.
 export const minBid = (startPrice: number, topBid: number | undefined) =>

@@ -226,9 +226,8 @@
   scale: 0.96;
 }
 
-/* No pack to open (its open button disabled): grayed out like a related card
-   not collected yet. */
-[data-slot="pack-opening"]:has(> button:disabled) > .game-canvas[data-drawn] {
+/* No pack to open: grayed out like a related card not collected yet. */
+[data-slot="pack-opening"][data-locked="true"] > .game-canvas[data-drawn] {
   opacity: 0.45;
   filter: grayscale(1);
 }
@@ -353,6 +352,231 @@
   color: var(--ink);
   font-weight: 700;
   box-shadow: var(--chunky-bevel);
+}
+
+/* A pill that opens something (the holos pill opens the shop): it presses in
+   like a game button. */
+button[data-slot="game-pill"] {
+  cursor: pointer;
+  box-shadow:
+    var(--chunky-bevel),
+    0 4px 0 var(--ink);
+  transition:
+    translate 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+
+  &:hover {
+    translate: 0 -1px;
+  }
+
+  &:active {
+    translate: 0 3px;
+    box-shadow:
+      var(--chunky-bevel),
+      0 1px 0 var(--ink);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--brand);
+    outline-offset: 3px;
+  }
+}
+
+/* The shop's holo bundles: chunky tiles, the coins piling up with the bundle,
+   the best value on the brand's foil with a ribbon. */
+[data-slot="dialog-content"][data-shop] {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+
+[data-slot="holo-bundle"] {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1rem 0.5rem 0.75rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 1.25rem;
+  background: var(--chunky-fill);
+  box-shadow:
+    var(--chunky-bevel),
+    0 4px 0 var(--ink);
+  text-align: center;
+
+  & [data-slot="button"] {
+    height: 2.5rem;
+    margin-top: 0.375rem;
+    padding-inline: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  &[data-best] {
+    background:
+      linear-gradient(rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.55)),
+      var(--foil);
+  }
+}
+
+[data-slot="holo-bundle-coins"] {
+  display: flex;
+  height: 2.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+
+  & > [data-slot="holo-coin"] + [data-slot="holo-coin"] {
+    margin-left: -0.8em;
+  }
+
+  & > [data-slot="holo-coin"]:nth-child(2) {
+    translate: 0 -0.35em;
+  }
+}
+
+[data-slot="holo-bundle-bonus"] {
+  min-height: 1rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: color-mix(in oklab, var(--ink) 60%, transparent);
+
+  [data-slot="holo-bundle"]:not(:first-child) & {
+    color: var(--brand);
+  }
+}
+
+[data-slot="holo-bundle-tag"] {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  padding: 0.125rem 0.625rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  translate: -50% -60%;
+}
+
+/* Pro: a foil card on an ink ledge, with a shine sweeping across now and
+   then. */
+[data-slot="holo-pro"] {
+  position: relative;
+  overflow: hidden;
+  padding: 1.25rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 1.5rem;
+  background: var(--brand-mesh);
+  color: var(--brand-foreground);
+  box-shadow:
+    0 2px 0 rgb(255 255 255 / 0.45) inset,
+    0 5px 0 var(--ink),
+    0 16px 26px -10px rgb(123 44 255 / 0.7);
+  isolation: isolate;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -50% auto -50% -60%;
+    z-index: -1;
+    width: 45%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.4),
+      transparent
+    );
+    rotate: 20deg;
+    animation: game-pro-shine 3.6s ease-in-out infinite;
+  }
+
+  & [data-slot="button"] {
+    color: var(--ink);
+  }
+}
+
+@keyframes game-pro-shine {
+  0%,
+  55% {
+    translate: 0 0;
+  }
+  100% {
+    translate: 480% 0;
+  }
+}
+
+[data-slot="holo-pro-crown"] {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border: 2.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foil);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--ink);
+
+  & svg {
+    width: 1.5rem;
+    height: 1.5rem;
+    stroke-width: 2.5;
+  }
+}
+
+[data-slot="holo-pro-check"] {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.95);
+  color: var(--brand);
+
+  & svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    stroke-width: 4;
+  }
+}
+
+/* The Pro badge beside a player's name: a small foil pill with a crown. */
+[data-slot="pro-badge"] {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.75rem;
+  padding-inline: 0.5rem 0.625rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--foil);
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 0 var(--ink);
+
+  & svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    stroke-width: 3;
+  }
+}
+
+/* The profile's dev section (dev deployment only): dashed, so it reads as a
+   tool, not part of the game. */
+[data-slot="dev-tools"] {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 2.5px dashed color-mix(in oklab, var(--ink) 35%, transparent);
+  border-radius: 1.5rem;
 }
 
 [data-slot="game-avatar"] {
@@ -1607,6 +1831,7 @@
   [data-slot="pack-glow"],
   [data-slot="pack-glow"] *,
   [data-slot="pack-opening"] > .game-canvas,
+  [data-slot="holo-pro"]::before,
   [data-slot="select-content"][data-variant="game"],
   [data-slot="dialog-content"][data-variant="game"],
   [data-slot="dialog-overlay"][data-variant="game"],

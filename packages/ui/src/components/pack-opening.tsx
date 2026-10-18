@@ -26,7 +26,6 @@ import {
   useEffectEvent,
   useRef,
   useState,
-  type MouseEvent,
   type PointerEvent,
 } from "react"
 
@@ -172,9 +171,46 @@ type PackOpeningProps = {
   onCard?: (pull: PackPull | null, revealed?: number) => void
   // Fly the waiting pack in; false shows it straight away.
   entrance?: boolean
-  // No pack to open: the waiting pack shows grayed out and can't be tapped.
+  // No pack to open: the waiting pack shows grayed out, and a tap calls
+  // `onLockedTap` instead of opening it.
   locked?: boolean
+  onLockedTap?: () => void
   className?: string
+}
+
+// Over the waiting pack: a tap opens it or, `locked`, calls `onLockedTap`.
+// Not the end of a drag turning it round, though.
+function WaitingPack({
+  locked,
+  onOpen,
+  onLockedTap,
+}: {
+  locked: boolean | undefined
+  onOpen: () => void
+  onLockedTap: (() => void) | undefined
+}) {
+  // Where the press started.
+  const pressRef = useRef<{ x: number; y: number } | null>(null)
+  return (
+    <button
+      type="button"
+      aria-label={locked ? "Buy a pack" : "Open pack"}
+      className="inset-0 absolute z-20 rounded-4xl outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-inset"
+      onPointerDown={(event) => {
+        pressRef.current = { x: event.clientX, y: event.clientY }
+      }}
+      onClick={(event) => {
+        const press = pressRef.current
+        pressRef.current = null
+        const moved = press
+          ? Math.hypot(event.clientX - press.x, event.clientY - press.y)
+          : 0
+        if (moved > 8) return
+        if (locked) onLockedTap?.()
+        else onOpen()
+      }}
+    />
+  )
 }
 
 // The waiting pack, its cut, and the reveal of its cards, on one canvas.
@@ -186,15 +222,13 @@ function PackOpening({
   onCard,
   entrance = true,
   locked,
+  onLockedTap,
   className,
 }: PackOpeningProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sceneRef = useRef<OpeningScene | null>(null)
   const dragRef = useRef<Drag | null>(null)
   const cut = useCutSlash()
-  // Where a press on the waiting pack started, so dragging it round to turn
-  // it doesn't also open it.
-  const pressRef = useRef<{ x: number; y: number } | null>(null)
   const [phase, setPhase] = useState<Phase>("idle")
   const [index, setIndex] = useState(0)
   const { party, reveal, reset } = useReveal(pulls, sceneRef)
@@ -234,14 +268,7 @@ function PackOpening({
     if (next !== "cards") sceneRef.current?.setPhase(next)
   }
 
-  function openPack(event: MouseEvent<HTMLButtonElement>) {
-    const press = pressRef.current
-    pressRef.current = null
-    if (
-      press &&
-      Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8
-    )
-      return
+  function openPack() {
     play("press")
     enter("cut")
     onOpenChange?.(true)
@@ -333,6 +360,7 @@ function PackOpening({
       ref={cut.stage}
       data-slot="pack-opening"
       data-phase={phase}
+      data-locked={locked}
       className={cn(
         // Full screen on phones (their shape varies); a phone-shaped frame on
         // bigger screens. The scene fits itself to either.
@@ -348,15 +376,10 @@ function PackOpening({
       ) : null}
 
       {phase === "idle" ? (
-        <button
-          type="button"
-          aria-label="Open pack"
-          disabled={locked}
-          className="inset-0 absolute z-20 rounded-4xl outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-inset"
-          onPointerDown={(event) => {
-            pressRef.current = { x: event.clientX, y: event.clientY }
-          }}
-          onClick={openPack}
+        <WaitingPack
+          locked={locked}
+          onOpen={openPack}
+          onLockedTap={onLockedTap}
         />
       ) : null}
 

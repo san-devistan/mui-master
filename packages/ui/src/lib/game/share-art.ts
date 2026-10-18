@@ -105,8 +105,8 @@ const THUMB_CARD = {
 }
 // The player up top, the two rows of three 5:7 cards under them, the app's
 // name small at the bottom.
-const HEAD = { avatar: 190, radius: 90, name: 380, label: 440, value: 495 }
-const GRID = { top: 640, width: 290, height: 406, gap: 30, columns: 3 }
+const HEAD = { avatar: 230, radius: 90, name: 420, label: 480, value: 535 }
+const GRID = { top: 720, width: 290, height: 406, gap: 30, columns: 3 }
 const BRAND = { top: SHARE_H - 130, height: 52 }
 
 // The game's backdrop: lavender settling into off-white, lit from below.
@@ -216,16 +216,15 @@ export function drawProfileShare({ name, stats, cards }: ProfileShare) {
       (SHARE_W - rowWidth) / 2 +
       (index % GRID.columns) * (GRID.width + GRID.gap)
     const y = GRID.top + row * (GRID.height + GRID.gap)
+    // The whole thumb, placed so its card fills the slot: under perspective
+    // the card's edge runs a little past that box, and a crop would cut it.
+    const scale = GRID.width / THUMB_CARD.width
     ctx.drawImage(
       thumb,
-      thumb.width * THUMB_CARD.x,
-      thumb.height * THUMB_CARD.y,
-      thumb.width * THUMB_CARD.width,
-      thumb.height * THUMB_CARD.height,
-      x,
-      y,
-      GRID.width,
-      GRID.height
+      x - THUMB_CARD.x * scale,
+      y - THUMB_CARD.y * (GRID.height / THUMB_CARD.height),
+      scale,
+      GRID.height / THUMB_CARD.height
     )
   })
   ctx.restore()
