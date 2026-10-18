@@ -12,13 +12,14 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
+  DialogGameClose,
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
 import { PackOpening } from "@workspace/ui/components/pack-opening"
 import { Slider } from "@workspace/ui/components/slider"
+import type { CssVars } from "@workspace/ui/lib/game/theme"
 import { useMutation } from "convex/react"
 import { ClockIcon } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -139,8 +140,8 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
 }
 
 // More packs, from the pack meter or the grayed pack once every pack is opened: skip the wait for
-// the next free one (wallet:skipFreePack), or buy as many as the holos pay for, kept until opened
-// on top of the free ones (wallet:buyPacks). Short of holos, it points to the shop.
+// the next free one (wallet:skipFreePack), then buy packs, as many as the holos pay for, kept
+// until opened on top of the free ones (wallet:buyPacks). Short of holos, it points to the shop.
 function GetPacks({
   open,
   onOpenChange,
@@ -182,36 +183,43 @@ function GetPacks({
     >
       <DialogContent variant="game">
         <div className="gap-6 grid">
-          <DialogHeader>
+          <DialogHeader className="flex-row items-center justify-between">
             <DialogTitle>Get packs</DialogTitle>
+            <DialogGameClose />
           </DialogHeader>
-          {wallet?.nextFreeIn && skip !== null ? (
-            <SkipWait
-              wait={wallet.nextFreeIn}
-              price={skip}
-              disabled={busy || skip > wallet.coins}
-              onSkip={() => void pay(() => skipFreePack({}))}
-            />
-          ) : null}
-          {most > 1 ? (
-            <PackCount chosen={chosen} most={most} onChange={setCount} />
-          ) : null}
+          <SkipWait
+            wallet={wallet}
+            busy={busy}
+            setBusy={setBusy}
+            setError={setError}
+            onSkip={() => skipFreePack({})}
+            onDone={() => onOpenChange(false)}
+          />
+          <section data-slot="buy-packs" aria-labelledby="buy-packs-title">
+            <p id="buy-packs-title" data-slot="get-packs-title">
+              Buy packs
+            </p>
+            {short ? (
+              <ShortOfHolos wallet={wallet} skip={skip} />
+            ) : (
+              <PackCount chosen={chosen} most={most} onChange={setCount} />
+            )}
+            <div data-slot="get-packs-action">
+              <PackFooter
+                short={short}
+                chosen={chosen}
+                cost={cost}
+                disabled={!wallet || busy || most === 0}
+                onBuy={() => void pay(() => buyPacks({ count: chosen }))}
+                onGetHolos={onGetHolos}
+              />
+            </div>
+          </section>
           {error ? (
             <p role="alert" className="text-sm font-bold text-destructive">
               {error}
             </p>
           ) : null}
-          {short ? <ShortOfHolos wallet={wallet} skip={skip} /> : null}
-          <DialogFooter variant="game">
-            <PackFooter
-              short={short}
-              chosen={chosen}
-              cost={cost}
-              disabled={!wallet || busy || most === 0}
-              onBuy={() => void pay(() => buyPacks({ count: chosen }))}
-              onGetHolos={onGetHolos}
-            />
-          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
@@ -256,7 +264,7 @@ function ShortOfHolos({
   )
 }
 
-// Buying the chosen packs, or getting holos when short of them.
+// Buying the chosen packs, with their price, or getting holos when short of them.
 function PackFooter({
   short,
   chosen,
@@ -274,7 +282,7 @@ function PackFooter({
 }) {
   if (short) {
     return (
-      <Button variant="game" className="flex-1" onClick={onGetHolos}>
+      <Button variant="game" onClick={onGetHolos}>
         <HoloCoin />
         Get holos
       </Button>
@@ -284,53 +292,114 @@ function PackFooter({
   return (
     <Button
       variant="game"
-      className="flex-1"
       disabled={disabled}
       aria-label={`Buy ${packs} for ${holos(cost)}`}
       onClick={onBuy}
     >
       <HoloCoin />
-      Buy {packs} · {cost.toLocaleString("en")}
+      <span data-slot="get-packs-price">{cost.toLocaleString("en")}</span>
+      <span data-slot="get-packs-verb">Buy</span>
     </Button>
   )
 }
 
-// Paying to have the next free pack now, with the wait it skips.
+// Paying to have the next free pack now: the wait as a track the full width, a mini pack riding
+// its fill and the time left under it, then the price on the button that pays it, at the right.
 function SkipWait({
-  wait,
-  price,
-  disabled,
+  wallet,
+  busy,
+  setBusy,
+  setError,
   onSkip,
+  onDone,
 }: {
-  wait: string
-  price: number
-  disabled: boolean
-  onSkip: () => void
+  wallet: ReturnType<typeof useWallet>
+  busy: boolean
+  setBusy: (busy: boolean) => void
+  setError: (error: string | null) => void
+  onSkip: () => Promise<null>
+  onDone: () => void
 }) {
+  const [skipped, setSkipped] = useState(false)
+  const view = skipView(wallet, skipped)
+  if (!view) return null
+  const fill: CssVars = { "--skip-progress": String(view.progress) }
+
+  // Pays for the wait, fills the bar to the end, then closes on the pack now ready.
+  async function skip() {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSkip()
+      setSkipped(true)
+      await new Promise((done) => setTimeout(done, 900))
+      onDone()
+    } catch (caught) {
+      setError(errorText(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <section className="gap-3 grid" aria-labelledby="skip-title">
-      <div className="text-sm font-bold flex justify-between">
-        <span id="skip-title">Next free pack</span>
-        <span>{wait}</span>
-      </div>
-      <Button
-        variant="game"
-        disabled={disabled}
-        aria-label={`Get the next free pack now for ${holos(price)}`}
-        onClick={onSkip}
-      >
-        <ClockIcon aria-hidden="true" />
-        Get it now
-        <span className="gap-1 flex items-center">
-          <HoloCoin />
-          {price.toLocaleString("en")}
+    <section
+      data-slot="skip-wait"
+      data-skipped={skipped || undefined}
+      aria-labelledby="skip-title"
+    >
+      <p id="skip-title" data-slot="get-packs-title">
+        {skipped ? "Free pack ready" : "Skip the wait"}
+      </p>
+      <div data-slot="skip-wait-progress">
+        <progress
+          className="sr-only"
+          aria-label={`Until the next free pack: ${view.wait} left`}
+          value={view.progress}
+        />
+        <div data-slot="skip-wait-track" style={fill} aria-hidden="true">
+          <span data-slot="skip-wait-fill" />
+          <span data-slot="skip-wait-pack" />
+        </div>
+        <span data-slot="skip-wait-time" aria-hidden="true">
+          <ClockIcon aria-hidden="true" />
+          {view.wait}
         </span>
-      </Button>
+      </div>
+      <div data-slot="get-packs-action">
+        <Button
+          variant="game"
+          disabled={busy || skipped || !view.affordable}
+          aria-label={`Get the next free pack now for ${holos(view.price)}`}
+          onClick={() => void skip()}
+        >
+          <HoloCoin />
+          <span data-slot="get-packs-price">
+            {view.price.toLocaleString("en")}
+          </span>
+          <span data-slot="get-packs-verb">Skip</span>
+        </Button>
+      </div>
     </section>
   )
 }
 
-// How many packs to buy, from one to as many as the holos pay for.
+// What the skip shows: the wait and its fill, or the full bar once paid.
+function skipView(wallet: ReturnType<typeof useWallet>, skipped: boolean) {
+  const price = wallet?.skipPrice ?? null
+  if (skipped) {
+    return { progress: 1, wait: "0h 00m", price: price ?? 0, affordable: false }
+  }
+  if (!wallet?.nextFreeIn || price === null) return null
+  return {
+    progress: wallet.nextFreeProgress,
+    wait: wallet.nextFreeIn,
+    price,
+    affordable: price <= wallet.coins,
+  }
+}
+
+// How many packs to buy, from one to as many as the holos pay for: a slider the full width, the
+// count over it.
 function PackCount({
   chosen,
   most,
@@ -341,20 +410,21 @@ function PackCount({
   onChange: (count: number) => void
 }) {
   return (
-    <div className="gap-3 grid">
+    <div data-slot="pack-count">
       <div className="text-sm font-bold flex justify-between">
-        <span id="buy-count-label">Packs</span>
-        <span>
-          {chosen} of {most}
+        <span id="buy-count-label">
+          {chosen} {chosen === 1 ? "pack" : "packs"}
         </span>
+        <span className="text-ink/60">{most} at most</span>
       </div>
       <Slider
         variant="game"
         aria-labelledby="buy-count-label"
         min={1}
-        max={most}
+        max={Math.max(1, most)}
         step={1}
         value={chosen}
+        disabled={most <= 1}
         onValueChange={(value) =>
           onChange(typeof value === "number" ? value : (value[0] ?? 1))
         }

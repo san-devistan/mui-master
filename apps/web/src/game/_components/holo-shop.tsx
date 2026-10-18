@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
+import { useMutation } from "convex/react"
 import { CheckIcon, CrownIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 
@@ -20,7 +21,9 @@ const euros = (cents: number) =>
 
 // The shop, opened from the holos pill: three holo bundles, then Pro, billed
 // monthly. Styled in game.css.
-// shortcut: no checkout yet, a buy button only says so; wire it to Stripe when payments open.
+// shortcut: no checkout yet, so a buy is free through the dev tools (wallet:addHolos,
+// wallet:setPro), only where they're on (DEV_TOOLS=1); elsewhere it says checkout isn't open.
+// Wire it to Stripe when payments open.
 export function HoloShop({
   open,
   onOpenChange,
@@ -30,17 +33,33 @@ export function HoloShop({
 }) {
   const { data: shop } = useQuery(convexQuery(api.wallet.shop, {}))
   const wallet = useWallet()
-  const [asked, setAsked] = useState(false)
+  const addHolos = useMutation(api.wallet.addHolos)
+  const setPro = useMutation(api.wallet.setPro)
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
   const base = shop?.holoBundles[0]
   // Holos per cent at the smallest bundle: each bundle's bonus is over it.
   const rate = base ? base.holos / base.priceCents : 0
   const best = shop?.holoBundles.at(-1)?.id
 
+  // The holos pill and the Pro card show what changed, so only a refusal says anything.
+  async function buy(give: () => Promise<unknown>) {
+    setBusy(true)
+    setNote(null)
+    try {
+      await give()
+    } catch {
+      setNote("Checkout isn't open yet.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setAsked(false)
+        if (!next) setNote(null)
         onOpenChange(next)
       }}
     >
@@ -67,10 +86,8 @@ export function HoloShop({
             </DialogClose>
           </div>
 
-          {asked ? (
-            <output className="text-sm font-bold text-center">
-              Checkout isn't open yet.
-            </output>
+          {note ? (
+            <output className="text-sm font-bold text-center">{note}</output>
           ) : null}
 
           <ul className="gap-2 pt-2 grid grid-cols-3" aria-label="Holo bundles">
@@ -101,8 +118,11 @@ export function HoloShop({
                   <Button
                     variant="game"
                     className="w-full"
+                    disabled={busy}
                     aria-label={`Buy ${holos(bundle.holos)} for ${euros(bundle.priceCents)}`}
-                    onClick={() => setAsked(true)}
+                    onClick={() =>
+                      void buy(() => addHolos({ amount: bundle.holos }))
+                    }
                   >
                     {euros(bundle.priceCents)}
                   </Button>
@@ -148,7 +168,8 @@ export function HoloShop({
                 <Button
                   variant="game"
                   className="mt-5 w-full"
-                  onClick={() => setAsked(true)}
+                  disabled={busy}
+                  onClick={() => void buy(() => setPro({ pro: true }))}
                 >
                   <CrownIcon aria-hidden="true" />
                   Go Pro

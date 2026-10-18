@@ -66,10 +66,10 @@ export const weeklyHolosDue = (lastAt: number | undefined, now: number) =>
 // What the bank pays for a copy. A pack averages under half its price back, so buying packs
 // to sell them never pays.
 export const sellPrice: Record<CardRarity, number> = {
-  common: 2,
-  rare: 10,
-  epic: 40,
-  legendary: 200,
+  common: 1,
+  rare: 2,
+  epic: 3,
+  legendary: 4,
 }
 
 // Auctions: the seller gets the whole top bid, a bid beats the last by 5% (at least a coin), a

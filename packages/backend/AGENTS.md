@@ -133,7 +133,8 @@ platform.
   (`wallet:claimWeekly`, called as the app opens, a week after the last) and 30 open
   auctions instead of 10. `wallet:setPro` and `wallet:addHolos` are dev tools
   for testing, refused unless the env var `DEV_TOOLS=1` is set (dev only, never
-  prod). `market.ts`: `sell` gives a
+  prod); until checkout opens, the shop's buy buttons call them, so they're free
+  on dev and only say checkout isn't open elsewhere. `market.ts`: `sell` gives a
   copy to the bank (the last one too); `list`/`bid`/`cancel` run auctions, the listed copy
   and the top bid's coins held until `settle` (scheduled at `endsAt`, and again
   if a late bid pushed it back) hands over the card and pays the seller the
