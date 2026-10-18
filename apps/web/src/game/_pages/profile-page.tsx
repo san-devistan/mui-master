@@ -1,4 +1,5 @@
 import { DevTools } from "@/game/_components/dev-tools"
+import { NotificationSettings } from "@/game/_components/notification-settings"
 import { PageHeader } from "@/game/_components/page-header"
 import { ProfileShowcase } from "@/game/_components/profile-showcase"
 import { sharePicture } from "@/game/_lib/share"
@@ -115,6 +116,7 @@ export function ProfilePage() {
       <div ref={showcaseRef} className="contents">
         <ProfileShowcase />
       </div>
+      <NotificationSettings />
       <DevTools />
     </GameMain>
   )

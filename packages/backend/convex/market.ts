@@ -12,6 +12,7 @@ import {
 } from "./_generated/server"
 import { playerId } from "./auth"
 import { addCopy, cardById, sortKeys, takeCopy } from "./packs"
+import { notify } from "./push"
 import { normalizeText } from "./songs/_lib/dedupe"
 import {
   auctionHours,
@@ -111,7 +112,8 @@ export const list = mutation({
   },
 })
 
-// Bids `amount` coins, held until outbid; a bid near the end pushes the end back.
+// Bids `amount` coins, held until outbid; a bid near the end pushes the end back. The seller and
+// the bidder it outbids get a push.
 export const bid = mutation({
   args: { id: v.id("auctions"), amount: v.number() },
   handler: async (ctx, { id, amount }) => {
@@ -141,6 +143,21 @@ export const bid = mutation({
       endsAt: Math.max(auction.endsAt, now + snipeWindowMs),
     })
     await ctx.db.insert("bids", { auctionId: id, bidderId: player, amount })
+    const title = (await cardById(ctx, auction.cardId))?.title ?? "your card"
+    await notify(ctx, auction.sellerId, {
+      title: "New bid",
+      body: `${amount.toLocaleString("en")} holos bid on ${title}.`,
+      url: "/market?scope=mine",
+      tag: `bid-${id}`,
+    })
+    if (auction.topBidderId && auction.topBid) {
+      await notify(ctx, auction.topBidderId, {
+        title: "You've been outbid",
+        body: `Someone bid ${amount.toLocaleString("en")} holos on ${title}. Your ${auction.topBid.toLocaleString("en")} holos are back.`,
+        url: "/market?scope=bids",
+        tag: `outbid-${id}`,
+      })
+    }
   },
 })
 

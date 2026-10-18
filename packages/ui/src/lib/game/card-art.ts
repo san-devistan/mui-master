@@ -28,6 +28,27 @@ const photo = (box: typeof ART, kind: GameSong["kind"]) => {
 const roundBox = (ctx: CanvasRenderingContext2D, box: typeof ART) =>
   ctx.roundRect(box.at, box.at, box.size, box.size, box.radius)
 
+// Draws `image` over the square `box`, cropped to its middle like CSS
+// object-fit: cover, so a photo that isn't square keeps its proportions.
+function coverSquare(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  box: typeof ART
+) {
+  const side = Math.min(image.naturalWidth, image.naturalHeight)
+  ctx.drawImage(
+    image,
+    (image.naturalWidth - side) / 2,
+    (image.naturalHeight - side) / 2,
+    side,
+    side,
+    box.at,
+    box.at,
+    box.size,
+    box.size
+  )
+}
+
 const DISPLAY = "800 18px 'Unbounded Variable'"
 const UI = "500 14px 'Space Grotesk Variable'"
 const STREAMS = "700 12px 'Space Grotesk Variable'"
@@ -132,7 +153,7 @@ function cover(
   ctx.beginPath()
   roundBox(ctx, art)
   ctx.clip()
-  ctx.drawImage(image, art.at, art.at, art.size, art.size)
+  coverSquare(ctx, image, art)
   ctx.restore()
 }
 

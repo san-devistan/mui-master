@@ -19,7 +19,6 @@ import {
   type FilmSpec,
   type Trim,
 } from "@workspace/ui/lib/game/film-scene"
-import { SILVER_FOIL } from "@workspace/ui/lib/game/pack-scene"
 import {
   CELEBRATION,
   celebrations,
@@ -38,6 +37,7 @@ import {
   type Pose,
 } from "@workspace/ui/lib/game/reveal-motion"
 import { pngBlob, withBrand } from "@workspace/ui/lib/game/share-art"
+import { SILVER_FOIL } from "@workspace/ui/lib/game/silver-foil"
 import {
   RARITIES,
   type GameSong,

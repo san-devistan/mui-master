@@ -2,14 +2,18 @@ import type { CssVars } from "@workspace/ui/lib/game/theme"
 import { cn } from "@workspace/ui/lib/utils"
 import type * as React from "react"
 
+const FULL: CssVars = { "--fill": "1" }
+
 // The free packs held: a pill of mini packs, gray until held, the next one filling with color
 // from the bottom as it comes (`progress`, 0 to 1), with a badge under it (MAX, or the time
-// left). Styled in game.css.
+// left). `extra` more packs (bought ones) show as one more pack with a ×count on it. Styled in
+// game.css.
 function PackMeter({
   held,
   max,
   progress,
   badge,
+  extra = 0,
   className,
   ...props
 }: React.ComponentProps<"div"> & {
@@ -17,6 +21,7 @@ function PackMeter({
   max: number
   progress: number
   badge: React.ReactNode
+  extra?: number
 }) {
   return (
     <div
@@ -39,6 +44,12 @@ function PackMeter({
             />
           )
         })}
+        {extra > 0 ? (
+          <span data-slot="pack-meter-extra">
+            <span data-slot="pack-meter-pack" data-held style={FULL} />
+            <span data-slot="pack-meter-count">×{extra}</span>
+          </span>
+        ) : null}
         <span data-slot="pack-meter-badge">{badge}</span>
       </div>
     </div>

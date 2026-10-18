@@ -9,7 +9,12 @@ import { CollectionCard, MoreCards } from "@/game/_components/collection-grid"
 import { PageHeader } from "@/game/_components/page-header"
 import { useArrivals } from "@/game/_hooks/use-arrivals"
 import { useCollection, type CollectedSong } from "@/game/_lib/collection"
-import { rarityArg, type RarityFilter } from "@/game/_lib/rarity-filter"
+import {
+  RARITY_FILTERS,
+  rarityArg,
+  type RarityFilter,
+} from "@/game/_lib/rarity-filter"
+import { useSavedChoice } from "@/game/_lib/saved-choice"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
@@ -41,6 +46,9 @@ const KINDS = {
   artist: { label: "Artists", Icon: MicVocalIcon },
 } as const
 type KindFilter = keyof typeof KINDS
+const KIND_KEYS = Object.keys(KINDS).filter(
+  (key): key is KindFilter => key in KINDS
+)
 const KIND_LABELS = Object.fromEntries(
   Object.entries(KINDS).map(([key, { label }]) => [key, label])
 )
@@ -52,6 +60,9 @@ const SORTS = {
   title: { label: "A–Z", Icon: ArrowDownAZIcon },
 } as const
 type SortKey = keyof typeof SORTS
+const SORT_KEYS = Object.keys(SORTS).filter(
+  (key): key is SortKey => key in SORTS
+)
 
 // About a phone screen of cards, drawn even while the page is hidden.
 const EAGER = 8
@@ -92,12 +103,26 @@ const atDepth =
     )
 
 // Kept mounted by GameLayout, hidden (`shown` false) on other tabs: it keeps
-// its filters, scroll and drawn cards. Cards load a page at a time as the grid
-// nears its end, and only those near the view hold a 3D card.
+// its scroll and drawn cards. Its filters and order are saved, so they're
+// back after a reload too, until a pack's new cards arrive. Cards load a page
+// at a time as the grid nears its end, and only those near the view hold a
+// 3D card.
 export function CollectionPage({ shown }: { shown: boolean }) {
-  const [filter, setFilter] = useState<RarityFilter>("all")
-  const [kind, setKind] = useState<KindFilter>("all")
-  const [sort, setSort] = useState<SortKey>("recent")
+  const [filter, setFilter] = useSavedChoice<RarityFilter>(
+    "collection.rarity",
+    RARITY_FILTERS,
+    "all"
+  )
+  const [kind, setKind] = useSavedChoice<KindFilter>(
+    "collection.kind",
+    KIND_KEYS,
+    "all"
+  )
+  const [sort, setSort] = useSavedChoice<SortKey>(
+    "collection.sort",
+    SORT_KEYS,
+    "recent"
+  )
   // Null while the search field is closed.
   const [search, setSearch] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)

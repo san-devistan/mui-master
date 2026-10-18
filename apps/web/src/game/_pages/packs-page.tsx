@@ -17,6 +17,7 @@ import {
 } from "@workspace/ui/components/dialog"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
 import { PackOpening } from "@workspace/ui/components/pack-opening"
+import { Slider } from "@workspace/ui/components/slider"
 import { useMutation } from "convex/react"
 import { useEffect, useState } from "react"
 
@@ -36,12 +37,10 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
   const { data: catalog } = useQuery(convexQuery(api.packs.catalog, {}))
   // Every second, so a pack coming in unlocks right as the countdown ends.
   const wallet = useWallet(1000)
-  // Bought with coins once the free packs are gone: claimed then, so opening it adds nothing more.
-  const [paid, setPaid] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
-  // Locked until the wallet is known, then while there's no free pack and none bought.
-  const locked = !open && !paid && (!wallet || wallet.freePacks === 0)
+  // Locked until the wallet is known, then while there's no pack to open, free or bought.
+  const locked = !open && (!wallet || wallet.packs === 0)
   // The waiting pack, drawn ahead so its cards are ready once it's cut open; the backend keeps it
   // the same until it's opened.
   const [pulls, setPulls] = useState<ReadonlyArray<Pull> | null>(null)
@@ -110,15 +109,7 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
           }
         />
       ) : null}
-      <BuyPack
-        open={buying && locked}
-        onOpenChange={setBuying}
-        onBuy={async () => {
-          await claimPack({ buy: true })
-          setPaid(true)
-          setBuying(false)
-        }}
-      />
+      <BuyPack open={buying && locked} onOpenChange={setBuying} />
       <header className="inset-x-0 top-0 max-w-6xl px-4 sm:px-6 md:px-8 md:pt-8 in-data-immersive:-translate-y-4 pointer-events-none absolute z-30 mx-auto game-safe-top transition duration-300 in-data-immersive:opacity-0">
         <PageHeader title="Packs" />
         {/* Centred over the waiting pack, out of the header's way. */}
@@ -135,26 +126,36 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-// Tapping the grayed pack once the free packs are gone: when the next comes, or buy one now.
+// Tapping the grayed pack once every pack is opened: buy some, as many as the holos pay for.
+// They're kept until opened, on top of the free ones (wallet:buyPacks).
 function BuyPack({
   open,
   onOpenChange,
-  onBuy,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onBuy: () => Promise<void>
 }) {
   const wallet = useWallet()
+  const buyPacks = useMutation(api.wallet.buyPacks)
+  const [count, setCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const short = wallet ? wallet.coins < wallet.packPrice : false
+  const most = wallet
+    ? Math.min(
+        wallet.maxPacksBought,
+        Math.floor(wallet.coins / wallet.packPrice)
+      )
+    : 0
+  const chosen = Math.max(1, Math.min(count, most))
+  const cost = wallet ? chosen * wallet.packPrice : 0
 
   async function buy() {
     setBusy(true)
     setError(null)
     try {
-      await onBuy()
+      await buyPacks({ count: chosen })
+      setCount(1)
+      onOpenChange(false)
     } catch (caught) {
       setError(errorText(caught))
     } finally {
@@ -173,8 +174,29 @@ function BuyPack({
       <DialogContent variant="game">
         <div className="gap-6 grid">
           <DialogHeader>
-            <DialogTitle>Buy a pack</DialogTitle>
+            <DialogTitle>{chosen > 1 ? "Buy packs" : "Buy a pack"}</DialogTitle>
           </DialogHeader>
+          {most > 1 ? (
+            <div className="gap-3 grid">
+              <div className="text-sm font-bold flex justify-between">
+                <span id="buy-count-label">Packs</span>
+                <span>
+                  {chosen} of {most}
+                </span>
+              </div>
+              <Slider
+                variant="game"
+                aria-labelledby="buy-count-label"
+                min={1}
+                max={most}
+                step={1}
+                value={chosen}
+                onValueChange={(value) =>
+                  setCount(typeof value === "number" ? value : (value[0] ?? 1))
+                }
+              />
+            </div>
+          ) : null}
           {error ? (
             <p role="alert" className="text-sm font-bold text-destructive">
               {error}
@@ -184,12 +206,12 @@ function BuyPack({
             <Button
               variant="game"
               className="flex-1"
-              disabled={!wallet || busy || short}
-              aria-label={wallet ? `Buy for ${holos(wallet.packPrice)}` : "Buy"}
+              disabled={!wallet || busy || most === 0}
+              aria-label={`Buy ${chosen === 1 ? "a pack" : `${chosen} packs`} for ${holos(cost)}`}
               onClick={() => void buy()}
             >
               <HoloCoin />
-              {wallet?.packPrice ?? ""}
+              {cost.toLocaleString("en")}
             </Button>
           </DialogFooter>
         </div>

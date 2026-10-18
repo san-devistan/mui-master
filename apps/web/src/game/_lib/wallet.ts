@@ -34,6 +34,10 @@ export function useWallet(tick = 30_000) {
     pro,
     freePacks,
     maxFreePacks,
+    // Packs bought with coins, kept until opened on top of the free ones.
+    boughtPacks: data.boughtPacks,
+    // Every pack ready to open: free and bought.
+    packs: freePacks + data.boughtPacks,
     // How far toward the next free pack, 0 to 1; 0 while they're all held.
     nextFreeProgress:
       freePacks < maxFreePacks ? (now - from - freePacks * every) / every : 0,
@@ -46,6 +50,7 @@ export function useWallet(tick = 30_000) {
         ? timeLeft(from + (freePacks + 1) * every, now)
         : null,
     packPrice: data.packPrice,
+    maxPacksBought: data.maxPacksBought,
     sellPrice: data.sellPrice,
     auctionHours: data.auctionHours,
   }

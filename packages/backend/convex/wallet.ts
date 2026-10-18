@@ -8,12 +8,14 @@ import {
   type QueryCtx,
 } from "./_generated/server"
 import { playerId } from "./auth"
+import { scheduleFreePackPush } from "./push"
 import {
   auctionHours,
   freePackPlan,
   freePacks,
   holoBundles,
   isPro,
+  maxPacksBought,
   packPrice,
   pro,
   proMonthDays,
@@ -58,13 +60,9 @@ export const addCoins = async (
   await ctx.db.patch("players", row._id, { coins })
 }
 
-// Opening a pack: one of the free packs held, else, when `buy` says the player agreed to, one
-// paid for in coins.
-export const payForPack = async (
-  ctx: MutationCtx,
-  player: string,
-  buy: boolean
-) => {
+// Opening a pack: one of the free packs held, else one bought earlier (buyPacks). Free ones go
+// first, as they stop coming while full; bought ones keep.
+export const payForPack = async (ctx: MutationCtx, player: string) => {
   const row = await ensurePlayer(ctx, player)
   const now = Date.now()
   const free = freePacks(
@@ -72,11 +70,34 @@ export const payForPack = async (
     now,
     freePackPlan(isPro(row.proUntil, now))
   )
+  const bought = row.boughtPacks ?? 0
   if (free.count > 0) {
     await ctx.db.patch("players", row._id, { freePacksSince: free.usedSince })
-  } else if (buy) await addCoins(ctx, player, -packPrice)
-  else throw new ConvexError("No free pack left")
+    await scheduleFreePackPush(ctx, { ...row, freePacksSince: free.usedSince })
+  } else if (bought > 0) {
+    await ctx.db.patch("players", row._id, { boughtPacks: bought - 1 })
+  } else throw new ConvexError("No pack left")
 }
+
+// Buys `count` packs with coins, kept until opened, on top of the free ones. Only as many as the
+// player's coins pay for.
+export const buyPacks = mutation({
+  args: { count: v.number() },
+  handler: async (ctx, { count }) => {
+    const player = await playerId(ctx)
+    if (!player) throw new ConvexError("Not signed in")
+    if (!Number.isInteger(count) || count < 1 || count > maxPacksBought) {
+      throw new ConvexError(`Buy 1 to ${maxPacksBought} packs`)
+    }
+    const row = await ensurePlayer(ctx, player)
+    const cost = count * packPrice
+    if (row.coins < cost) throw new ConvexError("Not enough holos")
+    await ctx.db.patch("players", row._id, {
+      coins: row.coins - cost,
+      boughtPacks: (row.boughtPacks ?? 0) + count,
+    })
+  },
+})
 
 // The signed-in player's coins, free packs and Pro, and the prices. A query doesn't re-run as
 // time passes, so the client counts the free packs from `freePacksSince` (see economy.ts
@@ -91,12 +112,14 @@ export const get = query({
     return {
       coins: row?.coins ?? startingCoins,
       freePacksSince: row?.freePacksSince ?? 0,
+      boughtPacks: row?.boughtPacks ?? 0,
       proUntil: row?.proUntil ?? null,
       freePackHours: regular.hours,
       maxFreePacks: regular.max,
       proFreePackHours: proPlan.hours,
       proMaxFreePacks: proPlan.max,
       packPrice,
+      maxPacksBought,
       sellPrice,
       auctionHours,
     }
@@ -147,11 +170,11 @@ export const setPro = mutation({
   args: { pro: v.boolean() },
   handler: async (ctx, args) => {
     const row = await devPlayer(ctx)
-    await ctx.db.patch("players", row._id, {
-      proUntil: args.pro
-        ? Date.now() + proMonthDays * 24 * 3_600_000
-        : undefined,
-    })
+    const proUntil = args.pro
+      ? Date.now() + proMonthDays * 24 * 3_600_000
+      : undefined
+    await ctx.db.patch("players", row._id, { proUntil })
+    await scheduleFreePackPush(ctx, { ...row, proUntil })
   },
 })
 

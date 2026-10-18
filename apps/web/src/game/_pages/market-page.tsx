@@ -12,7 +12,12 @@ import { MoreCards } from "@/game/_components/collection-grid"
 import { PageHeader } from "@/game/_components/page-header"
 import { toGameCard } from "@/game/_lib/cards"
 import { useAuctions, type AuctionScope } from "@/game/_lib/market"
-import { rarityArg, type RarityFilter } from "@/game/_lib/rarity-filter"
+import {
+  RARITY_FILTERS,
+  rarityArg,
+  type RarityFilter,
+} from "@/game/_lib/rarity-filter"
+import { useSavedChoice } from "@/game/_lib/saved-choice"
 import { timeLeft, useNow, wonOn } from "@/game/_lib/wallet"
 import { useSearch } from "@tanstack/react-router"
 import { GameBadge } from "@workspace/ui/components/count-badge"
@@ -40,6 +45,9 @@ const SCOPES = {
   bids: { label: "My bids", Icon: HandCoinsIcon },
   won: { label: "Won auctions", Icon: TrophyIcon },
 } as const satisfies Record<AuctionScope, unknown>
+const SCOPE_KEYS = Object.keys(SCOPES).filter(
+  (key): key is AuctionScope => key in SCOPES
+)
 
 // What shows when a scope has nothing to show.
 const EMPTY = {
@@ -58,16 +66,26 @@ type Opened = {
   phase: Showcase["phase"]
 }
 
-// Which auctions show: chosen on the page, or asked for by a link (`?scope=`) on arrival.
+// Which auctions show: chosen on the page (and saved, like the filter), or asked for by a link
+// (`?scope=`) on arrival.
 function useScope() {
   const asked = useSearch({ strict: false, select: (search) => search.scope })
-  const [scope, setScope] = useState<AuctionScope>(asked ?? "live")
+  const [saved, setScope] = useSavedChoice<AuctionScope>(
+    "market.scope",
+    SCOPE_KEYS,
+    "live"
+  )
+  const [scope, setShown] = useState<AuctionScope>(asked ?? saved)
   const [seen, setSeen] = useState(asked)
   if (asked !== seen) {
     setSeen(asked)
-    if (asked) setScope(asked)
+    if (asked) setShown(asked)
   }
-  return [scope, setScope] as const
+  const choose = (next: AuctionScope) => {
+    setShown(next)
+    setScope(next)
+  }
+  return [scope, choose] as const
 }
 
 // Open auctions, ending soonest first, like the collection: a rarity filter, which auctions
@@ -76,7 +94,11 @@ function useScope() {
 // its own page. Kept mounted by GameLayout, hidden (`shown` false) on other tabs.
 export function MarketPage({ shown }: { shown: boolean }) {
   const [scope, setScope] = useScope()
-  const [filter, setFilter] = useState<RarityFilter>("all")
+  const [filter, setFilter] = useSavedChoice<RarityFilter>(
+    "market.rarity",
+    RARITY_FILTERS,
+    "all"
+  )
   // Null while the search field is closed.
   const [search, setSearch] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)

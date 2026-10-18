@@ -125,139 +125,214 @@ function seeded(seed: number) {
   }
 }
 
-// A four-pointed star, like the pack opening's (game.css .game-reveal-star),
-// glowing white with a coloured halo.
-function star(ctx: Ctx, x: number, y: number, size: number, glow: string) {
-  const arm = size / 2
-  const waist = arm * 0.22
-  ctx.save()
-  ctx.translate(x, y)
-  ctx.shadowColor = glow
-  ctx.shadowBlur = size * 0.9
-  ctx.fillStyle = "#fff"
-  ctx.beginPath()
-  ctx.moveTo(0, -arm)
-  ctx.lineTo(waist, -waist)
-  ctx.lineTo(arm, 0)
-  ctx.lineTo(waist, waist)
-  ctx.lineTo(0, arm)
-  ctx.lineTo(-waist, waist)
-  ctx.lineTo(-arm, 0)
-  ctx.lineTo(-waist, -waist)
-  ctx.closePath()
-  ctx.fill()
-  ctx.restore()
+// The light's colours: a rainbow, like the pack's foil and the icon's.
+const RAINBOW = [
+  [255, 143, 216],
+  [255, 184, 107],
+  [255, 230, 128],
+  [143, 245, 196],
+  [126, 249, 255],
+  [159, 176, 255],
+  [201, 155, 255],
+] as const
+const rgba = (index: number, alpha: number) => {
+  const [r, g, b] = RAINBOW[index % RAINBOW.length] ?? [255, 255, 255]
+  return `rgb(${r} ${g} ${b} / ${alpha})`
 }
 
-// A soft glowing mote, like the motes drifting over a waiting pack
-// (game.css .game-pack-motes).
-function mote(ctx: Ctx, x: number, y: number, radius: number) {
-  const reach = radius * 3.5
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, reach)
-  glow.addColorStop(0, "rgb(255 255 255 / 0.95)")
-  glow.addColorStop(0.25, "rgb(255 255 255 / 0.7)")
-  glow.addColorStop(0.5, "rgb(174 210 255 / 0.25)")
-  glow.addColorStop(1, "rgb(174 210 255 / 0)")
-  ctx.fillStyle = glow
-  ctx.fillRect(x - reach, y - reach, reach * 2, reach * 2)
-}
+type Area = { x: number; y: number; width: number; height: number }
 
-const STAR_GLOWS = ["#c470f8", "#a9b8ff", "#ffd64a", "#f5c4f2"]
-
-// The game's backdrop, made to shine: lavender settling into off-white, a
-// beam of light rising from below, a pale foil sheen across it, then glowing
-// motes and four-pointed stars scattered over it all, like the pack
-// opening's. `keep`: where the picture's main subject sits, kept clear of the
-// biggest stars.
-function backdrop(
+// Draws `paint` on its own layer, blurred by `blur` px, then onto `ctx` with
+// `blend`: light spreads and bleeds instead of having edges.
+function layer(
   ctx: Ctx,
   width: number,
   height: number,
-  keep?: { x: number; y: number; width: number; height: number }
+  blur: number,
+  blend: GlobalCompositeOperation,
+  paint: (layerCtx: Ctx) => void
 ) {
-  const base = ctx.createLinearGradient(0, 0, 0, height)
-  base.addColorStop(0, "#c9b2f6")
-  base.addColorStop(0.55, "#e6dcfb")
-  base.addColorStop(1, "#f5f3ec")
-  ctx.fillStyle = base
-  ctx.fillRect(0, 0, width, height)
-  const light = ctx.createRadialGradient(
-    width / 2,
-    height * 0.82,
-    0,
-    width / 2,
-    height * 0.82,
-    height * 0.6
-  )
-  light.addColorStop(0, "#fff")
-  light.addColorStop(0.35, "#ece4ff")
-  light.addColorStop(0.75, "rgb(236 228 255 / 0)")
-  ctx.fillStyle = light
-  ctx.fillRect(0, 0, width, height)
-  // A wide fan of light from the bottom middle, fading as it rises.
+  const { canvas, ctx: layerCtx } = blankCanvas(width, height, 1)
+  paint(layerCtx)
   ctx.save()
-  ctx.globalCompositeOperation = "lighter"
-  const beams = 9
-  for (let beam = 0; beam < beams; beam++) {
-    const angle = ((beam - (beams - 1) / 2) / beams) * 1.6
+  ctx.filter = `blur(${blur}px)`
+  ctx.globalCompositeOperation = blend
+  ctx.drawImage(canvas, 0, 0)
+  ctx.restore()
+}
+
+// A spot of light: brightest in its middle, fading smoothly to nothing.
+function glow(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  radius: number,
+  color: (alpha: number) => string,
+  strength = 1
+) {
+  const light = ctx.createRadialGradient(x, y, 0, x, y, radius)
+  light.addColorStop(0, color(strength))
+  light.addColorStop(0.35, color(strength * 0.45))
+  light.addColorStop(1, color(0))
+  ctx.fillStyle = light
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+}
+
+// A lens twinkle: a white-hot point whose uneven, tapered rays split into
+// rainbow colour, with a tinted halo, like a sparkle caught by a camera.
+function twinkle(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  size: number,
+  tint: number,
+  random: () => number
+) {
+  glow(ctx, x, y, size * 0.75, (alpha) => rgba(tint, alpha), 0.9)
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(random() * Math.PI)
+  for (let ray = 0; ray < 8; ray++) {
+    const long = ray % 2 === 0
+    const length = size * (long ? 0.65 + random() * 0.55 : 0.2 + random() * 0.3)
+    const thickness = size * (long ? 0.045 : 0.03) * (0.75 + random() * 0.5)
+    const bend = thickness * (random() - 0.5) * 1.5
     ctx.save()
-    ctx.translate(width / 2, height)
-    ctx.rotate(angle)
-    const ray = ctx.createLinearGradient(0, 0, 0, -height)
-    ray.addColorStop(0, "rgb(255 255 255 / 0.1)")
-    ray.addColorStop(0.6, "rgb(255 255 255 / 0)")
-    ctx.fillStyle = ray
-    const spread = width * 0.05
+    ctx.rotate((ray * Math.PI) / 4 + (random() - 0.5) * 0.18)
+    const streak = ctx.createLinearGradient(0, 0, length, 0)
+    streak.addColorStop(0, "rgb(255 255 255 / 0.95)")
+    streak.addColorStop(0.18, rgba(tint + ray, long ? 0.9 : 0.65))
+    streak.addColorStop(0.62, rgba(tint + ray + 2, long ? 0.42 : 0.25))
+    streak.addColorStop(1, rgba(tint + ray + 4, 0))
+    ctx.fillStyle = streak
     ctx.beginPath()
-    ctx.moveTo(-spread * 0.2, 0)
-    ctx.lineTo(spread * 0.2, 0)
-    ctx.lineTo(spread, -height)
-    ctx.lineTo(-spread, -height)
+    ctx.moveTo(0, -thickness)
+    ctx.quadraticCurveTo(length * 0.38, bend - thickness * 0.35, length, bend)
+    ctx.quadraticCurveTo(length * 0.38, bend + thickness * 0.35, 0, thickness)
     ctx.closePath()
     ctx.fill()
     ctx.restore()
   }
+  glow(ctx, 0, 0, size * 0.18, (alpha) => `rgb(255 255 255 / ${alpha})`)
   ctx.restore()
-  // A faint foil sheen across the top, as on a pack, fading out downwards.
-  const sheen = blankCanvas(width, Math.round(height * 0.6), 1)
-  const foil = sheen.ctx.createLinearGradient(0, 0, width, height * 0.6)
-  for (const [at, color] of FOIL) foil.addColorStop(at, color)
-  sheen.ctx.fillStyle = foil
-  sheen.ctx.fillRect(0, 0, width, height)
-  sheen.ctx.globalCompositeOperation = "destination-in"
-  const fade = sheen.ctx.createLinearGradient(0, 0, 0, height * 0.6)
-  fade.addColorStop(0, "#000")
-  fade.addColorStop(1, "rgb(0 0 0 / 0)")
-  sheen.ctx.fillStyle = fade
-  sheen.ctx.fillRect(0, 0, width, height)
-  ctx.save()
-  ctx.globalAlpha = 0.25
-  ctx.drawImage(sheen.canvas, 0, 0)
-  ctx.restore()
-  ctx.save()
-  ctx.globalCompositeOperation = "lighter"
-  const random = seeded(7)
+}
+
+// The game's backdrop lit up, like the light pouring out of an opened pack:
+// lavender into off-white, soft rays fanning out from behind the picture's
+// subject (`keep`) in pale rainbow colours, a haze of colour drifting over
+// it, out-of-focus lights and fine dust in the air, and a few camera
+// twinkles. Everything is blurred light, nothing has an edge. The same on
+// every picture.
+function backdrop(ctx: Ctx, width: number, height: number, keep: Area) {
   const scale = width / SHARE_W
-  for (let count = 0; count < 40; count++) {
-    mote(ctx, random() * width, random() * height, (2 + random() * 4) * scale)
+  const random = seeded(7)
+  const base = ctx.createLinearGradient(0, 0, 0, height)
+  base.addColorStop(0, "#a98ded")
+  base.addColorStop(0.5, "#c8b6f5")
+  base.addColorStop(1, "#e6dcf6")
+  ctx.fillStyle = base
+  ctx.fillRect(0, 0, width, height)
+  const source = {
+    x: keep.x + keep.width / 2,
+    y: keep.y + keep.height * 0.55,
   }
-  ctx.restore()
-  let placed = 0
-  for (let tries = 0; placed < 28 && tries < 300; tries++) {
-    const x = random() * width
-    const y = random() * height
-    const big = placed < 10
-    const size = (big ? 64 + random() * 52 : 22 + random() * 24) * scale
-    const inside =
-      keep &&
-      x > keep.x - size / 2 &&
-      x < keep.x + keep.width + size / 2 &&
-      y > keep.y - size / 2 &&
-      y < keep.y + keep.height + size / 2
-    if (big && inside) continue
-    star(ctx, x, y, size, STAR_GLOWS[placed % STAR_GLOWS.length] ?? "#fff")
-    placed += 1
-  }
+  // Big soft clouds of colour, so the backdrop isn't one flat gradient.
+  layer(ctx, width, height, 80 * scale, "source-over", (haze) => {
+    for (let cloud = 0; cloud < 7; cloud++) {
+      glow(
+        haze,
+        random() * width,
+        random() * height,
+        (260 + random() * 260) * scale,
+        (alpha) => rgba(cloud * 2, alpha),
+        0.55
+      )
+    }
+  })
+  // Rays of light fanning out from behind the subject: every width and
+  // brightness, faintly tinted, blurred so they read as beams in the air.
+  layer(ctx, width, height, 14 * scale, "screen", (rays) => {
+    const reach = Math.hypot(width, height)
+    rays.translate(source.x, source.y)
+    for (let ray = 0; ray < 26; ray++) {
+      const angle = random() * Math.PI * 2
+      const spread = 0.02 + random() * 0.07
+      const strength = 0.25 + random() * 0.45
+      const beam = rays.createRadialGradient(0, 0, 0, 0, 0, reach * 0.8)
+      beam.addColorStop(0, `rgb(255 255 255 / ${strength})`)
+      beam.addColorStop(0.3, rgba(ray, strength * 0.8))
+      beam.addColorStop(1, rgba(ray + 3, 0))
+      rays.fillStyle = beam
+      rays.beginPath()
+      rays.moveTo(0, 0)
+      rays.arc(0, 0, reach, angle - spread, angle + spread)
+      rays.closePath()
+      rays.fill()
+    }
+  })
+  // The light's source, glowing through behind the subject.
+  layer(ctx, width, height, 30 * scale, "screen", (core) => {
+    glow(
+      core,
+      source.x,
+      source.y,
+      Math.max(keep.width, keep.height) * 0.75,
+      (alpha) => `rgb(255 250 255 / ${alpha})`,
+      0.9
+    )
+  })
+  // Out-of-focus lights: large, soft, overlapping discs of colour.
+  layer(ctx, width, height, 6 * scale, "screen", (bokeh) => {
+    for (let light = 0; light < 22; light++) {
+      const radius = (18 + random() ** 2 * 70) * scale
+      const x = random() * width
+      const y = random() * height
+      bokeh.fillStyle = rgba(light, 0.2 + random() * 0.3)
+      bokeh.beginPath()
+      bokeh.arc(x, y, radius, 0, Math.PI * 2)
+      bokeh.fill()
+      bokeh.strokeStyle = "rgb(255 255 255 / 0.18)"
+      bokeh.lineWidth = 2 * scale
+      bokeh.stroke()
+    }
+  })
+  // Dust catching the light: tiny specks, sharpest near the rays' source.
+  layer(ctx, width, height, 0.8 * scale, "screen", (dust) => {
+    for (let speck = 0; speck < 160; speck++) {
+      const x = random() * width
+      const y = random() * height
+      const near =
+        1 - Math.min(1, Math.hypot(x - source.x, y - source.y) / height)
+      glow(
+        dust,
+        x,
+        y,
+        (2 + random() * 5) * scale,
+        (alpha) => rgba(speck, alpha),
+        0.3 + near * 0.7
+      )
+    }
+  })
+  // A few soft camera twinkles in the background, outside the subject so it
+  // stays clear. Drawn normally, not screened, so their colour isn't lost on
+  // the pale backdrop.
+  layer(ctx, width, height, 3 * scale, "source-over", (twinkles) => {
+    twinkles.globalAlpha = 0.8
+    let placed = 0
+    for (let tries = 0; placed < 9 && tries < 200; tries++) {
+      const size = (50 + random() * 80) * scale
+      const x = random() * width
+      const y = random() * height
+      const inside =
+        x > keep.x - size * 0.3 &&
+        x < keep.x + keep.width + size * 0.3 &&
+        y > keep.y - size * 0.3 &&
+        y < keep.y + keep.height + size * 0.3
+      if (inside) continue
+      twinkle(twinkles, x, y, size, placed * 2, random)
+      placed += 1
+    }
+  })
 }
 
 // `source` (a card's snapshot) on the share backdrop, with the app's name and

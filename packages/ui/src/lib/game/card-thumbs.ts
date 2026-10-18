@@ -8,6 +8,7 @@ import {
   type Stage,
 } from "@workspace/ui/lib/game/film-scene"
 import { loadImage } from "@workspace/ui/lib/game/pack-art"
+import { showSilverFoil } from "@workspace/ui/lib/game/silver-foil"
 import type { GameSong } from "@workspace/ui/lib/game/theme"
 
 // Same framing as SongCard without its mirror floor.
@@ -264,6 +265,7 @@ function thumbStage() {
   // skip the big card's supersampling.
   stage.renderer.setAnimationLoop(null)
   stage.renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+  showSilverFoil(stage.renderer)
   return stage
 }
 

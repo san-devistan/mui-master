@@ -315,11 +315,10 @@
 }
 
 /* NEW sticker on a collection card, matching the pack opening's: a tilted pill
-   of the pack lining's silver foil (brushed, brighter at its edges, rainbow
-   bands and glints sliding across) over the card's top-right corner, lettered
-   in ink. On a card that just dropped in, it's pressed on once the card has
-   landed (--drop-delay + the 0.6s drop). Sized off the card (an @container);
-   keyframes in game.css. */
+   of the pack lining's silver foil (--silver-foil, drawn by its shader) over
+   the card's top-right corner, lettered in ink. On a card that just dropped
+   in, it's pressed on once the card has landed (--drop-delay + the 0.6s
+   drop). Sized off the card (an @container); keyframes in game.css. */
 @utility game-new-badge {
   position: absolute;
   top: 2%;
@@ -332,33 +331,8 @@
   overflow: hidden;
   border: 1cqw solid var(--ink);
   border-radius: 999px;
-  background:
-    /* Glints. */
-    linear-gradient(
-        100deg,
-        transparent 44%,
-        rgb(255 255 255 / 0.7) 50%,
-        transparent 56%
-      )
-      0 0 / 60% 100%,
-    /* Rainbow bands sliding across. */
-      linear-gradient(
-        110deg,
-        rgb(255 120 200 / 0.6),
-        rgb(120 220 255 / 0.6),
-        rgb(255 236 120 / 0.6),
-        rgb(190 140 255 / 0.6),
-        rgb(255 120 200 / 0.6)
-      )
-      0 0 / 300% 100%,
-    /* Brushed silver, brighter towards the top and bottom edges. */
-      repeating-linear-gradient(
-        90deg,
-        rgb(255 255 255 / 0.08) 0 1px,
-        transparent 1px 3px
-      ),
-    linear-gradient(#f7f7ff, #b3b8cc 50%, #f7f7ff);
-  background-blend-mode: screen, multiply, normal, normal;
+  background: var(--silver-foil, linear-gradient(#f7f7ff, #b3b8cc 50%, #f7f7ff))
+    center / 100% 100%;
   box-shadow: 0 1.2cqw 2.5cqw rgb(18 16 22 / 0.35);
   color: var(--ink);
   font-family: var(--font-heading);
@@ -367,17 +341,13 @@
   line-height: 1;
   rotate: 8deg;
   pointer-events: none;
-  animation: game-badge-shine 6s linear infinite;
 
   .game-drop & {
-    animation:
-      game-badge-press 0.7s calc(var(--drop-delay, 0s) + 0.75s)
-        cubic-bezier(0.34, 1.4, 0.64, 1) both,
-      game-badge-shine 6s linear infinite;
+    animation: game-badge-press 0.7s calc(var(--drop-delay, 0s) + 0.75s)
+      cubic-bezier(0.34, 1.4, 0.64, 1) both;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    &,
     .game-drop & {
       animation: none;
     }

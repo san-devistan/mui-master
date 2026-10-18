@@ -123,8 +123,10 @@ platform.
   free packs live on the `players` row (`wallet.ts`), keyed by the Better
   Auth user id like all game state, not in the auth component, so a guest's
   progress can move to a linked account. Free packs come back one per 8 hours,
-  3 held at most (`freePacks`, counted from `freePacksSince`); `packs:claim`
-  uses one or, with `buy`, costs coins. Pro (`players.proUntil` ahead; no
+  3 held at most (`freePacks`, counted from `freePacksSince`). `wallet:buyPacks`
+  buys packs with coins (100 each, up to 50 at once), kept in
+  `players.boughtPacks` until opened; `packs:claim` uses a free pack first, then a
+  bought one. Pro (`players.proUntil` ahead; no
   checkout yet) gets one free pack per 4 hours, 6 held, 1,000 holos a week
   (`wallet:claimWeekly`, called as the app opens, a week after the last) and 30 open
   auctions instead of 10. `wallet:setPro` and `wallet:addHolos` are dev tools

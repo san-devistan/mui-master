@@ -164,14 +164,29 @@ export default defineSchema({
     cards: v.number(),
     coins: v.number(),
     freePacksSince: v.number(),
+    // Packs bought with coins and not opened yet (wallet:buyPacks); opened once the free ones are
+    // gone, and they never run out.
+    boughtPacks: v.optional(v.number()),
     // Pro until then (ms); unset or past, the free game. Paid monthly; no checkout yet, so for
     // now only the dev switch sets it (wallet:setPro).
     proUntil: v.optional(v.number()),
     // When Pro's weekly holos were last given (wallet:claimWeekly).
     weeklyHolosAt: v.optional(v.number()),
+    // When the push for the next free pack is due (push:scheduleFreePackPush); an earlier one
+    // scheduled for another time does nothing.
+    freePackPushAt: v.optional(v.number()),
     // Up to 6 card ids the player shows on their profile, in order (profile.ts).
     showcase: v.optional(v.array(v.string())),
   }).index("by_playerId", ["playerId"]),
+  // One row per device a player turned notifications on from: its Web Push subscription
+  // (push.ts), dropped once the push service says it's gone (notify.ts).
+  pushSubscriptions: defineTable({
+    playerId: v.string(),
+    endpoint: v.string(),
+    keys: v.object({ p256dh: v.string(), auth: v.string() }),
+  })
+    .index("by_playerId", ["playerId"])
+    .index("by_endpoint", ["endpoint"]),
   // The pack waiting for each player, drawn ahead so its cards are ready once it's cut open; it's
   // the same pack until they open it (packs:claim), whatever reloads or double draws happen.
   pendingPacks: defineTable({

@@ -5,10 +5,12 @@ import type { CardRarity } from "./validators"
 export const startingCoins = 100
 
 // Free packs: one every 8 hours, up to 3 held, so 3 a day at most and none lost overnight. Past
-// them a pack costs packPrice. Pro gets one every 4 hours, up to 6 held.
+// them a pack costs packPrice, bought ahead (up to maxPacksBought at once) and kept until opened.
+// Pro gets one every 4 hours, up to 6 held.
 export const freePackHours = 8
 export const maxFreePacks = 3
 export const packPrice = 100
+export const maxPacksBought = 50
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 

@@ -284,16 +284,16 @@ export const next = mutation({
 })
 
 // Opens the waiting pack: its cards go into the player's collection, a copy more for one they
-// own. It uses one of the free packs held, or with `buy`, once they're gone, costs coins
-// (wallet.ts). Does nothing without one, so a double tap can't add a pack twice.
+// own. It uses one of the free packs held, or once they're gone one bought with coins
+// (wallet.ts). Does nothing without a waiting pack, so a double tap can't add a pack twice.
 export const claim = mutation({
-  args: { buy: v.optional(v.boolean()) },
-  handler: async (ctx, { buy = false }) => {
+  args: {},
+  handler: async (ctx) => {
     const player = await playerId(ctx)
     if (!player) throw new Error("Not signed in")
     const pending = await pendingPack(ctx, player)
     if (!pending) return
-    await payForPack(ctx, player, buy)
+    await payForPack(ctx, player)
     const pulledAt = Date.now()
     for (const cardId of pending.cardIds) {
       const card = await cardById(ctx, cardId)
