@@ -26,12 +26,10 @@ export const Route = createRootRouteWithContext<{
         title: "Holotrack",
       },
       { name: "theme-color", content: "#d5c3f8" },
+      // No black-translucent status bar: iOS 26+ blurs whatever a home-screen
+      // app draws under it. The default bar is opaque; the page starts below.
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-title", content: "Holotrack" },
-      {
-        name: "apple-mobile-web-app-status-bar-style",
-        content: "black-translucent",
-      },
     ],
     links: [
       {

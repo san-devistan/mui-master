@@ -439,7 +439,7 @@ export type CardScene = {
   // Sends the card back to a slot; resolves once it is there.
   flyBack: (to: () => CardSlot | null) => Promise<void>
   // The card head-on with its mirror image under it and the app's name and
-  // icon below, as a transparent PNG.
+  // icon below, on the shiny share backdrop, as a PNG.
   snapshot: () => Blob
 }
 
@@ -452,7 +452,7 @@ const SNAPSHOT_MIRROR = 0.16
 const REST_Y = 6
 
 // The card head-on and still, its mirror image under it at full and the app's
-// name under that, on a transparent PNG. Drawn by the card's own renderer,
+// name under that, on the share backdrop (share-art.ts). Drawn by the card's own renderer,
 // resized for the shot and back within one task, so the page never shows that
 // frame; synchronous, so a share sheet can still open from the tap that asked
 // for it.

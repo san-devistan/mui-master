@@ -81,16 +81,6 @@ function drawBrand(ctx: Ctx, middle: number, top: number, height: number) {
   ctx.restore()
 }
 
-// `source` (a card's snapshot) with a band under it holding the app's name
-// and icon; the rest stays transparent.
-export function withBrand(source: HTMLCanvasElement) {
-  const band = Math.round(source.width * 0.1)
-  const { canvas, ctx } = blankCanvas(source.width, source.height + band, 1)
-  ctx.drawImage(source, 0, 0)
-  drawBrand(ctx, canvas.width / 2, source.height + band * 0.25, band * 0.4)
-  return canvas
-}
-
 // A canvas as a PNG, synchronously, so a share sheet can still open from the
 // tap that asked for it.
 export function pngBlob(canvas: HTMLCanvasElement) {
@@ -126,26 +116,173 @@ const HEAD = { avatar: 230, radius: 90, name: 420, label: 480, value: 535 }
 const GRID = { top: 720, width: 290, height: 406, gap: 30, columns: 3 }
 const BRAND = { top: SHARE_H - 130, height: 52 }
 
-// The game's backdrop: lavender settling into off-white, lit from below.
-function backdrop(ctx: Ctx) {
-  const base = ctx.createLinearGradient(0, 0, 0, SHARE_H)
-  base.addColorStop(0, "#d5c3f8")
+// A seeded random in [0, 1): the same sparkles on every share picture.
+function seeded(seed: number) {
+  let state = seed
+  return () => {
+    state = (state * 1_103_515_245 + 12_345) % 2_147_483_648
+    return state / 2_147_483_648
+  }
+}
+
+// A four-pointed star, like the pack opening's (game.css .game-reveal-star),
+// glowing white with a coloured halo.
+function star(ctx: Ctx, x: number, y: number, size: number, glow: string) {
+  const arm = size / 2
+  const waist = arm * 0.22
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.shadowColor = glow
+  ctx.shadowBlur = size * 0.9
+  ctx.fillStyle = "#fff"
+  ctx.beginPath()
+  ctx.moveTo(0, -arm)
+  ctx.lineTo(waist, -waist)
+  ctx.lineTo(arm, 0)
+  ctx.lineTo(waist, waist)
+  ctx.lineTo(0, arm)
+  ctx.lineTo(-waist, waist)
+  ctx.lineTo(-arm, 0)
+  ctx.lineTo(-waist, -waist)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+}
+
+// A soft glowing mote, like the motes drifting over a waiting pack
+// (game.css .game-pack-motes).
+function mote(ctx: Ctx, x: number, y: number, radius: number) {
+  const reach = radius * 3.5
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, reach)
+  glow.addColorStop(0, "rgb(255 255 255 / 0.95)")
+  glow.addColorStop(0.25, "rgb(255 255 255 / 0.7)")
+  glow.addColorStop(0.5, "rgb(174 210 255 / 0.25)")
+  glow.addColorStop(1, "rgb(174 210 255 / 0)")
+  ctx.fillStyle = glow
+  ctx.fillRect(x - reach, y - reach, reach * 2, reach * 2)
+}
+
+const STAR_GLOWS = ["#c470f8", "#a9b8ff", "#ffd64a", "#f5c4f2"]
+
+// The game's backdrop, made to shine: lavender settling into off-white, a
+// beam of light rising from below, a pale foil sheen across it, then glowing
+// motes and four-pointed stars scattered over it all, like the pack
+// opening's. `keep`: where the picture's main subject sits, kept clear of the
+// biggest stars.
+function backdrop(
+  ctx: Ctx,
+  width: number,
+  height: number,
+  keep?: { x: number; y: number; width: number; height: number }
+) {
+  const base = ctx.createLinearGradient(0, 0, 0, height)
+  base.addColorStop(0, "#c9b2f6")
+  base.addColorStop(0.55, "#e6dcfb")
   base.addColorStop(1, "#f5f3ec")
   ctx.fillStyle = base
-  ctx.fillRect(0, 0, SHARE_W, SHARE_H)
+  ctx.fillRect(0, 0, width, height)
   const light = ctx.createRadialGradient(
-    SHARE_W / 2,
-    SHARE_H * 0.82,
+    width / 2,
+    height * 0.82,
     0,
-    SHARE_W / 2,
-    SHARE_H * 0.82,
-    SHARE_H * 0.6
+    width / 2,
+    height * 0.82,
+    height * 0.6
   )
   light.addColorStop(0, "#fff")
   light.addColorStop(0.35, "#ece4ff")
   light.addColorStop(0.75, "rgb(236 228 255 / 0)")
   ctx.fillStyle = light
-  ctx.fillRect(0, 0, SHARE_W, SHARE_H)
+  ctx.fillRect(0, 0, width, height)
+  // A wide fan of light from the bottom middle, fading as it rises.
+  ctx.save()
+  ctx.globalCompositeOperation = "lighter"
+  const beams = 9
+  for (let beam = 0; beam < beams; beam++) {
+    const angle = ((beam - (beams - 1) / 2) / beams) * 1.6
+    ctx.save()
+    ctx.translate(width / 2, height)
+    ctx.rotate(angle)
+    const ray = ctx.createLinearGradient(0, 0, 0, -height)
+    ray.addColorStop(0, "rgb(255 255 255 / 0.1)")
+    ray.addColorStop(0.6, "rgb(255 255 255 / 0)")
+    ctx.fillStyle = ray
+    const spread = width * 0.05
+    ctx.beginPath()
+    ctx.moveTo(-spread * 0.2, 0)
+    ctx.lineTo(spread * 0.2, 0)
+    ctx.lineTo(spread, -height)
+    ctx.lineTo(-spread, -height)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+  ctx.restore()
+  // A faint foil sheen across the top, as on a pack, fading out downwards.
+  const sheen = blankCanvas(width, Math.round(height * 0.6), 1)
+  const foil = sheen.ctx.createLinearGradient(0, 0, width, height * 0.6)
+  for (const [at, color] of FOIL) foil.addColorStop(at, color)
+  sheen.ctx.fillStyle = foil
+  sheen.ctx.fillRect(0, 0, width, height)
+  sheen.ctx.globalCompositeOperation = "destination-in"
+  const fade = sheen.ctx.createLinearGradient(0, 0, 0, height * 0.6)
+  fade.addColorStop(0, "#000")
+  fade.addColorStop(1, "rgb(0 0 0 / 0)")
+  sheen.ctx.fillStyle = fade
+  sheen.ctx.fillRect(0, 0, width, height)
+  ctx.save()
+  ctx.globalAlpha = 0.25
+  ctx.drawImage(sheen.canvas, 0, 0)
+  ctx.restore()
+  ctx.save()
+  ctx.globalCompositeOperation = "lighter"
+  const random = seeded(7)
+  const scale = width / SHARE_W
+  for (let count = 0; count < 40; count++) {
+    mote(ctx, random() * width, random() * height, (2 + random() * 4) * scale)
+  }
+  ctx.restore()
+  let placed = 0
+  for (let tries = 0; placed < 28 && tries < 300; tries++) {
+    const x = random() * width
+    const y = random() * height
+    const big = placed < 10
+    const size = (big ? 64 + random() * 52 : 22 + random() * 24) * scale
+    const inside =
+      keep &&
+      x > keep.x - size / 2 &&
+      x < keep.x + keep.width + size / 2 &&
+      y > keep.y - size / 2 &&
+      y < keep.y + keep.height + size / 2
+    if (big && inside) continue
+    star(ctx, x, y, size, STAR_GLOWS[placed % STAR_GLOWS.length] ?? "#fff")
+    placed += 1
+  }
+}
+
+// `source` (a card's snapshot) on the share backdrop, with the app's name and
+// icon under it.
+export function withBrand(source: HTMLCanvasElement) {
+  const band = Math.round(source.width * 0.1)
+  const { canvas, ctx } = blankCanvas(source.width, source.height + band, 1)
+  backdrop(ctx, canvas.width, canvas.height, {
+    x: source.width * 0.08,
+    y: source.height * 0.06,
+    width: source.width * 0.84,
+    height: source.height * 0.74,
+  })
+  ctx.drawImage(source, 0, 0)
+  drawBrand(ctx, canvas.width / 2, source.height + band * 0.25, band * 0.4)
+  return canvas
+}
+
+function profileBackdrop(ctx: Ctx) {
+  backdrop(ctx, SHARE_W, SHARE_H, {
+    x: 40,
+    y: HEAD.avatar - HEAD.radius - 20,
+    width: SHARE_W - 80,
+    height: GRID.top + 2 * GRID.height + GRID.gap - HEAD.avatar + HEAD.radius,
+  })
 }
 
 // shortcut: always the initial on the brand gradient, as players have no
@@ -257,7 +394,7 @@ function proBadge(ctx: Ctx, x: number, y: number) {
 export function drawProfileShare({ name, stats, pro, cards }: ProfileShare) {
   const { canvas, ctx } = blankCanvas(SHARE_W, SHARE_H, 1)
   const middle = SHARE_W / 2
-  backdrop(ctx)
+  profileBackdrop(ctx)
   avatar(ctx, name, middle, HEAD.avatar, HEAD.radius)
   if (pro) {
     // Hanging off the picture's bottom, over its ring.
