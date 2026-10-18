@@ -21,6 +21,7 @@ import {
   proMonthDays,
   proWeeklyHolos,
   sellPrice,
+  skipPrice,
   startingCoins,
   weeklyHolosDue,
 } from "./songs/_lib/economy"
@@ -96,6 +97,28 @@ export const buyPacks = mutation({
       coins: row.coins - cost,
       boughtPacks: (row.boughtPacks ?? 0) + count,
     })
+  },
+})
+
+// Pays holos to have the next free pack now instead of waiting (skipPrice, from the wait left).
+export const skipFreePack = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const player = await playerId(ctx)
+    if (!player) throw new ConvexError("Not signed in")
+    const row = await ensurePlayer(ctx, player)
+    const now = Date.now()
+    const plan = freePackPlan(isPro(row.proUntil, now))
+    const free = freePacks(row.freePacksSince, now, plan)
+    if (free.nextAt === null) throw new ConvexError("Free packs are full")
+    const cost = skipPrice(free.nextAt, now, plan)
+    if (row.coins < cost) throw new ConvexError("Not enough holos")
+    const freePacksSince = free.from - (free.nextAt - now)
+    await ctx.db.patch("players", row._id, {
+      coins: row.coins - cost,
+      freePacksSince,
+    })
+    await scheduleFreePackPush(ctx, { ...row, freePacksSince })
   },
 })
 

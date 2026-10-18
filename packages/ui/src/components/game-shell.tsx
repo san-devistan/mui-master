@@ -1,6 +1,7 @@
 import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 import { soundTaps } from "@workspace/ui/lib/game/sfx"
+import { touchTrails } from "@workspace/ui/lib/game/touch-trail"
 import { cn } from "@workspace/ui/lib/utils"
 import { cva, type VariantProps } from "class-variance-authority"
 import type * as React from "react"
@@ -25,6 +26,7 @@ function GameShell({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof gameShellVariants>) {
   useEffect(soundTaps, [])
+  useEffect(touchTrails, [])
   return (
     <div
       data-slot="game-shell"

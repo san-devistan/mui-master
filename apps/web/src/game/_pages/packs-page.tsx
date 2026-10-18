@@ -1,4 +1,5 @@
 import { FreePacks } from "@/game/_components/free-packs"
+import { HoloShop } from "@/game/_components/holo-shop"
 import { PageHeader } from "@/game/_components/page-header"
 import { useRevealMusic } from "@/game/_hooks/use-reveal-music"
 import { toGameCard, type GameCard } from "@/game/_lib/cards"
@@ -19,6 +20,7 @@ import { HoloCoin } from "@workspace/ui/components/holo-coin"
 import { PackOpening } from "@workspace/ui/components/pack-opening"
 import { Slider } from "@workspace/ui/components/slider"
 import { useMutation } from "convex/react"
+import { ClockIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 // The pack flies in only the first time the page loads; coming back to the
@@ -39,6 +41,7 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
   const wallet = useWallet(1000)
   const [error, setError] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
+  const [shopping, setShopping] = useState(false)
   // Locked until the wallet is known, then while there's no pack to open, free or bought.
   const locked = !open && (!wallet || wallet.packs === 0)
   // The waiting pack, drawn ahead so its cards are ready once it's cut open; the backend keeps it
@@ -109,12 +112,21 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
           }
         />
       ) : null}
-      <BuyPack open={buying && locked} onOpenChange={setBuying} />
+      <GetPacks
+        open={buying}
+        onOpenChange={setBuying}
+        onGetHolos={() => {
+          setBuying(false)
+          setShopping(true)
+        }}
+      />
+      <HoloShop open={shopping} onOpenChange={setShopping} />
       <header className="inset-x-0 top-0 max-w-6xl px-4 sm:px-6 md:px-8 md:pt-8 in-data-immersive:-translate-y-4 pointer-events-none absolute z-30 mx-auto game-safe-top transition duration-300 in-data-immersive:opacity-0">
         <PageHeader title="Packs" />
-        {/* Centred over the waiting pack, out of the header's way. */}
+        {/* Centred over the waiting pack, out of the header's way; tapped, get
+            more packs. */}
         <div className="mt-5 flex justify-center">
-          <FreePacks />
+          <FreePacks onGetPacks={() => setBuying(true)} />
         </div>
         {error ? (
           <p role="alert" className="mt-3 font-bold text-destructive">
@@ -126,34 +138,31 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-// Tapping the grayed pack once every pack is opened: buy some, as many as the holos pay for.
-// They're kept until opened, on top of the free ones (wallet:buyPacks).
-function BuyPack({
+// More packs, from the pack meter or the grayed pack once every pack is opened: skip the wait for
+// the next free one (wallet:skipFreePack), or buy as many as the holos pay for, kept until opened
+// on top of the free ones (wallet:buyPacks). Short of holos, it points to the shop.
+function GetPacks({
   open,
   onOpenChange,
+  onGetHolos,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onGetHolos: () => void
 }) {
   const wallet = useWallet()
   const buyPacks = useMutation(api.wallet.buyPacks)
+  const skipFreePack = useMutation(api.wallet.skipFreePack)
   const [count, setCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const most = wallet
-    ? Math.min(
-        wallet.maxPacksBought,
-        Math.floor(wallet.coins / wallet.packPrice)
-      )
-    : 0
-  const chosen = Math.max(1, Math.min(count, most))
-  const cost = wallet ? chosen * wallet.packPrice : 0
+  const { most, chosen, cost, skip, short } = packChoices(wallet, count)
 
-  async function buy() {
+  async function pay(action: () => Promise<null>) {
     setBusy(true)
     setError(null)
     try {
-      await buyPacks({ count: chosen })
+      await action()
       setCount(1)
       onOpenChange(false)
     } catch (caught) {
@@ -174,48 +183,182 @@ function BuyPack({
       <DialogContent variant="game">
         <div className="gap-6 grid">
           <DialogHeader>
-            <DialogTitle>{chosen > 1 ? "Buy packs" : "Buy a pack"}</DialogTitle>
+            <DialogTitle>Get packs</DialogTitle>
           </DialogHeader>
+          {wallet?.nextFreeIn && skip !== null ? (
+            <SkipWait
+              wait={wallet.nextFreeIn}
+              price={skip}
+              disabled={busy || skip > wallet.coins}
+              onSkip={() => void pay(() => skipFreePack({}))}
+            />
+          ) : null}
           {most > 1 ? (
-            <div className="gap-3 grid">
-              <div className="text-sm font-bold flex justify-between">
-                <span id="buy-count-label">Packs</span>
-                <span>
-                  {chosen} of {most}
-                </span>
-              </div>
-              <Slider
-                variant="game"
-                aria-labelledby="buy-count-label"
-                min={1}
-                max={most}
-                step={1}
-                value={chosen}
-                onValueChange={(value) =>
-                  setCount(typeof value === "number" ? value : (value[0] ?? 1))
-                }
-              />
-            </div>
+            <PackCount chosen={chosen} most={most} onChange={setCount} />
           ) : null}
           {error ? (
             <p role="alert" className="text-sm font-bold text-destructive">
               {error}
             </p>
           ) : null}
+          {short ? <ShortOfHolos wallet={wallet} skip={skip} /> : null}
           <DialogFooter variant="game">
-            <Button
-              variant="game"
-              className="flex-1"
+            <PackFooter
+              short={short}
+              chosen={chosen}
+              cost={cost}
               disabled={!wallet || busy || most === 0}
-              aria-label={`Buy ${chosen === 1 ? "a pack" : `${chosen} packs`} for ${holos(cost)}`}
-              onClick={() => void buy()}
-            >
-              <HoloCoin />
-              {cost.toLocaleString("en")}
-            </Button>
+              onBuy={() => void pay(() => buyPacks({ count: chosen }))}
+              onGetHolos={onGetHolos}
+            />
           </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// What the holos pay for: packs to buy (as many as `count`, at most what's affordable) and the
+// free pack's skip; `short` when neither is.
+function packChoices(wallet: ReturnType<typeof useWallet>, count: number) {
+  if (!wallet) {
+    return { most: 0, chosen: 1, cost: 0, skip: null, short: false }
+  }
+  const most = Math.min(
+    wallet.maxPacksBought,
+    Math.floor(wallet.coins / wallet.packPrice)
+  )
+  const chosen = Math.max(1, Math.min(count, most))
+  const skip = wallet.skipPrice
+  return {
+    most,
+    chosen,
+    cost: chosen * wallet.packPrice,
+    skip,
+    short: most === 0 && (skip === null || skip > wallet.coins),
+  }
+}
+
+function ShortOfHolos({
+  wallet,
+  skip,
+}: {
+  wallet: ReturnType<typeof useWallet>
+  skip: number | null
+}) {
+  if (!wallet) return null
+  return (
+    <p className="text-sm font-bold">
+      A pack costs {holos(wallet.packPrice)}
+      {skip === null ? "" : `, skipping the wait ${holos(skip)}`}. You have{" "}
+      {holos(wallet.coins)}.
+    </p>
+  )
+}
+
+// Buying the chosen packs, or getting holos when short of them.
+function PackFooter({
+  short,
+  chosen,
+  cost,
+  disabled,
+  onBuy,
+  onGetHolos,
+}: {
+  short: boolean
+  chosen: number
+  cost: number
+  disabled: boolean
+  onBuy: () => void
+  onGetHolos: () => void
+}) {
+  if (short) {
+    return (
+      <Button variant="game" className="flex-1" onClick={onGetHolos}>
+        <HoloCoin />
+        Get holos
+      </Button>
+    )
+  }
+  const packs = chosen === 1 ? "a pack" : `${chosen} packs`
+  return (
+    <Button
+      variant="game"
+      className="flex-1"
+      disabled={disabled}
+      aria-label={`Buy ${packs} for ${holos(cost)}`}
+      onClick={onBuy}
+    >
+      <HoloCoin />
+      Buy {packs} · {cost.toLocaleString("en")}
+    </Button>
+  )
+}
+
+// Paying to have the next free pack now, with the wait it skips.
+function SkipWait({
+  wait,
+  price,
+  disabled,
+  onSkip,
+}: {
+  wait: string
+  price: number
+  disabled: boolean
+  onSkip: () => void
+}) {
+  return (
+    <section className="gap-3 grid" aria-labelledby="skip-title">
+      <div className="text-sm font-bold flex justify-between">
+        <span id="skip-title">Next free pack</span>
+        <span>{wait}</span>
+      </div>
+      <Button
+        variant="game"
+        disabled={disabled}
+        aria-label={`Get the next free pack now for ${holos(price)}`}
+        onClick={onSkip}
+      >
+        <ClockIcon aria-hidden="true" />
+        Get it now
+        <span className="gap-1 flex items-center">
+          <HoloCoin />
+          {price.toLocaleString("en")}
+        </span>
+      </Button>
+    </section>
+  )
+}
+
+// How many packs to buy, from one to as many as the holos pay for.
+function PackCount({
+  chosen,
+  most,
+  onChange,
+}: {
+  chosen: number
+  most: number
+  onChange: (count: number) => void
+}) {
+  return (
+    <div className="gap-3 grid">
+      <div className="text-sm font-bold flex justify-between">
+        <span id="buy-count-label">Packs</span>
+        <span>
+          {chosen} of {most}
+        </span>
+      </div>
+      <Slider
+        variant="game"
+        aria-labelledby="buy-count-label"
+        min={1}
+        max={most}
+        step={1}
+        value={chosen}
+        onValueChange={(value) =>
+          onChange(typeof value === "number" ? value : (value[0] ?? 1))
+        }
+      />
+    </div>
   )
 }

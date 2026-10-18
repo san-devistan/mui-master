@@ -87,9 +87,7 @@ export function ShareCard({
   function share() {
     const blob = picture()
     if (!blob) return
-    const text =
-      song.kind === "artist" ? song.title : `${song.title} by ${song.artist}`
-    void sharePicture(blob, song.title, text)
+    void sharePicture(blob, song.title)
   }
 
   return (

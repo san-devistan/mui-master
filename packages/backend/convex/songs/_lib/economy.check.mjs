@@ -8,6 +8,7 @@ import {
   minBid,
   packPrice,
   sellPrice,
+  skipPrice,
   weeklyHolosDue,
 } from "./economy.ts"
 import { packOdds } from "./rarity.ts"
@@ -35,6 +36,12 @@ assert.equal(freePacks(since, now).count, 0)
 assert.equal(freePacks(since, now + 8 * hour).count, 1)
 assert.equal(freePacks(since, now + 24 * hour).count, 3)
 assert.equal(freePacks(since, now + 100 * hour).count, 3)
+
+// Skipping: the share of a pack's price still left to wait.
+assert.equal(skipPrice(now + 1, now), 1)
+assert.equal(skipPrice(now + 4 * hour, now), packPrice / 2)
+assert.equal(skipPrice(now + 8 * hour, now), packPrice)
+assert.equal(skipPrice(now + 2 * hour, now, freePackPlan(true)), packPrice / 2)
 
 // Pro: one per 4 hours, six held.
 const proPlan = freePackPlan(true)

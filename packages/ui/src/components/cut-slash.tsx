@@ -71,6 +71,8 @@ function CutGuide({
       <div
         className="game-cut-guide h-14 absolute z-20 cursor-grab active:cursor-grabbing"
         aria-hidden="true"
+        // It has its own comet along the cut (pack-scene.ts cutGlow).
+        data-touch-fx="off"
         {...props}
       />
       <button type="button" className="sr-only" onClick={onCut}>

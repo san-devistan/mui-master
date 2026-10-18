@@ -17,7 +17,8 @@ declare const process: { env: Record<string, string | undefined> }
 
 // Notifications: Web Push to every device a player turned them on from (pushSubscriptions), sent
 // by notify:send. Needs the env vars VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY
-// (`pnpm exec web-push generate-vapid-keys`), and SITE_URL as the sender.
+// (`pnpm exec web-push generate-vapid-keys`), and VAPID_SUBJECT, the sender's mailto: (Apple
+// refuses a localhost URL).
 
 export type PushMessage = {
   title: string

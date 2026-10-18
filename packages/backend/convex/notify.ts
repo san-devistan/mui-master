@@ -17,15 +17,15 @@ export const send = internalAction({
     tag: v.string(),
   },
   handler: async (ctx, { playerId, ...message }) => {
-    const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, SITE_URL } = process.env
-    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !SITE_URL) {
+    const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = process.env
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY || !VAPID_SUBJECT) {
       console.warn(
-        "Push skipped: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY or SITE_URL unset"
+        "Push skipped: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY or VAPID_SUBJECT unset"
       )
       return
     }
     const vapidDetails = {
-      subject: SITE_URL,
+      subject: VAPID_SUBJECT,
       publicKey: VAPID_PUBLIC_KEY,
       privateKey: VAPID_PRIVATE_KEY,
     }

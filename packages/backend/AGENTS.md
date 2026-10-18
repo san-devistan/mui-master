@@ -125,7 +125,9 @@ platform.
   progress can move to a linked account. Free packs come back one per 8 hours,
   3 held at most (`freePacks`, counted from `freePacksSince`). `wallet:buyPacks`
   buys packs with coins (100 each, up to 50 at once), kept in
-  `players.boughtPacks` until opened; `packs:claim` uses a free pack first, then a
+  `players.boughtPacks` until opened. `wallet:skipFreePack` pays for the wait left
+  on the next free pack (`skipPrice`: that share of a pack's price, at least 1
+  coin) and moves `freePacksSince` so it is ready now. `packs:claim` uses a free pack first, then a
   bought one. Pro (`players.proUntil` ahead; no
   checkout yet) gets one free pack per 4 hours, 6 held, 1,000 holos a week
   (`wallet:claimWeekly`, called as the app opens, a week after the last) and 30 open
@@ -149,7 +151,8 @@ platform.
   at its `nextAt` when one is opened or Pro changes), a bid on the player's
   auction, and being outbid. Needs the env vars `VAPID_PUBLIC_KEY` and
   `VAPID_PRIVATE_KEY` (`pnpm exec web-push generate-vapid-keys`) plus
-  `SITE_URL`; a device the push service says is gone is dropped.
+  `VAPID_SUBJECT`, a `mailto:` contact (Apple refuses a localhost URL); a
+  device the push service says is gone is dropped.
 - Previews (`playback.ts`, takes a `songs` id): the stored Spotify `preview`
   if present, otherwise a fresh Deezer link found by exact title and lead
   artist. Deezer links expire, so don't store them.

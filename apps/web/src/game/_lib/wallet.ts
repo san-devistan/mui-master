@@ -29,6 +29,8 @@ export function useWallet(tick = 30_000) {
   const every = (pro ? data.proFreePackHours : data.freePackHours) * HOUR
   const from = Math.max(data.freePacksSince, now - maxFreePacks * every)
   const freePacks = Math.floor((now - from) / every)
+  const nextFreeAt =
+    freePacks < maxFreePacks ? from + (freePacks + 1) * every : null
   return {
     coins: data.coins,
     pro,
@@ -42,13 +44,15 @@ export function useWallet(tick = 30_000) {
     nextFreeProgress:
       freePacks < maxFreePacks ? (now - from - freePacks * every) / every : 0,
     // When the next free pack comes; null while they're all held.
-    nextFreeAt:
-      freePacks < maxFreePacks ? from + (freePacks + 1) * every : null,
+    nextFreeAt,
     // What's left until then, as "7h 59m"; null while they're all held.
-    nextFreeIn:
-      freePacks < maxFreePacks
-        ? timeLeft(from + (freePacks + 1) * every, now)
-        : null,
+    nextFreeIn: nextFreeAt === null ? null : timeLeft(nextFreeAt, now),
+    // Holos to have the next free pack now: the share of a pack's price still left to wait, as
+    // wallet:skipFreePack charges (economy.ts skipPrice); null while they're all held.
+    skipPrice:
+      nextFreeAt === null
+        ? null
+        : Math.max(1, Math.ceil((data.packPrice * (nextFreeAt - now)) / every)),
     packPrice: data.packPrice,
     maxPacksBought: data.maxPacksBought,
     sellPrice: data.sellPrice,

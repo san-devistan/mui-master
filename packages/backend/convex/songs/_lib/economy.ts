@@ -51,6 +51,14 @@ export function freePacks(
   }
 }
 
+// Skipping the wait for the next free pack: the share of a pack's price still left to wait, at
+// least a holo. Buying keeps the timer running, so a skip never costs more than the time it saves.
+export const skipPrice = (
+  nextAt: number,
+  now: number,
+  plan = freePackPlan(false)
+) => Math.max(1, Math.ceil((packPrice * (nextAt - now)) / (plan.hours * HOUR)))
+
 // Pro's weekly holos are due a week after the last were given, or straight away the first time.
 export const weeklyHolosDue = (lastAt: number | undefined, now: number) =>
   lastAt === undefined || now - lastAt >= 7 * DAY

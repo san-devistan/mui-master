@@ -11,11 +11,7 @@ import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { GameAvatar } from "@workspace/ui/components/game-avatar"
 import { GameMain } from "@workspace/ui/components/game-shell"
-import {
-  APP_NAME,
-  drawProfileShare,
-  pngBlob,
-} from "@workspace/ui/lib/game/share-art"
+import { drawProfileShare, pngBlob } from "@workspace/ui/lib/game/share-art"
 import { CrownIcon, ShareIcon } from "lucide-react"
 import { useRef } from "react"
 
@@ -73,7 +69,7 @@ export function ProfilePage() {
       pro: wallet?.pro,
       cards: thumbs,
     })
-    void sharePicture(pngBlob(picture), name, `${name} on ${APP_NAME}`)
+    void sharePicture(pngBlob(picture), name)
   }
 
   return (
