@@ -1,4 +1,4 @@
-import { CARD_W } from "@workspace/ui/lib/game/card-art"
+import { CARD_H, CARD_W } from "@workspace/ui/lib/game/card-art"
 import {
   cardBack,
   cardFilm,
@@ -9,9 +9,12 @@ import {
   addFilm,
   cameraDistance,
   createStage,
+  createStill,
   mirrorPose,
+  paintFilm,
   trackPointer,
   type Film,
+  type FilmArt,
 } from "@workspace/ui/lib/game/film-scene"
 import {
   CUT,
@@ -45,7 +48,7 @@ import {
   type Celebrated,
   type Pose,
 } from "@workspace/ui/lib/game/reveal-motion"
-import type { GameSong } from "@workspace/ui/lib/game/theme"
+import { FOIL, RARITIES, type GameSong } from "@workspace/ui/lib/game/theme"
 import * as THREE from "three"
 
 // Phone-sized design, in CSS px; world y points up from the middle. Any other
@@ -131,6 +134,30 @@ const GRAVITY = 2000
 const SPIN = { x: -3, y: 1.2, z: -3.4 }
 
 export type OpeningPhase = "idle" | "cut" | "open"
+
+// Where a remounted scene picks up (its last canvas lost for good): settled in
+// `phase`, the pile at `index`; `onOpened` fires (at once) unless `opened`.
+export type OpeningResume = {
+  phase: OpeningPhase
+  index: number
+  opened: boolean
+}
+
+// The design's height seen on a `width` × `height` stage: all of it, and more
+// around it on a taller screen.
+const seenHeight = (width: number, height: number) =>
+  Math.max(OPENING_H, (OPENING_W * height) / width)
+
+// Puts the cut guide over the seam, as seen in the cut view.
+function markSeam(studio: HTMLElement, width: number, height: number) {
+  const seen = seenHeight(width, height)
+  const seam = (CUT_CAMERA_Y - (PACK_TOP - CUT)) * CUT_ZOOM
+  studio.style.setProperty("--cut-top", `${(0.5 + seam / seen) * 100}%`)
+  studio.style.setProperty(
+    "--cut-width",
+    `${((PACK_W * CUT_ZOOM * height) / (seen * width)) * 100}%`
+  )
+}
 
 // The NEW badge waits until its card is on top and has settled, then is
 // pressed on: it eases up from a little smaller, lifted and turned, and
@@ -230,16 +257,117 @@ export type OpeningScene = {
   dispose: () => void
 }
 
+// Without WebGL: the same journey on still art. The waiting pack as drawn,
+// framed like the idle pack; once open, the pile's top card (or none past the
+// last). It follows the same phases and calls `onOpened` on the same
+// timeline, so the page around it works as ever.
+function mountStillOpening(
+  canvas: HTMLCanvasElement,
+  songs: ReadonlyArray<GameSong>,
+  covers: ReadonlyArray<string>,
+  onOpened: () => void,
+  resume?: OpeningResume
+): OpeningScene {
+  let phase: OpeningPhase = resume?.phase ?? "idle"
+  let current = resume?.index ?? 0
+  let pack: FilmArt | null = null
+  const cards: Array<FilmArt | null> = songs.map(() => null)
+  const studio = canvas.parentElement ?? canvas
+  const still = createStill(canvas, (ctx, width, height) => {
+    // The design's frame, fitted to the canvas as the 3D camera fits it.
+    const zoom = height / seenHeight(width, height)
+    markSeam(studio, width, height)
+    if (phase !== "open") {
+      if (!pack) return
+      // Framed as the camera frames it waiting, or zoomed in to cut.
+      const view =
+        phase === "cut"
+          ? { zoom: CUT_ZOOM, y: CUT_CAMERA_Y }
+          : { zoom: IDLE_ZOOM, y: IDLE_CAMERA_Y }
+      const packWidth = PACK_W * view.zoom * zoom
+      paintFilm(
+        ctx,
+        pack,
+        { width: PACK_W, stops: FOIL },
+        {
+          x: (width - packWidth) / 2,
+          y: height / 2 - (PACK_TOP - view.y) * view.zoom * zoom,
+          width: packWidth,
+        }
+      )
+      return
+    }
+    const song = songs[current]
+    const art = cards[current]
+    if (!song || !art) return
+    const cardWidth = CARD_W * PILE_ZOOM * zoom
+    const cardHeight = (cardWidth * CARD_H) / CARD_W
+    paintFilm(
+      ctx,
+      art,
+      { width: CARD_W, stops: RARITIES[song.rarity] },
+      {
+        x: (width - cardWidth) / 2,
+        y: height / 2 - CARD_Y * PILE_ZOOM * zoom - cardHeight / 2,
+        width: cardWidth,
+      }
+    )
+  })
+  async function drawPack() {
+    pack = await drawPackArt(covers)
+    canvas.toggleAttribute("data-drawn", true)
+    still.redraw()
+  }
+  async function drawCard(song: GameSong, index: number) {
+    cards[index] = await cardFilm(song).draw()
+    if (index === current) still.redraw()
+  }
+  void drawPack()
+  songs.forEach((song, index) => void drawCard(song, index))
+  let opening: ReturnType<typeof setTimeout> | undefined
+  if (resume?.phase === "open" && !resume.opened) opening = setTimeout(onOpened)
+  canvas.removeAttribute("data-drawn")
+  canvas.removeAttribute("data-entrance")
+  return {
+    setPhase(next) {
+      phase = next
+      clearTimeout(opening)
+      if (next === "idle") current = 0
+      // The cut and drop take no time here, but the page times its cues on it.
+      if (next === "open") {
+        opening = setTimeout(onOpened, openedAfter(songs) * 1000)
+      }
+      still.redraw()
+    },
+    show(index) {
+      current = index
+      still.redraw()
+    },
+    drag: () => undefined,
+    setCut: () => undefined,
+    celebrate: () => undefined,
+    dispose() {
+      clearTimeout(opening)
+      still.dispose()
+    },
+  }
+}
+
 export function mountOpeningScene(
   canvas: HTMLCanvasElement,
   songs: ReadonlyArray<GameSong & { isNew?: boolean }>,
   covers: ReadonlyArray<string>,
   onOpened: () => void,
   // Without it, the waiting pack is simply there.
-  { entrance = true } = {}
+  {
+    entrance = true,
+    resume,
+  }: { entrance?: boolean; resume?: OpeningResume } = {}
 ): OpeningScene {
   // Kept mounted under another tab: hold still and draw nothing until shown.
-  const stage = createStage(canvas, () => canvas.checkVisibility())
+  const made = createStage(canvas, () => canvas.checkVisibility())
+  if (!made) return mountStillOpening(canvas, songs, covers, onOpened, resume)
+  const stage = made
   // Cards are hidden below the pack's opening until it has dropped away, so
   // they read as coming out of the pack rather than in front of it.
   const mouth = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
@@ -337,18 +465,22 @@ export function mountOpeningScene(
     touch: true,
   })
 
-  let phase: OpeningPhase = "idle"
-  let elapsed = entrance ? 0 : Infinity
+  let phase: OpeningPhase = resume?.phase ?? "idle"
+  let elapsed = entrance && !resume ? 0 : Infinity
   const hold = glowHold(songs)
-  let current = 0
+  let current = resume?.index ?? 0
   let dragged = 0
   // Camera zoom and height; `from` holds them when the cut finished, so the
   // pull back to the pile starts from there.
-  const view = { zoom: IDLE_ZOOM, y: IDLE_CAMERA_Y }
+  const view =
+    phase === "cut"
+      ? { zoom: CUT_ZOOM, y: CUT_CAMERA_Y }
+      : { zoom: IDLE_ZOOM, y: IDLE_CAMERA_Y }
   const from = { ...view }
   let curled = 0
   let twisted = 0
-  let opened = false
+  // Resumed with the cards already out.
+  let opened = resume?.opened ?? false
   const tilt = { x: 0, y: 0 }
   // Fitted to the real canvas: the design always fits, a wider or taller
   // screen just sees more around it.
@@ -358,7 +490,7 @@ export function mountOpeningScene(
   const fit = new ResizeObserver(() => {
     const { clientWidth: width, clientHeight: height } = canvas
     if (!width || !height) return
-    const seen = Math.max(OPENING_H, (OPENING_W * height) / width)
+    const seen = seenHeight(width, height)
     distance = cameraDistance(seen)
     out = Math.max(OUT, (seen * width) / height / 2 / PILE_ZOOM + CARD_W)
     const size = stage.renderer.getSize(new THREE.Vector2())
@@ -368,13 +500,7 @@ export function mountOpeningScene(
     }
     stage.camera.aspect = width / height
     stage.camera.updateProjectionMatrix()
-    // The cut guide over the seam, in the cut view.
-    const seam = (CUT_CAMERA_Y - (PACK_TOP - CUT)) * CUT_ZOOM
-    studio.style.setProperty("--cut-top", `${(0.5 + seam / seen) * 100}%`)
-    studio.style.setProperty(
-      "--cut-width",
-      `${((PACK_W * CUT_ZOOM * height) / (seen * width)) * 100}%`
-    )
+    markSeam(studio, width, height)
   })
   fit.observe(canvas)
   stage.disposables.push({ dispose: () => fit.disconnect() })

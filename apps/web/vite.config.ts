@@ -22,8 +22,19 @@ const handleRollupWarning: Rollup.WarningHandlerWithDefault = (
   warn(warning)
 }
 
+const stubRoutes = new Set([
+  "/_game/play",
+  "/_game/collection",
+  "/_game/market",
+])
+
 const routerConfig = {
   routeFileIgnorePattern: "\\.js$",
+  codeSplittingOptions: {
+    // These tabs' routes render nothing (GameLayout keeps their pages mounted): split out, each
+    // was one more round trip before the game's first screen could show.
+    splitBehavior: ({ routeId }) => (stubRoutes.has(routeId) ? [] : undefined),
+  },
 } satisfies Partial<RouterPluginConfig>
 
 const config = defineConfig({
@@ -33,6 +44,23 @@ const config = defineConfig({
   build: {
     rollupOptions: {
       onwarn: handleRollupWarning,
+    },
+  },
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          output: {
+            // three.js (~140 KB brotli) in its own file: its name only changes with its version,
+            // so a deploy of the app's code doesn't make returning players download it again.
+            manualChunks: (id) =>
+              id.includes("/node_modules/three/") ? "three" : undefined,
+            // Shortened names shared between files depend on how the app's code uses them, which
+            // would rename three.js's file on every deploy.
+            minifyInternalExports: false,
+          },
+        },
+      },
     },
   },
   plugins: [

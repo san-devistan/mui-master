@@ -4,6 +4,7 @@ import {
   type Showcase,
   type ShowcaseActionsProps,
 } from "@/game/_components/card-showcase"
+import { useOnceAtATime } from "@/game/_hooks/use-once-at-a-time"
 import { toGameCard } from "@/game/_lib/cards"
 import type { CollectedSong } from "@/game/_lib/collection"
 import {
@@ -140,19 +141,21 @@ function AuctionActions({
   const auction = data ?? context
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const once = useOnceAtATime()
 
-  async function run(action: () => Promise<unknown>, after?: () => void) {
-    setBusy(true)
-    setError(null)
-    try {
-      await action()
-      after?.()
-    } catch (caught) {
-      setError(errorText(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const run = (action: () => Promise<unknown>, after?: () => void) =>
+    once(async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        await action()
+        after?.()
+      } catch (caught) {
+        setError(errorText(caught))
+      } finally {
+        setBusy(false)
+      }
+    })
 
   return (
     <div className="gap-3 flex w-full flex-col items-center">

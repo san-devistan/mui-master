@@ -1,3 +1,4 @@
+import { useOnceAtATime } from "@/game/_hooks/use-once-at-a-time"
 import type { CollectedSong } from "@/game/_lib/collection"
 import { errorText, holos, useWallet } from "@/game/_lib/wallet"
 import { useNavigate } from "@tanstack/react-router"
@@ -108,23 +109,25 @@ function SellDialog({
   const [count, setCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const once = useOnceAtATime()
   const chosen = Math.min(count, copies)
   const all = chosen === copies
 
-  async function submit() {
-    setBusy(true)
-    setError(null)
-    try {
-      await sell({ cardId: song.id, count: chosen })
-      onOpenChange(false)
-      setCount(1)
-      onSold(chosen)
-    } catch (caught) {
-      setError(errorText(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const submit = () =>
+    once(async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        await sell({ cardId: song.id, count: chosen })
+        onOpenChange(false)
+        setCount(1)
+        onSold(chosen)
+      } catch (caught) {
+        setError(errorText(caught))
+      } finally {
+        setBusy(false)
+      }
+    })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -207,6 +210,7 @@ function AuctionDialog({
   const [hours, setHours] = useState(24)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const once = useOnceAtATime()
   const startPrice = Number(price)
   const valid = Number.isInteger(startPrice) && startPrice >= 1
   // −/+ snap to the step, so 47 goes to 40 or 50.
@@ -220,20 +224,21 @@ function AuctionDialog({
     setPrice(String(Math.max(1, next)))
   }
 
-  async function submit() {
-    setBusy(true)
-    setError(null)
-    try {
-      await list({ cardId: song.id, startPrice, hours })
-      onOpenChange(false)
-      onListed()
-      void navigate({ to: "/market", search: { scope: "mine" } })
-    } catch (caught) {
-      setError(errorText(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const submit = () =>
+    once(async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        await list({ cardId: song.id, startPrice, hours })
+        onOpenChange(false)
+        onListed()
+        void navigate({ to: "/market", search: { scope: "mine" } })
+      } catch (caught) {
+        setError(errorText(caught))
+      } finally {
+        setBusy(false)
+      }
+    })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

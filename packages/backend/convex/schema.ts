@@ -109,6 +109,8 @@ export default defineSchema({
       filterFields: ["playerId", "kind", "rarityRank"],
     })
     .index("by_playerId_and_cardId", ["playerId", "cardId"])
+    // A card's owners, to mark their upgrade when its rarity rises (upgrades.ts).
+    .index("by_cardId", ["cardId"])
     // One index per filter (kind, rarity, both or neither) and sort (recent, rarest, A–Z).
     .index("by_playerId_and_pulledAt", ["playerId", "pulledAt"])
     .index("by_playerId_and_kind_and_pulledAt", [
@@ -193,6 +195,13 @@ export default defineSchema({
     playerId: v.string(),
     cardIds: v.array(v.string()),
   }).index("by_playerId", ["playerId"]),
+  // One row per collection card whose current rarity is above its seenRarity: the upgrades the
+  // app still has to play (packs:upgrades), so that query reads these instead of the collection.
+  // Derived from collection and the cards' rarities, kept in step by upgrades.ts.
+  pendingUpgrades: defineTable({
+    playerId: v.string(),
+    cardId: v.string(),
+  }).index("by_playerId_and_cardId", ["playerId", "cardId"]),
   // A card copy up for auction: out of the seller's collection until it sells (to the top
   // bidder) or comes back (no bid, or cancelled before any). The top bid's coins are held off
   // the bidder's balance and given back when outbid. Settled by market:settle at `endsAt`.

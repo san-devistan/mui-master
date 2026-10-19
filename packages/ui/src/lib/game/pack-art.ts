@@ -19,6 +19,19 @@ export function loadImage(src: string) {
   })
 }
 
+// Spotify serves each cover at 640 px and at 300 px. Art drawn at about 400
+// texels or less (the pack's front, grid thumbs) looks the same from the 300 px
+// one (DPR 3 screenshots match), at a quarter of the download.
+const SPOTIFY_640 = "ab67616d0000b273"
+const SPOTIFY_300 = "ab67616d00001e02"
+export const smallCover = (src: string) => src.replace(SPOTIFY_640, SPOTIFY_300)
+
+// A cover for small art: the 300 px one, or the full one if that fails.
+export const loadSmallCover = (src: string) =>
+  smallCover(src) === src
+    ? loadImage(src)
+    : loadImage(smallCover(src)).catch(() => loadImage(src))
+
 // Foil stops as a 1px strip; the film shader slides along it.
 export function drawFoilRamp(stops: Stops = FOIL) {
   const canvas = document.createElement("canvas")
@@ -135,7 +148,7 @@ export function packShape(part: "whole" | "body" | "strip" = "whole") {
 export async function drawPackArt(covers: ReadonlyArray<string>) {
   // Covers download while the fonts load, not after.
   const [images] = await Promise.all([
-    Promise.all(covers.slice(0, 4).map(loadImage)),
+    Promise.all(covers.slice(0, 4).map(loadSmallCover)),
     document.fonts.load("900 28px 'Unbounded Variable'"),
     document.fonts.load("700 10px 'Space Mono'"),
   ])

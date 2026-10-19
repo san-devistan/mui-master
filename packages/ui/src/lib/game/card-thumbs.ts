@@ -1,13 +1,14 @@
-import { CARD_W } from "@workspace/ui/lib/game/card-art"
+import { CARD_H, CARD_W } from "@workspace/ui/lib/game/card-art"
 import { cardFilm, type CardSlot } from "@workspace/ui/lib/game/card-scene"
 import {
   addFilm,
   createStage,
+  paintFilm,
   type Disposable,
   type Film,
   type Stage,
 } from "@workspace/ui/lib/game/film-scene"
-import { loadImage } from "@workspace/ui/lib/game/pack-art"
+import { loadSmallCover } from "@workspace/ui/lib/game/pack-art"
 import { showSilverFoil } from "@workspace/ui/lib/game/silver-foil"
 import type { GameSong } from "@workspace/ui/lib/game/theme"
 
@@ -85,16 +86,15 @@ function park(key: string, kept: Built) {
 // A parked film, back on the stage for a thumb.
 function unpark(key: string) {
   const kept = parked.get(key)
-  if (!kept) return null
+  if (!kept || !stage) return null
   parked.delete(key)
-  thumbStage().scene.add(kept.film.subject)
+  stage.scene.add(kept.film.subject)
   return kept
 }
 
 // A card's film on the shared stage, hidden until a thumb shows it. Films
 // build one at a time, so each takes only the disposables added meanwhile.
-async function build(song: GameSong): Promise<Built> {
-  const scene = thumbStage()
+async function build(scene: Stage, song: GameSong): Promise<Built> {
   const before = scene.disposables.length
   const film = addFilm(scene, cardFilm(song, THUMB_SCALE))
   film.subject.visible = false
@@ -107,6 +107,29 @@ async function build(song: GameSong): Promise<Built> {
     throw error
   }
   return { film, parts: scene.disposables.splice(before) }
+}
+
+// Without WebGL: the card's art flat in the thumb, framed as the stage frames
+// its card (centred, raised by LIFT).
+async function paintThumb(canvas: HTMLCanvasElement, song: GameSong) {
+  const spec = cardFilm(song, THUMB_SCALE)
+  const art = await spec.draw()
+  const ratio = Math.min(devicePixelRatio, 2)
+  canvas.width = THUMB_W * ratio
+  canvas.height = THUMB_H * ratio
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return
+  ctx.scale(ratio, ratio)
+  paintFilm(
+    ctx,
+    art,
+    { width: CARD_W, stops: spec.stops },
+    {
+      x: (THUMB_W - CARD_W) / 2,
+      y: (THUMB_H - CARD_H) / 2 - LIFT,
+      width: CARD_W,
+    }
+  )
 }
 
 // Waits for the page to be idle, or for a thumb to come on screen.
@@ -149,7 +172,7 @@ function watcher() {
       else onScreen.delete(target)
       // Covers coming on screen download together, not one per film.
       const cover = isIntersecting && waiting.get(target)?.song.imageUrl
-      if (cover) loadImage(cover).catch(() => undefined)
+      if (cover) loadSmallCover(cover).catch(() => undefined)
       const thumb = thumbs.get(target)
       if (!thumb) continue
       thumb.shown = isIntersecting
@@ -251,6 +274,7 @@ export function watchNear(element: Element, onNear: (near: boolean) => void) {
 }
 
 // One shared WebGL context, so a collection grid can show many real cards.
+// Null without WebGL.
 function thumbStage() {
   if (stage) return stage
   const canvas = document.createElement("canvas")
@@ -261,6 +285,7 @@ function thumbStage() {
     clientHeight: { value: THUMB_H },
   })
   stage = createStage(canvas)
+  if (!stage) return null
   // Thumbs run their own loop over the visible ones, and are small enough to
   // skip the big card's supersampling.
   stage.renderer.setAnimationLoop(null)
@@ -315,14 +340,19 @@ function draw(stamp: number) {
     // Faded out under a showcase: keep the loop, skip the work. Inert alone
     // isn't enough, the page is back on screen while the card flies home.
     if (still && thumb.drawn) continue
-    const visible = canvas.checkVisibility({ opacityProperty: true })
-    if (thumb.drawn && !visible) continue
-    const box = canvas.getBoundingClientRect()
-    const across = (box.left + box.width / 2) / innerWidth - 0.5
-    const down = (box.top + box.height / 2) / innerHeight - 0.5
+    // Off screen (a hidden tab's grid, still being built): drawn as it would
+    // sit mid-screen, without measuring it (each measure forces a layout); it
+    // is drawn again, lit for its place, as soon as it shows.
+    const measured = thumb.shown
+    if (measured && thumb.drawn) {
+      if (!canvas.checkVisibility({ opacityProperty: true })) continue
+    }
+    const box = measured ? canvas.getBoundingClientRect() : null
+    const across = box ? (box.left + box.width / 2) / innerWidth - 0.5 : 0
+    const down = box ? (box.top + box.height / 2) / innerHeight - 0.5 : 0
     const speed =
-      thumb.top === null || !delta ? 0 : (box.top - thumb.top) / delta
-    thumb.top = box.top
+      !box || thumb.top === null || !delta ? 0 : (box.top - thumb.top) / delta
+    thumb.top = box?.top ?? null
     const push = Math.max(-KICK.max, Math.min(KICK.max, speed * KICK.perSpeed))
     thumb.kick += (push - thumb.kick) * ease
     kicking ||= Math.abs(thumb.kick) > 0.01
@@ -372,7 +402,8 @@ export function mountCardThumb(
   }
 
   function show(film: Film) {
-    const { width, height } = thumbStage().renderer.domElement
+    if (!stage) return
+    const { width, height } = stage.renderer.domElement
     // Resizing clears it: a card redrawn after a data refresh keeps its last
     // frame until the next one.
     if (canvas.width !== width) canvas.width = width
@@ -391,14 +422,20 @@ export function mountCardThumb(
   async function load() {
     loading = true
     try {
-      built = unpark(key) ?? (await build(song))
+      const scene = thumbStage()
+      if (!scene) {
+        await paintThumb(canvas, song)
+        if (!disposed) onDrawn()
+        return
+      }
+      built = unpark(key) ?? (await build(scene, song))
       // Give the art a frame to land.
       await new Promise(requestAnimationFrame)
     } finally {
       loading = false
       if (disposed) release()
     }
-    if (!disposed) show(built.film)
+    if (!disposed && built) show(built.film)
   }
 
   built = unpark(key)

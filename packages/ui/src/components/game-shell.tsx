@@ -140,7 +140,9 @@ function GameTab({
     props: mergeProps<"a">(
       {
         className: cn(
-          "h-12 min-w-12 md:flex-none md:w-12 [&_svg]:size-5 before:inset-0 relative flex flex-1 items-center justify-center rounded-full transition-colors duration-300 outline-none before:absolute before:-z-10 before:rounded-full focus-visible:ring-4 focus-visible:ring-ring [&_svg]:shrink-0",
+          // min-w-0: under ~260px wide (a phone zoomed in) the tabs shrink to share the bar
+          // rather than push the last one off screen.
+          "h-12 min-w-0 md:flex-none md:w-12 [&_svg]:size-5 before:inset-0 relative flex flex-1 items-center justify-center rounded-full transition-colors duration-300 outline-none before:absolute before:-z-10 before:rounded-full focus-visible:ring-4 focus-visible:ring-ring [&_svg]:shrink-0",
           className
         ),
       },

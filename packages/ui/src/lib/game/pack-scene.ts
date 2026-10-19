@@ -72,6 +72,8 @@ export const packFilm = (draw: FilmSpec["draw"], band?: number): FilmSpec => ({
   draw,
 })
 
+// shortcut: without WebGL it shows nothing (BoosterPack isn't used by the
+// app); give it the opening's still pack if it ever ships.
 export const mountPackScene = (
   canvas: HTMLCanvasElement,
   covers: ReadonlyArray<string>
@@ -79,7 +81,7 @@ export const mountPackScene = (
   mountFilmScene(
     canvas,
     packFilm(() => drawPackArt(covers))
-  ).dispose
+  )?.dispose ?? (() => undefined)
 
 const flat = new WeakMap<THREE.BufferGeometry, THREE.BufferAttribute>()
 // Total turn at the strip's free end when fully curled, in radians.

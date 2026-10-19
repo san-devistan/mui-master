@@ -121,7 +121,7 @@ export const freePackReady = internalMutation({
       await notify(ctx, player, {
         title: "Free pack ready",
         body: "A free pack is waiting for you. Rip it open!",
-        url: "/",
+        url: "/play",
         tag: "free-pack",
       })
     }

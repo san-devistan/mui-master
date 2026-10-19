@@ -13,9 +13,12 @@ import {
   addFilm,
   cameraDistance,
   createStage,
+  createStill,
   mirrorPose,
   mountFilmScene,
+  paintFilm,
   trackPointer,
+  type FilmArt,
   type FilmSpec,
   type Trim,
 } from "@workspace/ui/lib/game/film-scene"
@@ -158,6 +161,42 @@ export type UpgradeScene = {
   step: () => Promise<void>
 }
 
+// Without WebGL: a card's art laid flat on its canvas, at rest, `width` CSS px
+// wide with its middle `y` px below the canvas's, as `framed` says.
+function stillCard(
+  canvas: HTMLCanvasElement,
+  song: GameSong,
+  framed: (width: number, height: number) => { y: number; width: number }
+) {
+  let art: FilmArt | null = null
+  let spec = cardFilm(song)
+  const still = createStill(canvas, (ctx, width, height) => {
+    if (!art) return
+    const at = framed(width, height)
+    const cardHeight = (at.width * CARD_H) / CARD_W
+    paintFilm(
+      ctx,
+      art,
+      { width: CARD_W, stops: spec.stops },
+      {
+        x: (width - at.width) / 2,
+        y: height / 2 + at.y - cardHeight / 2,
+        width: at.width,
+      }
+    )
+  })
+  async function show(next: GameSong) {
+    spec = cardFilm(next)
+    art = await spec.draw()
+    still.redraw()
+  }
+  return { still, show, ready: show(song), art: () => art }
+}
+
+// The pile's card size, clear of the sides of a narrow canvas.
+const pileWidth = (width: number, height: number) =>
+  Math.min(CARD_W * PILE_ZOOM, width - 64, (height * 0.6 * CARD_W) / CARD_H)
+
 // A card going up through `rarities`, one per step: one film per rarity, posed
 // together, with only the current one shown. Each step turns the card round
 // and shows the next while its back faces the viewer. Framed like the opened
@@ -168,6 +207,25 @@ export function mountUpgradeScene(
   rarities: ReadonlyArray<Rarity>
 ): UpgradeScene {
   const stage = createStage(canvas)
+  if (!stage) {
+    let shown = 0
+    const flat = stillCard(
+      canvas,
+      { ...song, rarity: rarities[0] ?? song.rarity },
+      (width, height) => ({
+        y: 0,
+        width: pileWidth(width, height),
+      })
+    )
+    return {
+      dispose: flat.still.dispose,
+      ready: flat.ready,
+      step() {
+        shown = Math.min(shown + 1, rarities.length - 1)
+        return flat.show({ ...song, rarity: rarities[shown] ?? song.rarity })
+      },
+    }
+  }
   const { clientWidth: width, clientHeight: height } = canvas
   // Clear of the sides, and of a header and footer a fifth of the height each.
   stage.camera.position.z /= Math.min(
@@ -523,6 +581,7 @@ export function mountCardScene(
     mirror,
     () => !canvas.closest("[data-covered]")
   )
+  if (!stage) return stillCardScene(canvas, song, land)
   const flight = from && !stage.still ? flyCard(stage, song, from, land) : null
   if (!flight && land) frame(stage, land)
   if (!flight && reveal && !stage.still) revealCard(stage, song, !land)
@@ -538,7 +597,49 @@ export function mountCardScene(
   }
 }
 
-type CardStage = ReturnType<typeof mountFilmScene>
+type CardStage = NonNullable<ReturnType<typeof mountFilmScene>>
+
+// Without WebGL: the card's art where it would land, still; it doesn't fly.
+function stillCardScene(
+  canvas: HTMLCanvasElement,
+  song: GameSong,
+  land: CardSceneOptions["land"]
+): CardScene {
+  const flat = stillCard(canvas, song, (width, height) => ({
+    y: land?.y ?? 0,
+    width: Math.min(land?.width ?? pileWidth(width, height), width - 48),
+  }))
+  return {
+    dispose: flat.still.dispose,
+    ready: flat.ready.then(
+      () => new Promise<void>((done) => requestAnimationFrame(() => done()))
+    ),
+    flyBack: () => Promise.resolve(),
+    snapshot() {
+      // The card head-on on the share backdrop, as the 3D shot frames it.
+      const pad = (SNAPSHOT_W * SNAPSHOT_PAD) / (1 + 2 * SNAPSHOT_PAD)
+      const width = SNAPSHOT_W - 2 * pad
+      const shot = document.createElement("canvas")
+      shot.width = SNAPSHOT_W
+      shot.height = Math.round(pad * 2 + (width * CARD_H) / CARD_W)
+      const ctx = shot.getContext("2d")
+      const art = flat.art()
+      if (ctx && art) {
+        paintFilm(
+          ctx,
+          art,
+          { width: CARD_W, stops: RARITIES[song.rarity] },
+          {
+            x: pad,
+            y: pad,
+            width,
+          }
+        )
+      }
+      return pngBlob(withBrand(shot))
+    },
+  }
+}
 
 // Groups carrying an entrance round the film and its mirror image, so the
 // inner film keeps its sway and bob; plus the back and light sweep the

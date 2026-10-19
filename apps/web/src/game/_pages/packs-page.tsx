@@ -1,6 +1,7 @@
 import { FreePacks } from "@/game/_components/free-packs"
 import { HoloShop } from "@/game/_components/holo-shop"
 import { PageHeader } from "@/game/_components/page-header"
+import { useOnceAtATime } from "@/game/_hooks/use-once-at-a-time"
 import { useRevealMusic } from "@/game/_hooks/use-reveal-music"
 import { toGameCard, type GameCard } from "@/game/_lib/cards"
 import { errorText, holos, useWallet } from "@/game/_lib/wallet"
@@ -157,21 +158,24 @@ function GetPacks({
   const [count, setCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Shared by buying and skipping: one payment at a time.
+  const once = useOnceAtATime()
   const { most, chosen, cost, skip, short } = packChoices(wallet, count)
 
-  async function pay(action: () => Promise<null>) {
-    setBusy(true)
-    setError(null)
-    try {
-      await action()
-      setCount(1)
-      onOpenChange(false)
-    } catch (caught) {
-      setError(errorText(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const pay = (action: () => Promise<null>) =>
+    once(async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        await action()
+        setCount(1)
+        onOpenChange(false)
+      } catch (caught) {
+        setError(errorText(caught))
+      } finally {
+        setBusy(false)
+      }
+    })
 
   return (
     <Dialog
@@ -192,6 +196,7 @@ function GetPacks({
             busy={busy}
             setBusy={setBusy}
             setError={setError}
+            once={once}
             onSkip={() => skipFreePack({})}
             onDone={() => onOpenChange(false)}
           />
@@ -310,6 +315,7 @@ function SkipWait({
   busy,
   setBusy,
   setError,
+  once,
   onSkip,
   onDone,
 }: {
@@ -317,6 +323,7 @@ function SkipWait({
   busy: boolean
   setBusy: (busy: boolean) => void
   setError: (error: string | null) => void
+  once: ReturnType<typeof useOnceAtATime>
   onSkip: () => Promise<null>
   onDone: () => void
 }) {
@@ -326,20 +333,21 @@ function SkipWait({
   const fill: CssVars = { "--skip-progress": String(view.progress) }
 
   // Pays for the wait, fills the bar to the end, then closes on the pack now ready.
-  async function skip() {
-    setBusy(true)
-    setError(null)
-    try {
-      await onSkip()
-      setSkipped(true)
-      await new Promise((done) => setTimeout(done, 900))
-      onDone()
-    } catch (caught) {
-      setError(errorText(caught))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const skip = () =>
+    once(async () => {
+      setBusy(true)
+      setError(null)
+      try {
+        await onSkip()
+        setSkipped(true)
+        await new Promise((done) => setTimeout(done, 900))
+        onDone()
+      } catch (caught) {
+        setError(errorText(caught))
+      } finally {
+        setBusy(false)
+      }
+    })
 
   return (
     <section

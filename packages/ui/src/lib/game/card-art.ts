@@ -1,5 +1,10 @@
 import type { Marquee } from "@workspace/ui/lib/game/film-material"
-import { blankCanvas, loadImage, SCALE } from "@workspace/ui/lib/game/pack-art"
+import {
+  blankCanvas,
+  loadImage,
+  loadSmallCover,
+  SCALE,
+} from "@workspace/ui/lib/game/pack-art"
 import { BRAND, type GameSong } from "@workspace/ui/lib/game/theme"
 
 // Song card artwork drawn to a canvas, in the song card layout
@@ -343,9 +348,10 @@ function cardShape(kind: GameSong["kind"], scale: number) {
 
 // `scale`: texels per card px; thumbs need fewer than a full-screen card.
 export async function drawCardArt(song: GameSong, scale = SCALE) {
-  // The cover downloads while the fonts load, not after.
+  // The cover downloads while the fonts load, not after; a thumb's (under
+  // full scale) is the smaller one.
   const [image] = await Promise.all([
-    loadImage(song.imageUrl),
+    scale < SCALE ? loadSmallCover(song.imageUrl) : loadImage(song.imageUrl),
     ...[DISPLAY, UI, STREAMS].map((font) => document.fonts.load(font)),
   ])
   const front = blankCanvas(CARD_W, CARD_H, scale)

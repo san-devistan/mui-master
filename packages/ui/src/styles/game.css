@@ -386,8 +386,10 @@ button[data-slot="game-pill"] {
     translate 0.12s ease-out,
     box-shadow 0.12s ease-out;
 
-  &:hover {
-    translate: 0 -1px;
+  @media (hover: hover) {
+    &:hover {
+      translate: 0 -1px;
+    }
   }
 
   &:active {
@@ -945,8 +947,10 @@ button[data-slot="pack-meter"] {
       box-shadow 0.12s ease-out;
   }
 
-  &:hover [data-slot="pack-meter-track"] {
-    translate: 0 -1px;
+  @media (hover: hover) {
+    &:hover [data-slot="pack-meter-track"] {
+      translate: 0 -1px;
+    }
   }
 
   &:active [data-slot="pack-meter-track"] {
@@ -969,8 +973,10 @@ button[data-slot="pack-meter"] {
 [data-slot="game-tab"] {
   color: color-mix(in oklab, var(--ink) 55%, transparent);
 
-  &:hover {
-    color: var(--ink);
+  @media (hover: hover) {
+    &:hover {
+      color: var(--ink);
+    }
   }
 
   &[aria-current="page"] {
@@ -1009,13 +1015,15 @@ button[data-slot="pack-meter"] {
     translate 0.12s ease-out,
     box-shadow 0.12s ease-out;
 
-  &:hover {
-    translate: 0 -1px;
-    box-shadow:
-      0 2px 0 rgb(255 255 255 / 0.9) inset,
-      0 -3px 0 color-mix(in oklab, var(--lavender) 55%, transparent) inset,
-      0 6px 0 var(--ink),
-      0 14px 20px -6px rgb(56 36 110 / 0.5);
+  @media (hover: hover) {
+    &:hover {
+      translate: 0 -1px;
+      box-shadow:
+        0 2px 0 rgb(255 255 255 / 0.9) inset,
+        0 -3px 0 color-mix(in oklab, var(--lavender) 55%, transparent) inset,
+        0 6px 0 var(--ink),
+        0 14px 20px -6px rgb(56 36 110 / 0.5);
+    }
   }
 
   &:active,
@@ -1172,6 +1180,10 @@ button[data-slot="pack-meter"] {
 
 /* A game dialog: the select's floating panel, bigger, with its heading type. */
 [data-slot="dialog-content"][data-variant="game"] {
+  /* Taller than the screen (a phone on its side), it scrolls rather than
+     hiding its close and action buttons off screen. */
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
   padding: 1.5rem;
   border: 2.5px solid var(--ink);
   border-radius: 2rem;
@@ -1232,6 +1244,12 @@ button[data-slot="pack-meter"] {
   animation: game-backdrop-out 0.28s ease-in forwards;
 }
 
+/* A dialog on its way out takes no more taps: a quick second tap on Buy would
+   pay again. Its backdrop still catches them. */
+[data-slot="dialog-content"][data-closed] {
+  pointer-events: none;
+}
+
 @keyframes game-backdrop-out {
   40% {
     opacity: 1;
@@ -1268,9 +1286,11 @@ button[data-slot="pack-meter"] {
     translate 0.12s ease-out,
     box-shadow 0.12s ease-out;
 
-  &:hover {
-    background: var(--chunky-fill);
-    color: var(--ink);
+  @media (hover: hover) {
+    &:hover {
+      background: var(--chunky-fill);
+      color: var(--ink);
+    }
   }
 
   &[aria-pressed="true"] {
@@ -1345,13 +1365,15 @@ button[data-slot="pack-meter"] {
       0 3px 0 var(--ink);
     transition: scale 0.12s ease-out;
 
-    &:hover,
     &:focus-visible,
     &[data-dragging] {
       scale: 1.1;
-      box-shadow:
-        var(--chunky-bevel),
-        0 3px 0 var(--ink);
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        scale: 1.1;
+      }
     }
 
     &:focus-visible {

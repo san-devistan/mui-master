@@ -1,3 +1,4 @@
+import { useOnceAtATime } from "@/game/_hooks/use-once-at-a-time"
 import { holos, useWallet } from "@/game/_lib/wallet"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -37,23 +38,25 @@ export function HoloShop({
   const setPro = useMutation(api.wallet.setPro)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
+  const once = useOnceAtATime()
   const base = shop?.holoBundles[0]
   // Holos per cent at the smallest bundle: each bundle's bonus is over it.
   const rate = base ? base.holos / base.priceCents : 0
   const best = shop?.holoBundles.at(-1)?.id
 
   // The holos pill and the Pro card show what changed, so only a refusal says anything.
-  async function buy(give: () => Promise<unknown>) {
-    setBusy(true)
-    setNote(null)
-    try {
-      await give()
-    } catch {
-      setNote("Checkout isn't open yet.")
-    } finally {
-      setBusy(false)
-    }
-  }
+  const buy = (give: () => Promise<unknown>) =>
+    once(async () => {
+      setBusy(true)
+      setNote(null)
+      try {
+        await give()
+      } catch {
+        setNote("Checkout isn't open yet.")
+      } finally {
+        setBusy(false)
+      }
+    })
 
   return (
     <Dialog

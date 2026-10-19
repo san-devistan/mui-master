@@ -44,11 +44,10 @@ export type Card = {
 
 export const songCard = async (
   ctx: QueryCtx,
-  song: Doc<"songs">
+  song: Doc<"songs">,
+  getArtist = (id: Id<"artists">) => ctx.db.get("artists", id)
 ): Promise<Card> => {
-  const artists = await Promise.all(
-    song.artistIds.map((id) => ctx.db.get("artists", id))
-  )
+  const artists = await Promise.all(song.artistIds.map(getArtist))
   return {
     kind: "song",
     id: song._id,
@@ -128,14 +127,22 @@ const drawArtist = async (ctx: QueryCtx, rarity: CardRarity) => {
   return row ? await artistCard(ctx, row) : null
 }
 
-// A card by id, song or artist; null when it's gone.
-export const cardById = async (ctx: QueryCtx, id: string) => {
+// A card's own row by id, song or artist (without its artists or top song); null when it's gone.
+const cardDoc = async (ctx: QueryCtx, id: string) => {
   const songId = ctx.db.normalizeId("songs", id)
   const song = songId ? await ctx.db.get("songs", songId) : null
-  if (song) return await songCard(ctx, song)
+  if (song) return song
   const artistId = ctx.db.normalizeId("artists", id)
-  const artist = artistId ? await ctx.db.get("artists", artistId) : null
-  return artist ? await artistCard(ctx, artist) : null
+  return artistId ? await ctx.db.get("artists", artistId) : null
+}
+
+const toCard = (ctx: QueryCtx, doc: Doc<"songs"> | Doc<"artists">) =>
+  "artistIds" in doc ? songCard(ctx, doc) : artistCard(ctx, doc)
+
+// A card by id, song or artist; null when it's gone.
+export const cardById = async (ctx: QueryCtx, id: string) => {
+  const doc = await cardDoc(ctx, id)
+  return doc ? await toCard(ctx, doc) : null
 }
 
 export const ownedCard = (ctx: QueryCtx, player: string, cardId: string) =>
@@ -307,8 +314,9 @@ export const claim = mutation({
 
 // The signed-in player's cards whose rarity went up since they last saw them, rarest first, each
 // with the rarity it was at; empty for a visitor.
-// shortcut: reads the whole collection (and re-runs on every pull); keep a list of pending upgrades
-// per player if collections grow past a few thousand cards.
+// shortcut: reads the whole collection, one card read per row (and re-runs on every pull); fails
+// past ~4,000 non-legendary cards (Convex's 4,096 reads a call), so keep a list of pending upgrades
+// per player before collections get near that.
 export const upgrades = query({
   args: {},
   handler: async (ctx) => {
@@ -322,10 +330,19 @@ export const upgrades = query({
       await Promise.all(
         rows.map(async ({ cardId, copies, pulledAt, seenRarity }) => {
           if (!seenRarity || seenRarity === "legendary") return []
-          const card = await cardById(ctx, cardId)
-          return card &&
-            rarityOrder.indexOf(card.rarity) < rarityOrder.indexOf(seenRarity)
-            ? [{ ...card, copies, pulledAt, from: seenRarity }]
+          // The card's own row has its rarity; the rest of the card (artists, top song) is read
+          // only for the few that went up.
+          const doc = await cardDoc(ctx, cardId)
+          return doc &&
+            rarityOrder.indexOf(doc.rarity) < rarityOrder.indexOf(seenRarity)
+            ? [
+                {
+                  ...(await toCard(ctx, doc)),
+                  copies,
+                  pulledAt,
+                  from: seenRarity,
+                },
+              ]
             : []
         })
       )

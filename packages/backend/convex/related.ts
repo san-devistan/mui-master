@@ -70,10 +70,17 @@ export const artistSongs = query({
       .withIndex("by_artistId_and_playcount", (q) => q.eq("artistId", artistId))
       .order("desc")
       .paginate(paginationOpts)
+    // Every song here credits the artist, and features repeat: each artist is read once.
+    const artists = new Map<Id<"artists">, Promise<Doc<"artists"> | null>>()
+    const getArtist = (id: Id<"artists">) => {
+      const artist = artists.get(id) ?? ctx.db.get("artists", id)
+      artists.set(id, artist)
+      return artist
+    }
     const songs = await Promise.all(
       rows.page.map(async ({ songId }) => {
         const song = await ctx.db.get("songs", songId)
-        return song ? await songCard(ctx, song) : null
+        return song ? await songCard(ctx, song, getArtist) : null
       })
     )
     return { ...rows, page: await withOwned(ctx, player, songs) }
@@ -96,11 +103,13 @@ const ownedIds = async (
 // An artist's circle: how many songs they have and how many of those the player owns, and the
 // artists they share a song with, most shared songs first (as ids; the app reads their cards a
 // page at a time with `artists`), with how many of those the player owns.
+// `songsOnly`: just the songs (no collaborators), for a song's "More from" rows, a third of the
+// reads for the busiest artists.
 // shortcut: reads every credit of the artist's songs (about 600 rows for the busiest artist
 // today); keep a collaborators table if artists get thousands of songs.
 export const artistCircle = query({
-  args: { artistId: v.string() },
-  handler: async (ctx, { artistId: card }) => {
+  args: { artistId: v.string(), songsOnly: v.optional(v.boolean()) },
+  handler: async (ctx, { artistId: card, songsOnly = false }) => {
     const player = await playerId(ctx)
     const artistId = ctx.db.normalizeId("artists", card)
     if (!artistId) {
@@ -114,14 +123,16 @@ export const artistCircle = query({
       .query("credits")
       .withIndex("by_artistId_and_playcount", (q) => q.eq("artistId", artistId))
       .take(1000)
-    const credits = await Promise.all(
-      mine.map(({ songId }) =>
-        ctx.db
-          .query("credits")
-          .withIndex("by_songId", (q) => q.eq("songId", songId))
-          .take(100)
-      )
-    )
+    const credits = songsOnly
+      ? []
+      : await Promise.all(
+          mine.map(({ songId }) =>
+            ctx.db
+              .query("credits")
+              .withIndex("by_songId", (q) => q.eq("songId", songId))
+              .take(100)
+          )
+        )
     const shared = new Map<Id<"artists">, number>()
     for (const row of credits.flat()) {
       if (row.artistId === artistId) continue

@@ -5,6 +5,7 @@ import {
   type FilmSpec,
 } from "@workspace/ui/lib/game/film-material"
 import { drawFoilRamp } from "@workspace/ui/lib/game/pack-art"
+import type { Stops } from "@workspace/ui/lib/game/theme"
 import * as THREE from "three"
 
 export type { FilmSpec, Trim } from "@workspace/ui/lib/game/film-material"
@@ -68,25 +69,149 @@ export function cameraDistance(height: number) {
   return height / 2 / Math.tan(THREE.MathUtils.degToRad(FOV / 2))
 }
 
-// `shown`: when given, frames are skipped while it's false.
+// Set once a WebGL context couldn't be made: later stages don't retry it (each
+// try costs a failed context and a console error), and callers draw their
+// still art instead.
+// shortcut: a failure is taken as lasting for the page, retry on a later
+// visit; drop the flag if a transient failure shows up on real devices.
+let noWebGL = false
+
+// Below 24 frames per second (median, so a hitch doesn't count, and a 30fps
+// display cap isn't slow), the stage tries a lower pixel ratio, one that should
+// make 30, down to 1 CSS px per px, or half that if under 8: sharpness gives,
+// the motion doesn't. A try that isn't GAIN faster is undone, and the page
+// stops trying: the pixels weren't what held it back. Frames only count once
+// the stage has run WARMUP seconds since it started or came back, in windows
+// not taken up by the page's other work (start-up, a new chunk, React). Later
+// stages start where a try paid off.
+const SLOW_FRAME = 1 / 24
+const STUCK_FRAME = 1 / 8
+const TARGET_FRAME = 1 / 30
+const GAIN = 0.85
+const WARMUP = 3
+// Share of a window the page's other long tasks may take before it's set aside.
+const BUSY = 0.25
+// Judged over this many frames, or fewer if they take this many seconds.
+const MEASURE = { frames: 12, seconds: 3, least: 3 }
+let ratioCap = Infinity
+let scaling = true
+
+// When stage frames ran, and the long tasks that held none of them, recent.
+const frameTimes: Array<number> = []
+let foreign: Array<{ start: number; end: number }> = []
+let longTasks: PerformanceObserver | null = null
+// Safari and Firefox have no long tasks: there, only the warmup and the undo
+// keep a busy start-up from costing sharpness.
+function watchLongTasks() {
+  if (longTasks) return
+  if (!PerformanceObserver.supportedEntryTypes.includes("longtask")) return
+  longTasks = new PerformanceObserver((list) => {
+    for (const task of list.getEntries()) {
+      const end = task.startTime + task.duration
+      const ours = frameTimes.some((at) => at >= task.startTime && at <= end)
+      if (!ours) foreign.push({ start: task.startTime, end })
+    }
+  })
+  longTasks.observe({ type: "longtask" })
+}
+
+// Milliseconds of other long tasks since `since`; forgets older ones.
+function busySince(since: number) {
+  const cut = since - 5000
+  while ((frameTimes[0] ?? since) < cut) frameTimes.shift()
+  foreign = foreign.filter((task) => task.end > cut)
+  return foreign.reduce(
+    (sum, task) => sum + Math.max(0, task.end - Math.max(task.start, since)),
+    0
+  )
+}
+
+// A context the browser doesn't give back within this many seconds (of the
+// page being shown) is gone: the canvas fires STAGE_GONE so its owner can
+// start again on a new canvas. After GONE_MAX of those, later stages are
+// still art.
+const LOST_FOR = 4
+const GONE_MAX = 2
+let gone = 0
+export const STAGE_GONE = "stagegone"
+
+// three's BRDF lookup texture, as `renderer` bound it to a physical material
+// in `scene`. three shares it across the page, and every renderer that drew
+// with it hangs a dispose listener on it, which holds the renderer, its
+// context and its canvas alive for good; disposing it lets go of them (live
+// renderers upload the tiny texture again).
+const dig = (from: unknown, key: string): unknown =>
+  from instanceof Object ? Reflect.get(from, key) : undefined
+function sharedLut(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
+  let lut: unknown = null
+  scene.traverse((object) => {
+    if (lut instanceof THREE.Texture || !(object instanceof THREE.Mesh)) return
+    const materials: Array<unknown> = [object.material].flat()
+    for (const material of materials) {
+      if (!(material instanceof THREE.MeshPhysicalMaterial)) continue
+      const bound = renderer.properties.get(material)
+      lut = dig(dig(dig(bound, "uniforms"), "dfgLUT"), "value")
+      if (lut instanceof THREE.Texture) return
+    }
+  })
+  return lut instanceof THREE.Texture ? lut : null
+}
+
+// `shown`: when given, frames are skipped while it's false. Null when WebGL
+// isn't there: show still art instead.
 export function createStage(
   canvas: HTMLCanvasElement,
   shown: () => boolean = () => true
-): Stage {
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    alpha: true,
-    antialias: true,
-  })
-  renderer.setPixelRatio(Math.min(devicePixelRatio * 1.5, 3))
+): Stage | null {
+  if (noWebGL) return null
+  let renderer: THREE.WebGLRenderer
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      alpha: true,
+      antialias: true,
+    })
+  } catch {
+    noWebGL = true
+    return null
+  }
+  renderer.setPixelRatio(Math.min(devicePixelRatio * 1.5, 3, ratioCap))
   renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
   renderer.toneMapping = THREE.NeutralToneMapping
 
   const scene = new THREE.Scene()
   const pmrem = new THREE.PMREMGenerator(renderer)
-  const { room, parts } = studio()
-  scene.environment = pmrem.fromScene(room, 0.02).texture
-  for (const part of parts) part.dispose()
+  const light = () => {
+    const { room, parts } = studio()
+    const target = pmrem.fromScene(room, 0.02)
+    for (const part of parts) part.dispose()
+    scene.environment = target.texture
+    return target
+  }
+  let environment = light()
+  let lostFor: ReturnType<typeof setTimeout> | undefined
+  const onLost = () => {
+    clearTimeout(lostFor)
+    lostFor = setTimeout(() => {
+      if (!renderer.getContext().isContextLost()) return
+      // A hidden page (a phone app in the background) gets it back on return.
+      if (document.hidden) onLost()
+      else {
+        gone += 1
+        if (gone >= GONE_MAX) noWebGL = true
+        canvas.dispatchEvent(new Event(STAGE_GONE))
+      }
+    }, LOST_FOR * 1000)
+  }
+  // A lost context comes back empty: three uploads the art again by itself,
+  // but the studio's lighting was rendered on the GPU, so render it again.
+  const onRestored = () => {
+    clearTimeout(lostFor)
+    environment.dispose()
+    environment = light()
+  }
+  canvas.addEventListener("webglcontextlost", onLost)
+  canvas.addEventListener("webglcontextrestored", onRestored)
   scene.add(new THREE.AmbientLight("#ffffff", 1.35))
   const key = new THREE.DirectionalLight("#ffffff", 1.4)
   key.position.set(-300, 420, 520)
@@ -103,16 +228,90 @@ export function createStage(
   const still = matchMedia("(prefers-reduced-motion: reduce)").matches
   const time = { value: 0 }
   const updates: Array<(time: number, delta: number) => void> = []
-  const disposables: Array<Disposable> = [renderer, pmrem]
+  const disposables: Array<Disposable> = [
+    renderer,
+    pmrem,
+    {
+      dispose() {
+        clearTimeout(lostFor)
+        canvas.removeEventListener("webglcontextlost", onLost)
+        canvas.removeEventListener("webglcontextrestored", onRestored)
+        environment.dispose()
+      },
+    },
+  ]
   const clock = new THREE.Timer()
-  renderer.setAnimationLoop((stamp: DOMHighResTimeStamp) => {
+  // Frame times while shown, to see whether the device keeps up; the try in
+  // progress, with the ratio and pace before it.
+  let frames: Array<number> = []
+  let since = performance.now()
+  let trying: { ratio: number; pace: number } | null = null
+  watchLongTasks()
+  const setRatio = (next: number) => {
+    renderer.setPixelRatio(next)
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
+  }
+  // Judges a window of frames: tries a lower ratio, or keeps or undoes a try.
+  const judge = (pace: number) => {
+    if (trying) {
+      const tried = trying
+      trying = null
+      if (pace <= tried.pace * GAIN) {
+        ratioCap = renderer.getPixelRatio()
+      } else {
+        scaling = false
+        setRatio(tried.ratio)
+        return
+      }
+    }
+    if (!scaling || pace <= SLOW_FRAME) return
+    const ratio = renderer.getPixelRatio()
+    const floor = pace > STUCK_FRAME ? 0.5 : 1
+    if (ratio <= floor) return
+    // Fill cost goes with the pixel count, the square of the ratio.
+    trying = { ratio, pace }
+    setRatio(Math.max(floor, ratio * Math.sqrt(TARGET_FRAME / pace)))
+  }
+  const loop = (stamp: DOMHighResTimeStamp) => {
     clock.update(stamp)
     if (!shown()) return
-    const delta = Math.min(clock.getDelta(), 0.1)
+    const frame = clock.getDelta()
+    const delta = Math.min(frame, 0.1)
     if (!still) time.value += delta
     for (const update of updates) update(time.value, delta)
     renderer.render(scene, camera)
+    const now = performance.now()
+    frameTimes.push(now)
+    // Settling in after a start or a pause: building, uploading, compiling.
+    if (!scaling || now - since < WARMUP * 1000 || document.hidden) {
+      frames = []
+      return
+    }
+    frames.push(frame)
+    const spent = frames.reduce((sum, each) => sum + each, 0)
+    if (frames.length < MEASURE.frames) {
+      if (spent < MEASURE.seconds || frames.length < MEASURE.least) return
+    }
+    // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 lib, a copy
+    const pace = [...frames].sort((a, b) => a - b)[frames.length >> 1] ?? 0
+    frames = []
+    // The rest of the page was busy: this window says nothing about us.
+    if (busySince(now - spent * 1000) > spent * 1000 * BUSY) return
+    judge(pace)
+  }
+  // Draws only while the canvas is on screen: a hidden tab, a closed dialog or
+  // a scrolled-away canvas costs no frames, and picks up on its next frame.
+  let onScreen = true
+  const visibility = new IntersectionObserver(([entry]) => {
+    onScreen = entry?.isIntersecting ?? onScreen
+    since = performance.now()
+    frames = []
+    renderer.setAnimationLoop(onScreen && !stage.disposed ? loop : null)
   })
+  // The thumbs' offscreen stage runs its own loop.
+  if (canvas.isConnected) visibility.observe(canvas)
+  disposables.push({ dispose: () => visibility.disconnect() })
+  renderer.setAnimationLoop(loop)
 
   const stage: Stage = {
     renderer,
@@ -124,12 +323,98 @@ export function createStage(
     onFrame: (update) => updates.push(update),
     disposed: false,
     dispose() {
+      if (stage.disposed) return
       stage.disposed = true
       renderer.setAnimationLoop(null)
+      const lut = sharedLut(renderer, scene)
       for (const item of disposables) item.dispose()
+      // Lets go of this renderer; live ones upload the tiny texture again.
+      lut?.dispose()
+      // Once its canvas is gone, hands the context back now rather than at
+      // some garbage collection: browsers keep about 16, evicting the oldest,
+      // the Packs pack. A canvas still on the page may get a new stage, which
+      // reuses its context. After dispose, which takes off three's lost
+      // handler: WebKit keeps a context whose loss is prevented.
+      setTimeout(() => {
+        if (!canvas.isConnected) renderer.forceContextLoss()
+      })
     },
   }
   return stage
+}
+
+// Still art on a 2D canvas, for when there's no WebGL: `paint` draws it in CSS
+// px, again whenever the canvas resizes or `redraw` asks.
+export type Still = { redraw: () => void; dispose: () => void }
+
+export function createStill(
+  canvas: HTMLCanvasElement,
+  paint: (ctx: CanvasRenderingContext2D, width: number, height: number) => void
+): Still {
+  const ctx = canvas.getContext("2d")
+  let disposed = false
+  const redraw = () => {
+    const { clientWidth: width, clientHeight: height } = canvas
+    if (!ctx || disposed || !width || !height) return
+    const ratio = Math.min(devicePixelRatio, 2)
+    canvas.width = Math.round(width * ratio)
+    canvas.height = Math.round(height * ratio)
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+    paint(ctx, width, height)
+  }
+  const fit = new ResizeObserver(redraw)
+  fit.observe(canvas)
+  return {
+    redraw,
+    dispose() {
+      disposed = true
+      fit.disconnect()
+    },
+  }
+}
+
+export type FilmArt = Awaited<ReturnType<FilmSpec["draw"]>>
+
+// A film's art flat on `ctx`, `width` CSS px wide with its top-left at x, y:
+// its foil (the spec's stops, on the diagonal) through the film's shape, the
+// print over it, and its marquees at rest. `spec.width` is the film's own.
+export function paintFilm(
+  ctx: CanvasRenderingContext2D,
+  { front, shape, marquees = [] }: FilmArt,
+  spec: { width: number; stops: Stops },
+  { x, y, width }: { x: number; y: number; width: number }
+) {
+  const height = (width * front.height) / front.width
+  const layer = document.createElement("canvas")
+  layer.width = front.width
+  layer.height = front.height
+  const film = layer.getContext("2d")
+  if (!film) return
+  const foil = film.createLinearGradient(0, 0, layer.width, layer.height)
+  for (const [color, at] of spec.stops) foil.addColorStop(at, color)
+  film.fillStyle = foil
+  film.fillRect(0, 0, layer.width, layer.height)
+  film.globalCompositeOperation = "destination-in"
+  film.drawImage(shape, 0, 0, layer.width, layer.height)
+  film.globalCompositeOperation = "source-over"
+  film.drawImage(front, 0, 0)
+  // Texels per film px.
+  const scale = layer.width / spec.width
+  for (const { art, box, cycle } of marquees) {
+    const texels = art.width / cycle
+    film.drawImage(
+      art,
+      0,
+      0,
+      Math.min(art.width, box.width * texels),
+      art.height,
+      box.x * scale,
+      box.y * scale,
+      Math.min(art.width / texels, box.width) * scale,
+      box.height * scale
+    )
+  }
+  ctx.drawImage(layer, x, y, width, height)
 }
 
 // A film and, given a floor, its mirror image: `subject` is what you pose, the
@@ -307,7 +592,8 @@ export function trackPointer(
 }
 
 // One film on its own stage: sways, bobs and turns towards the pointer.
-// `shown`: frames are skipped while it's false (see createStage).
+// `shown`: frames are skipped while it's false (see createStage). Null
+// without WebGL.
 export function mountFilmScene(
   canvas: HTMLCanvasElement,
   spec: FilmSpec,
@@ -315,6 +601,7 @@ export function mountFilmScene(
   shown?: () => boolean
 ) {
   const stage = createStage(canvas, shown)
+  if (!stage) return null
   // Mirror floor just under the lowest bob (+6).
   const film = addFilm(stage, spec, {
     floorY: mirror ? -spec.height / 2 + 4 : undefined,

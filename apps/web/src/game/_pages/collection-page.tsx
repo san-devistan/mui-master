@@ -270,7 +270,7 @@ function EmptyCollection() {
       <Button
         variant="game"
         nativeButton={false}
-        render={<Link to="/">Open a pack</Link>}
+        render={<Link to="/play">Open a pack</Link>}
       />
     </div>
   )

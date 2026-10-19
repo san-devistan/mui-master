@@ -1,4 +1,5 @@
 import { authClient } from "@/lib/auth-client"
+import { reconnectOnResume } from "@/lib/reconnect-on-resume"
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react"
 import { ConvexQueryClient } from "@convex-dev/react-query"
 import { QueryClient } from "@tanstack/react-query"
@@ -24,8 +25,13 @@ function warnMissingConvexUrl() {
 export function getRouter() {
   const convexUrl = import.meta.env.VITE_CONVEX_URL
   // expectAuth: queries wait for the player's token instead of running signed out first.
+  // initialAuthTokenReuse: the token just fetched is kept until near its expiry rather than
+  // fetched again straight away, which re-ran every query of the starting screen.
   const convexQueryClient = convexUrl
-    ? new ConvexQueryClient(convexUrl, { expectAuth: true })
+    ? new ConvexQueryClient(convexUrl, {
+        expectAuth: true,
+        initialAuthTokenReuse: true,
+      })
     : null
 
   if (!convexQueryClient) {
@@ -50,6 +56,7 @@ export function getRouter() {
   // alongside the auth calls instead of after them.
   if (typeof window !== "undefined") {
     convexQueryClient?.convexClient.connectionState()
+    reconnectOnResume(convexQueryClient?.convexClient)
   }
 
   function ConvexProviderWrapper({ children }: { children: ReactNode }) {

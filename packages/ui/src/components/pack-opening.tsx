@@ -9,11 +9,13 @@ import {
 import { GameMotes } from "@workspace/ui/components/game-motes"
 import { PackGlow } from "@workspace/ui/components/pack-glow"
 import { useReveal, type Party } from "@workspace/ui/hooks/use-reveal"
+import { STAGE_GONE } from "@workspace/ui/lib/game/film-scene"
 import {
   glowHold,
   mountOpeningScene,
   openedAfter,
   type OpeningPhase,
+  type OpeningResume,
   type OpeningScene,
 } from "@workspace/ui/lib/game/opening-scene"
 import { REVEAL_PLAYED } from "@workspace/ui/lib/game/reveal-motion"
@@ -159,6 +161,38 @@ function mountNextFrame(
   }
 }
 
+// A canvas whose context is gone for good: a key that changes to remount it,
+// and where the scene was (phase and card) for the new one to pick up.
+function useCanvasRebirth(
+  canvasRef: { current: HTMLCanvasElement | null },
+  phase: Phase,
+  index: number
+) {
+  const [rebirth, setRebirth] = useState<{
+    key: number
+    resume: OpeningResume | null
+  }>({ key: 0, resume: null })
+  const gone = useEffectEvent(() =>
+    setRebirth(({ key }) => ({
+      key: key + 1,
+      resume: {
+        phase: phase === "cards" ? "open" : phase,
+        index,
+        opened: phase === "cards",
+      },
+    }))
+  )
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const onGone = () => gone()
+    canvas?.addEventListener(STAGE_GONE, onGone)
+    return () => canvas?.removeEventListener(STAGE_GONE, onGone)
+    // Each new canvas (a new key) is listened to.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
+  }, [canvasRef, rebirth.key])
+  return rebirth
+}
+
 type PackOpeningProps = {
   pulls: ReadonlyArray<PackPull>
   covers: ReadonlyArray<string>
@@ -231,18 +265,27 @@ function PackOpening({
   const cut = useCutSlash()
   const [phase, setPhase] = useState<Phase>("idle")
   const [index, setIndex] = useState(0)
+  const rebirth = useCanvasRebirth(canvasRef, phase, index)
   const { party, reveal, reset } = useReveal(pulls, sceneRef)
   const pullKey = pulls.map((pull) => pull.id).join("|")
   const coverKey = covers.join("|")
   // Latest callback, without remounting the scene when it changes.
   const announce = useEffectEvent((pull: PackPull | null) => onCard?.(pull))
+  // The same cards in a new array (a refetch, a reconnect) bring a new
+  // `reveal`; that mustn't remount the scene, mid-reveal or not.
+  const revealFirst = useEffectEvent(() => reveal(0))
+  const resumeAt = useEffectEvent(() => rebirth.resume)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
-    reset()
-    setPhase("idle")
-    setIndex(0)
+    // A canvas swapped for a lost one picks up where it was.
+    const resume = resumeAt()
+    if (!resume) {
+      reset()
+      setPhase("idle")
+      setIndex(0)
+    }
     return mountNextFrame(
       sceneRef,
       () => announce(null),
@@ -252,13 +295,13 @@ function PackOpening({
       () => {
         setPhase("cards")
         setIndex(0)
-        reveal(0)
+        revealFirst()
       },
-      { entrance }
+      resume ? { entrance: false, resume } : { entrance }
     )
     // pullKey is the stable identity of pulls.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [coverKey, pullKey, reset, reveal, entrance])
+  }, [coverKey, pullKey, reset, entrance, rebirth.key])
 
   // Music while the opened pack waits to be cut; the cut fades it out.
   useEffect(() => (phase === "cut" ? waitingMusic() : undefined), [phase])
@@ -369,7 +412,12 @@ function PackOpening({
       )}
     >
       <Backdrop phase={phase} pulls={pulls} party={party} />
-      <canvas ref={canvasRef} className="game-canvas z-10" aria-hidden="true" />
+      <canvas
+        key={rebirth.key}
+        ref={canvasRef}
+        className="game-canvas z-10"
+        aria-hidden="true"
+      />
       {phase === "open" && cut.slash ? <CutSlash slash={cut.slash} /> : null}
       {phase === "cards" && party?.index === index ? (
         <Celebration key={party.key} rarity={party.rarity} />

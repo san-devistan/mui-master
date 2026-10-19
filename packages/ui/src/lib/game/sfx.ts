@@ -13,6 +13,9 @@ export type Engine = {
 // Seconds into the legendary cue when it hits: as the celebration's sparks
 // fly (see game.css) and the spinning card lands.
 const LEGENDARY_HIT = 0.85
+// How late, in seconds, a cue asked for while the audio was held may still
+// start once it runs.
+const STALE = 0.5
 // The game's overall loudness, after the limiter: every cue scales with it.
 const VOLUME = 0.5
 // Tuning: a major pentatonic, so cues that overlap stay in tune together.
@@ -484,7 +487,25 @@ const CUES: Record<Cue, (audio: Engine, at: number) => void> = {
 // Plays `cue` in `delay` seconds. Silent until the player first interacts.
 export function play(cue: Cue, delay = 0) {
   const audio = engine?.ctx.state === "running" ? engine : wake()
-  if (audio) CUES[cue](audio, audio.ctx.currentTime + 0.01 + delay)
+  if (!audio) return
+  const { ctx } = audio
+  if (ctx.state === "running") {
+    CUES[cue](audio, ctx.currentTime + 0.01 + delay)
+    return
+  }
+  // Still starting, or held (interrupted, or refused outside a gesture): play
+  // it once it runs, unless that's too late. Scheduled on a held clock, every
+  // cue asked for meanwhile would burst out together on resume.
+  const due = performance.now() / 1000 + delay
+  ctx.addEventListener(
+    "statechange",
+    () => {
+      const wait = due - performance.now() / 1000
+      if (ctx.state === "running" && wait > -STALE)
+        CUES[cue](audio, ctx.currentTime + 0.01 + Math.max(wait, 0))
+    },
+    { once: true }
+  )
 }
 
 const closest = (event: Event, selector: string) =>
@@ -500,13 +521,29 @@ function click(event: MouseEvent) {
   else if (closest(event, '[data-slot="select-item"]')) play("tick")
 }
 
+// WebKit lets audio start in a touchend, but drags (a cut, a swipe) end
+// without a click.
+const touched = () => void wake()
+
+// Back on screen after a call, Siri or another app: resume where the browser
+// allows it without a gesture; elsewhere the next one does.
+function shown() {
+  if (!document.hidden && engine && engine.ctx.state !== "running")
+    void engine.ctx.resume().catch(() => undefined)
+}
+
 // Game buttons, selects and tabs pop as they're pressed (or keyed), list items
-// tick as they're picked, and any click wakes the audio. Returns the cleanup.
+// tick as they're picked, and any click or touch wakes the audio. Returns the
+// cleanup.
 export function soundTaps() {
   document.addEventListener("pointerdown", press, true)
   document.addEventListener("click", click, true)
+  document.addEventListener("touchend", touched, true)
+  document.addEventListener("visibilitychange", shown)
   return () => {
     document.removeEventListener("pointerdown", press, true)
     document.removeEventListener("click", click, true)
+    document.removeEventListener("touchend", touched, true)
+    document.removeEventListener("visibilitychange", shown)
   }
 }

@@ -3,6 +3,9 @@
 TanStack Start app (Router + Query). It owns routes, loaders, and screen
 composition; data and logic come from `@workspace/backend`.
 
+`/` is the server-rendered landing page (`src/landing/`), with its SEO metadata
+on `routes/index.tsx`; the game starts at `/play`, the Packs tab.
+
 ## UI
 
 Screens are built from `@workspace/ui`. When something is missing, it usually

@@ -18,6 +18,8 @@ const CHORDS = [
 const ARPEGGIO = [0, 1, 2, 3, 2, 1, 2, 3]
 // Under the effects: the cues stay on top.
 const MUSIC = 0.5
+// How often, in seconds, to check whether held music can go on.
+const RETRY = 0.25
 
 function waitingBar(audio: Engine, at: number, bar: number) {
   const chord = CHORDS[bar % CHORDS.length] ?? CHORDS[0]
@@ -84,7 +86,13 @@ export function waitingMusic() {
   const next = () => {
     // A timer held up (a busy or hidden tab) starts afresh, not in a rush.
     at = Math.max(at, ctx.currentTime + 0.05)
-    if (!document.hidden) waitingBar({ ...audio, dry, room }, at, bar)
+    // Held (a background tab, a call, still starting): wait, without running
+    // ahead of a clock that's stopped, so it carries on at once when let.
+    if (document.hidden || ctx.state !== "running") {
+      timer = setTimeout(next, RETRY * 1000)
+      return
+    }
+    waitingBar({ ...audio, dry, room }, at, bar)
     at += BAR
     bar += 1
     timer = setTimeout(next, (at - ctx.currentTime - 0.3) * 1000)

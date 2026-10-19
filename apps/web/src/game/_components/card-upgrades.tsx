@@ -1,6 +1,4 @@
 import { toGameCard } from "@/game/_lib/cards"
-import { convexQuery } from "@convex-dev/react-query"
-import { useQuery } from "@tanstack/react-query"
 import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { Celebration } from "@workspace/ui/components/celebration"
@@ -13,10 +11,10 @@ import {
 } from "@workspace/ui/components/song-card"
 import { play } from "@workspace/ui/lib/game/sfx"
 import { RARITY_ORDER, type Rarity } from "@workspace/ui/lib/game/theme"
-import { useMutation } from "convex/react"
+import { useConvex, useMutation } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
 import { ArrowRightIcon } from "lucide-react"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 type UpgradeRow = FunctionReturnType<typeof api.packs.upgrades>[number]
 type Upgrade = ReturnType<typeof toGameCard<UpgradeRow>>
@@ -30,11 +28,22 @@ const climb = (from: Rarity, to: Rarity) =>
 // each climbing a rarity per tap. A card is marked seen once it reaches its
 // new rarity, so leaving midway shows the rest next time.
 export function CardUpgrades() {
-  const { data: rows } = useQuery(convexQuery(api.packs.upgrades, {}))
+  const convex = useConvex()
   // Taken once, as the app opens: an upgrade found mid-session waits for the
-  // next visit, so it never cuts into a pack being opened.
+  // next visit, so it never cuts into a pack being opened. Read once rather
+  // than watched, as it would re-run on every pack opened.
   const [queue, setQueue] = useState<ReadonlyArray<Upgrade> | null>(null)
-  if (!queue && rows) setQueue(rows.map(toGameCard))
+  useEffect(() => {
+    let cancelled = false
+    async function take() {
+      const rows = await convex.query(api.packs.upgrades, {})
+      if (!cancelled) setQueue(rows.map(toGameCard))
+    }
+    take().catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [convex])
   if (!queue?.length) return null
   return <UpgradeQueue queue={queue} onDone={() => setQueue([])} />
 }

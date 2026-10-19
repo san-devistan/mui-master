@@ -7,7 +7,10 @@ export const PREVIEW_FADE = 0.4
 export const PREVIEW_VOLUME = 0.8
 
 // The fade running on each element, so a new one takes over from the last.
-type Fade = { frame: number; settle: (done: boolean) => void }
+type Fade = {
+  timer: ReturnType<typeof setTimeout> | undefined
+  settle: (done: boolean) => void
+}
 const fades = new WeakMap<HTMLAudioElement, Fade>()
 
 // Stops the fade running on `audio`, if any.
@@ -16,30 +19,29 @@ function stopFade(audio: HTMLAudioElement) {
 }
 
 // Eases `audio`'s volume to `to` over PREVIEW_FADE. Resolves true once there,
-// false if another fade took over first.
+// false if another fade took over first. On timers, not frames: frames stop in
+// a background tab, which would leave a fade (and the pause after it) stuck.
 function fadeAudio(audio: HTMLAudioElement, to: number) {
   stopFade(audio)
   return new Promise<boolean>((resolve) => {
     const from = audio.volume
     const start = performance.now()
     const fade: Fade = {
-      frame: 0,
+      timer: undefined,
       settle(done) {
-        cancelAnimationFrame(fade.frame)
+        clearTimeout(fade.timer)
         if (fades.get(audio) === fade) fades.delete(audio)
         resolve(done)
       },
     }
-    const step = (now: number) => {
-      // A frame's time can fall a hair before `start`: a negative share would
-      // set a negative volume, which throws and leaves the fade stuck.
-      const t = Math.min(Math.max((now - start) / (PREVIEW_FADE * 1000), 0), 1)
+    const step = () => {
+      const t = Math.min((performance.now() - start) / (PREVIEW_FADE * 1000), 1)
       audio.volume = from + (to - from) * t
-      if (t < 1) fade.frame = requestAnimationFrame(step)
+      if (t < 1) fade.timer = setTimeout(step, 16)
       else fade.settle(true)
     }
     fades.set(audio, fade)
-    fade.frame = requestAnimationFrame(step)
+    fade.timer = setTimeout(step, 16)
   })
 }
 
@@ -85,6 +87,57 @@ export async function fadeIn(audio: HTMLAudioElement) {
   void fadeAudio(audio, PREVIEW_VOLUME)
 }
 
+// Like fadeIn, but a source that won't load (an expired Deezer link) gets one
+// more go from `refresh`, a fresh lookup told the link that failed; null from
+// it gives up.
+export async function fadeInFresh(
+  audio: HTMLAudioElement,
+  refresh: (failed: string) => Promise<string | null>
+) {
+  try {
+    await fadeIn(audio)
+  } catch (error) {
+    if (!(error instanceof DOMException && error.name === "NotSupportedError"))
+      throw error
+    const url = await refresh(audio.src).catch(() => null)
+    if (!url || url === audio.src) throw error
+    audio.src = url
+    await fadeIn(audio)
+  }
+}
+
+// Silent while the page is out of sight, like the rest of the game's sound:
+// paused at once when hidden (fades can't be counted on to run there), then
+// `resume`d when back. Leaving the page, or its back/forward cache, `leave`s
+// it for good, so it doesn't come back blaring. Returns the cleanup.
+export function silentWhileHidden(
+  audio: () => HTMLAudioElement | null,
+  resume: (audio: HTMLAudioElement) => void,
+  leave: () => void
+) {
+  const hide = () => {
+    const current = audio()
+    if (!current) return
+    stopFade(current)
+    current.pause()
+  }
+  const visibility = () => {
+    const current = audio()
+    if (document.hidden) hide()
+    else if (current?.paused) resume(current)
+  }
+  const pagehide = () => {
+    leave()
+    hide()
+  }
+  document.addEventListener("visibilitychange", visibility)
+  addEventListener("pagehide", pagehide)
+  return () => {
+    document.removeEventListener("visibilitychange", visibility)
+    removeEventListener("pagehide", pagehide)
+  }
+}
+
 // Waits until a fade-in started then is fully in at `end`, a
 // performance.now() time; at once if that's already passed.
 export function waitToFadeIn(end: number) {
@@ -101,13 +154,22 @@ export async function fadeOut(audio: HTMLAudioElement) {
 
 // Resolves a song's 30s preview: the stored Spotify one the card came with,
 // else Deezer's (looked up server-side, since Deezer's API isn't open to
-// browsers). Null without a Convex backend or a preview.
+// browsers). `skip`: a link that wouldn't play, so the server doesn't send it
+// back (a dead stored one gets Deezer's). Null without a Convex backend or a
+// preview.
 export function usePreviewUrl() {
   const convex = useConvex()
-  return async (songId: string, stored: string | null = null) => {
-    if (stored) return stored
+  return async (
+    songId: string,
+    stored: string | null = null,
+    skip?: string
+  ) => {
+    if (stored && stored !== skip) return stored
     if (!convex) return null
-    const { url } = await convex.action(api.playback.preview, { songId })
+    const { url } = await convex.action(
+      api.playback.preview,
+      skip ? { songId, skip } : { songId }
+    )
     return url
   }
 }
@@ -127,14 +189,23 @@ export function useSongPreview(
   // The one start per mount; later calls wait on it too.
   const startRef = useRef<Promise<void> | null>(null)
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const unhide = silentWhileHidden(
+      () => audioRef.current,
+      (audio) => {
+        if (wantedRef.current) void fadeIn(audio).catch(() => undefined)
+      },
+      () => {
+        wantedRef.current = false
+      }
+    )
+    return () => {
+      unhide()
       wantedRef.current = false
       if (audioRef.current) void fadeOut(audioRef.current)
       audioRef.current = null
-    },
-    []
-  )
+    }
+  }, [])
 
   async function start(by: number) {
     if (!songId) return
@@ -146,9 +217,15 @@ export function useSongPreview(
     next.preload = "auto"
     audioRef.current = next
     await waitToFadeIn(end)
-    if (!wantedRef.current) return
-    // Blocked by the browser's autoplay rules: stay silent.
-    await fadeIn(next).catch(() => undefined)
+    // Hidden: it starts once back in sight.
+    if (!wantedRef.current || document.hidden) return
+    // Blocked by the browser's autoplay rules: stay silent. A link that won't
+    // load is looked up afresh, unless stopped meanwhile.
+    await fadeInFresh(next, (failed) =>
+      previewUrl(songId, null, failed).then((fresh) =>
+        wantedRef.current ? fresh : null
+      )
+    ).catch(() => undefined)
     // Stopped while it was starting: fade it straight back out.
     if (!wantedRef.current) void fadeOut(next)
   }

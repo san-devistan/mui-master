@@ -32,10 +32,27 @@ export const SILVER_FRAGMENT = /* glsl */ `
 `
 
 // The silver foil as a still image for CSS (--silver-foil), drawn once on
-// `renderer`.
+// `renderer` in idle time (the readback and PNG encoding take a weak phone a
+// second) and kept for later visits; the CSS has a plain silver until then.
+const FOIL_KEY = "musi:silver-foil:1"
 export function showSilverFoil(renderer: THREE.WebGLRenderer) {
   const root = document.documentElement
   if (root.style.getPropertyValue("--silver-foil")) return
+  const kept = localStorage.getItem(FOIL_KEY)
+  if (kept) {
+    root.style.setProperty("--silver-foil", `url(${kept})`)
+    return
+  }
+  // Safari has no requestIdleCallback.
+  if ("requestIdleCallback" in window) {
+    requestIdleCallback(() => drawSilverFoil(renderer), { timeout: 5000 })
+  } else setTimeout(() => drawSilverFoil(renderer), 2000)
+}
+
+function drawSilverFoil(renderer: THREE.WebGLRenderer) {
+  const root = document.documentElement
+  if (root.style.getPropertyValue("--silver-foil")) return
+  if (renderer.getContext().isContextLost()) return
   const size = renderer.getSize(new THREE.Vector2())
   const ratio = renderer.getPixelRatio()
   renderer.setPixelRatio(1)
@@ -52,6 +69,11 @@ export function showSilverFoil(renderer: THREE.WebGLRenderer) {
   )
   const image = renderer.domElement.toDataURL()
   root.style.setProperty("--silver-foil", `url(${image})`)
+  try {
+    localStorage.setItem(FOIL_KEY, image)
+  } catch {
+    // Full or blocked storage: it's drawn again next visit.
+  }
   renderer.setPixelRatio(ratio)
   renderer.setSize(size.x, size.y, false)
   geometry.dispose()

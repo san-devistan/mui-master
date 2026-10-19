@@ -1,7 +1,7 @@
 import { toGameCard } from "@/game/_lib/cards"
 import type { CollectedSong } from "@/game/_lib/collection"
 import { convexQuery } from "@convex-dev/react-query"
-import { useQuery } from "@tanstack/react-query"
+import { useQueries, useQuery } from "@tanstack/react-query"
 import { api } from "@workspace/backend/api"
 import type { Id } from "@workspace/backend/dataModel"
 import { Marquee } from "@workspace/ui/components/marquee"
@@ -134,8 +134,9 @@ function ArtistSongsBy({
   const { data: artist } = useQuery(
     convexQuery(api.related.artists, { ids: [id] })
   )
+  // Only the song counts are shown here, not who the artist works with.
   const { data: circle } = useQuery(
-    convexQuery(api.related.artistCircle, { artistId: id })
+    convexQuery(api.related.artistCircle, { artistId: id, songsOnly: true })
   )
   // Only the showcased song: nothing more to show.
   if (!artist?.[0] || (circle && circle.songs.total < 2)) return null
@@ -185,7 +186,8 @@ function ArtistSongs({
   )
 }
 
-// Artists by id, a row's worth at a time.
+// Artists by id, a row's worth at a time: each "more" asks for the next ids
+// only, and the row joins the pages in.
 function ArtistRow({
   title,
   ids,
@@ -197,24 +199,32 @@ function ArtistRow({
   count?: { owned: number; total: number }
   onOpen: OnOpen
 }) {
-  const [shown, setShown] = useState(ROW)
-  const { data: cards, isPending } = useQuery(
-    convexQuery(api.related.artists, { ids: ids.slice(0, shown) })
+  const [pages, setPages] = useState(1)
+  const chunks = Array.from(
+    { length: Math.ceil(ids.length / ROW) },
+    (_, page) => ids.slice(page * ROW, (page + 1) * ROW)
   )
-  // While the next ones load, the row keeps what it has.
-  const [kept, setKept] = useState<ReadonlyArray<Related>>([])
-  if (cards && cards !== kept) setKept(cards)
+  const results = useQueries({
+    queries: chunks
+      .slice(0, pages)
+      .map((chunk) => convexQuery(api.related.artists, { ids: chunk })),
+  })
+  // Pages in so far, in order, up to the first still loading: while the next
+  // ones load, the row keeps what it has.
+  const loaded = results.findIndex((result) => !result.data)
+  const ready = loaded === -1 ? results : results.slice(0, loaded)
+  const cards = ready.flatMap((result) => result.data ?? [])
   return (
     <RelatedRow
       title={title}
       count={count}
-      cards={kept}
+      cards={cards}
       more={
-        shown < ids.length && cards
-          ? () => setShown((rows) => rows + ROW)
+        pages < chunks.length && loaded === -1
+          ? () => setPages((page) => page + 1)
           : null
       }
-      loading={isPending && !kept.length}
+      loading={loaded === 0}
       onOpen={onOpen}
     />
   )

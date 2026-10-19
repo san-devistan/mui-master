@@ -26,17 +26,18 @@ export const songSource = internalQuery({
 
 // The stored Spotify preview, else Deezer's, found by exact title and lead
 // artist. Deezer URLs expire, so they're resolved at play time and never stored.
+// `skip`: a URL the player couldn't load; when it's the stored one, Deezer's is looked up instead.
 // shortcut: no ownership check while the web game runs on demo data; add one
 // once authenticated players have real collections.
 export const preview = action({
-  args: { songId: v.string() },
-  handler: async (ctx, args): Promise<{ url: string | null }> => {
-    const source = await ctx.runQuery(internal.playback.songSource, args)
+  args: { songId: v.string(), skip: v.optional(v.string()) },
+  handler: async (ctx, { songId, skip }): Promise<{ url: string | null }> => {
+    const source = await ctx.runQuery(internal.playback.songSource, { songId })
     if (!source) {
       return { url: null }
     }
 
-    if (source.previewUrl) {
+    if (source.previewUrl && source.previewUrl !== skip) {
       return { url: source.previewUrl }
     }
 

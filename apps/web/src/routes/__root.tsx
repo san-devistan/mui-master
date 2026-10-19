@@ -1,7 +1,10 @@
 import { ThemeProvider } from "@/components/theme-provider"
+import { bootRecovery } from "@/lib/boot-recovery"
+import { registerServiceWorker } from "@/lib/service-worker"
 import type { QueryClient } from "@tanstack/react-query"
 import {
   HeadContent,
+  ScriptOnce,
   Scripts,
   createRootRouteWithContext,
 } from "@tanstack/react-router"
@@ -63,10 +66,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     document.addEventListener("touchstart", blockEdgeSwipe, { passive: false })
     return () => document.removeEventListener("touchstart", blockEdgeSwipe)
   }, [])
+  useEffect(registerServiceWorker, [])
 
   return (
     <html lang="en" className="game-backdrop-floor" suppressHydrationWarning>
       <head>
+        {/* First, so it hears the app's own scripts fail to load. */}
+        <ScriptOnce>{`(${bootRecovery.toString()})()`}</ScriptOnce>
         <HeadContent />
       </head>
       <body className="game-viewport overflow-hidden overscroll-none bg-lavender text-foreground antialiased">
