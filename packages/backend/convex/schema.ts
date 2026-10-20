@@ -197,7 +197,7 @@ export default defineSchema({
   }).index("by_playerId", ["playerId"]),
   // One row per collection card whose current rarity is above its seenRarity: the upgrades the
   // app still has to play (packs:upgrades), so that query reads these instead of the collection.
-  // Derived from collection and the cards' rarities, kept in step by upgrades.ts.
+  // Derived from collection and the cards' rarities, kept in step by packs.ts and upgrades.ts.
   pendingUpgrades: defineTable({
     playerId: v.string(),
     cardId: v.string(),

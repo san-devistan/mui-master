@@ -1,8 +1,18 @@
 import { toGameCard, type GameCard } from "@/game/_lib/cards"
+import { convexQuery } from "@convex-dev/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { api } from "@workspace/backend/api"
 import { usePaginatedQuery } from "convex/react"
 import type { FunctionArgs, FunctionReturnType } from "convex/server"
 import { useMemo, useState } from "react"
+
+// How many different cards the player owns; undefined until known. Read off the wallet the app
+// already watches (the same row), so it adds no subscription of its own.
+export const useCardCount = () =>
+  useQuery({
+    ...convexQuery(api.wallet.get, {}),
+    select: (wallet) => wallet.cards,
+  }).data
 
 // A card the player owns: its details, copies and first pull, all from the backend.
 export type CollectedSong = GameCard & { copies: number; pulledAt: number }

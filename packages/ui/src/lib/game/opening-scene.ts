@@ -15,6 +15,7 @@ import {
   trackPointer,
   type Film,
   type FilmArt,
+  warm,
 } from "@workspace/ui/lib/game/film-scene"
 import {
   CUT,
@@ -116,6 +117,8 @@ const SETTLE = [1.0, 1.6] as const
 // (PackGlow), and only then drops away: everything after the gape waits this
 // long, in seconds.
 const GLOW_HOLD = 0.75
+// Seconds PackGlow lasts (game.css game-glow-life).
+const GLOW_LIFE = 1
 export const glowHold = (songs: ReadonlyArray<GameSong>) =>
   songs.some((song) => song.rarity === "legendary") ? GLOW_HOLD : 0
 // Seconds from the cut until the cards are out and `onOpened` fires.
@@ -411,6 +414,7 @@ export function mountOpeningScene(
     mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>
     rest: { z: number; rz: number }
     chosen: number | null
+    ready: Promise<void>
   } | null> = []
   const cards: Array<Film> = songs.map((song) => {
     const card = addFilm(stage, cardFilm(song), { clip: [mouth] })
@@ -428,6 +432,7 @@ export function mountOpeningScene(
         mesh: sticker.mesh,
         rest: { z: sticker.mesh.position.z, rz: sticker.mesh.rotation.z },
         chosen: null,
+        ready: sticker.ready,
       })
     } else stickers.push(null)
     return card
@@ -457,6 +462,8 @@ export function mountOpeningScene(
     return shine
   }
   let shine = shineFor(songs[0]?.kind)
+  // Every card shape's sweep exists from the start, so it's warmed up too.
+  for (const song of songs) shineFor(song.kind)
   const poses = songs.map(() => pose({}))
   const sides = songs.map(() => -1)
   let party: { index: number; rarity: Celebrated; start: number } | null = null
@@ -466,6 +473,9 @@ export function mountOpeningScene(
   })
 
   let phase: OpeningPhase = resume?.phase ?? "idle"
+  // Only the waiting pack is calm: the cut, the opening and the reveal play at
+  // the pixel ratio they started at.
+  stage.whenCalm(() => phase === "idle")
   let elapsed = entrance && !resume ? 0 : Infinity
   const hold = glowHold(songs)
   let current = resume?.index ?? 0
@@ -545,7 +555,10 @@ export function mountOpeningScene(
         .applyEuler(turn)
         .add(new THREE.Vector3(packed.x, packed.y, packed.z))
     )
-    if (phase === "open") markMouth(packed, turn)
+    // Only while its light can show (it's gone after GLOW_LIFE): each write
+    // restyles the light's filtered beams and glints, a dropped frame a
+    // frame on Safari.
+    if (phase === "open" && hold && elapsed < GLOW_LIFE) markMouth(packed, turn)
     const freed =
       phase === "open"
         ? Math.max(0, Math.min(elapsed, HOLD + FLIGHT) - HOLD)
@@ -723,6 +736,24 @@ export function mountOpeningScene(
       onOpened()
     }
     pressStickers(time)
+  })
+
+  // The cards, their backs, stickers and sweeps only show once the pack is
+  // cut, but their first frame would compile their shaders and upload their
+  // art all at once: a dropped frame right on the cut. They're readied while
+  // the pack waits instead (or as soon as their art is drawn), a texture a
+  // frame, the shaders on the GPU's own threads where it has them.
+  const ready = [
+    ...cards.map((card) => card.ready),
+    ...[...backs.values()].map((back) => back.ready),
+    ...stickers.flatMap((sticker) => (sticker ? [sticker.ready] : [])),
+  ]
+  // A card whose art failed still lets the others be readied.
+  void Promise.allSettled(ready).then(() => {
+    if (stage.disposed) return undefined
+    const sweeps = [...shines.values()].map((each) => each.mesh)
+    warm(stage, [inside, ...cards.map((card) => card.subject), ...sweeps])
+    return undefined
   })
 
   return {

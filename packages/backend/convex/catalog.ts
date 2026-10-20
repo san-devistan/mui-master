@@ -18,6 +18,7 @@ import {
   rarityForStreams,
 } from "./songs/_lib/rarity"
 import type { CardRarity } from "./songs/_lib/validators"
+import { scheduleUpgrades } from "./upgrades"
 
 // Upserts songs and their artists by Spotify id, from scripts/import-songs.mjs.
 
@@ -163,19 +164,20 @@ export const refresh = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    const raised: Array<string> = []
     for (const { spotify, playcount } of args.songs) {
       const row = await ctx.db
         .query("songs")
         .withIndex("by_spotifyId", (q) => q.eq("ids.spotify", spotify))
         .unique()
       if (row) {
-        await ctx.db.patch("songs", row._id, {
-          playcount,
-          rarity: songRarity(playcount, row.rarity),
-        })
+        const rarity = songRarity(playcount, row.rarity)
+        await ctx.db.patch("songs", row._id, { playcount, rarity })
+        if (rarity !== row.rarity) raised.push(row._id)
         await syncCredits(ctx, { ...row, playcount })
       }
     }
+    await scheduleUpgrades(ctx, raised)
     for (const { spotify, monthlyListeners } of args.artists) {
       const row = await ctx.db
         .query("artists")
@@ -198,6 +200,7 @@ export const setArtistPlaycounts = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
+    const raised: Array<string> = []
     for (const { id, playcount, topSongId } of args.artists) {
       const row = await ctx.db.get("artists", id)
       if (!row) continue
@@ -209,7 +212,9 @@ export const setArtistPlaycounts = internalMutation({
       ) {
         await ctx.db.patch("artists", id, { playcount, rarity, topSongId })
       }
+      if (rarity !== row.rarity) raised.push(id)
     }
+    await scheduleUpgrades(ctx, raised)
   },
 })
 
@@ -367,13 +372,15 @@ async function upsertSong(
   releases.delete(spotify)
   // A refresh with no Deezer match keeps the Deezer id already found.
   const deezer = doc.ids.deezer ?? (sameRelease ? existing.ids.deezer : null)
+  const rarity = songRarity(doc.playcount, existing.rarity)
   await ctx.db.replace("songs", existing._id, {
     ...doc,
     ids: { ...doc.ids, deezer, duplicates: [...releases] },
-    rarity: songRarity(doc.playcount, existing.rarity),
+    rarity,
     drawKey: existing.drawKey,
   })
   await syncCredits(ctx, { ...doc, _id: existing._id })
+  if (rarity !== existing.rarity) await scheduleUpgrades(ctx, [existing._id])
 }
 
 // Saves what passes the rules and returns the Spotify ids of the songs it skipped. Credits keep

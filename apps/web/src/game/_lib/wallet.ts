@@ -2,16 +2,21 @@ import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@workspace/backend/api"
 import { ConvexError } from "convex/values"
-import { useEffect, useState } from "react"
+import { useLayoutEffect, useState } from "react"
 
 const HOUR = 3_600_000
 const pad = (n: number) => String(n).padStart(2, "0")
 
-// Now, ticking every `every` ms, for countdowns.
+// Now, ticking every `every` ms, for countdowns; fresh again whenever `every`
+// changes (a hidden page ticking slower, shown again).
 export function useNow(every = 1000) {
   const [now, setNow] = useState(Date.now)
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), every)
+  // A layout effect: a page shown again (ticking faster) counts from now in
+  // the very frame it shows, never from its last slow tick.
+  useLayoutEffect(() => {
+    const tick = () => setNow(Date.now())
+    tick()
+    const timer = setInterval(tick, every)
     return () => clearInterval(timer)
   }, [every])
   return now

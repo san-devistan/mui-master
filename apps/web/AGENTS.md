@@ -4,7 +4,10 @@ TanStack Start app (Router + Query). It owns routes, loaders, and screen
 composition; data and logic come from `@workspace/backend`.
 
 `/` is the server-rendered landing page (`src/landing/`), with its SEO metadata
-on `routes/index.tsx`; the game starts at `/play`, the Packs tab.
+on `routes/index.tsx`; the game starts at `/play`, the Packs tab. Scrolling the
+landing opens a pack of real catalog cards (`showcase-pack.ts`) one screen per
+step (`story.ts`, checked by `story.check.mjs`); three.js loads only once that
+section is near.
 
 ## UI
 

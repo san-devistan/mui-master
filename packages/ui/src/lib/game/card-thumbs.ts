@@ -3,6 +3,7 @@ import { cardFilm, type CardSlot } from "@workspace/ui/lib/game/card-scene"
 import {
   addFilm,
   createStage,
+  noteWork,
   paintFilm,
   type Disposable,
   type Film,
@@ -318,6 +319,7 @@ export function cardThumbSlot(canvas: HTMLCanvasElement): CardSlot | null {
 function draw(stamp: number) {
   frame = 0
   if (!stage) return
+  const began = performance.now()
   const { renderer, scene, camera, time, still } = stage
   // Idle drift is slow enough for 30fps; scrolling gets every frame.
   tick += 1
@@ -379,6 +381,7 @@ function draw(stamp: number) {
   }
   if (running && !still) schedule()
   else last = 0
+  noteWork(began, performance.now())
 }
 
 // Draws a live card into `canvas` until the returned cleanup runs.

@@ -103,7 +103,9 @@ export function MarketPage({ shown }: { shown: boolean }) {
   const [search, setSearch] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const scrollToTop = () => scrollRef.current?.scrollTo({ top: 0 })
-  const now = useNow()
+  // Live countdowns while on show; hidden, the market only needs to drop
+  // auctions that ended, so it doesn't re-render every second behind a pack.
+  const now = useNow(shown ? 1000 : 60_000)
   const { auctions, done, more } = useAuctions(
     { scope, ...rarityArg(filter) },
     search,

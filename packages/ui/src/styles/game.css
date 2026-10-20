@@ -1640,7 +1640,6 @@ button[data-slot="pack-meter"] {
    tints violet and drifts cyan; legendary tints indigo through the spin, then
    warms gold as the card lands. Edge-weighted tints keep the stage readable. */
 .game-reveal-wash {
-  --reveal-star-glow: #aed2ff;
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -1742,18 +1741,10 @@ button[data-slot="pack-meter"] {
     0 50%,
     39% 39%
   );
-  filter: drop-shadow(0 0 6px #fff)
-    drop-shadow(0 0 16px var(--reveal-star-glow));
+  /* No glow filter: the clip-path would cut it off anyway (it clips after
+     filters), and WebKit re-rasterizes it every frame of the twinkle. */
   opacity: 0;
   animation: game-reveal-twinkle 1.4s var(--star-delay) ease-in-out infinite;
-}
-
-.game-reveal-wash[data-rarity="epic"] {
-  --reveal-star-glow: #e05cf0;
-}
-
-.game-reveal-wash[data-rarity="legendary"] {
-  --reveal-star-glow: #ffb21e;
 }
 
 /* Rests at its start, slides until its end shows (by --marquee-shift), rests

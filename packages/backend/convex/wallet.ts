@@ -122,9 +122,10 @@ export const skipFreePack = mutation({
   },
 })
 
-// The signed-in player's coins, free packs and Pro, and the prices. A query doesn't re-run as
-// time passes, so the client counts the free packs from `freePacksSince` (see economy.ts
-// freePacks), at Pro's pace while `proUntil` is ahead.
+// The signed-in player's coins, free packs and Pro, how many different cards they own, and the
+// prices. A query doesn't re-run as time passes, so the client counts the free packs from
+// `freePacksSince` (see economy.ts freePacks), at Pro's pace while `proUntil` is ahead. `cards` is
+// collection:count's, read from the same row, so the app watches the row once.
 export const get = query({
   args: {},
   handler: async (ctx) => {
@@ -137,6 +138,7 @@ export const get = query({
       freePacksSince: row?.freePacksSince ?? 0,
       boughtPacks: row?.boughtPacks ?? 0,
       proUntil: row?.proUntil ?? null,
+      cards: row?.cards ?? 0,
       freePackHours: regular.hours,
       maxFreePacks: regular.max,
       proFreePackHours: proPlan.hours,

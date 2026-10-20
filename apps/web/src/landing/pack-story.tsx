@@ -4,7 +4,7 @@ import {
   SHOWCASE_COVERS,
   type ShowcaseCard,
 } from "@/landing/showcase-pack"
-import type { Story } from "@/landing/story"
+import { storyAt, type Story } from "@/landing/story"
 import { RarityBadge } from "@workspace/ui/components/rarity-badge"
 import {
   ChevronsDownIcon,
@@ -22,7 +22,11 @@ import {
 } from "react"
 
 // three.js only loads once the story is near: the page above paints first.
-const ScrollPack = lazy(() => import("@/landing/scroll-pack"))
+const ScrollPack = lazy(() =>
+  import("@workspace/ui/components/scroll-pack").then((module) => ({
+    default: module.ScrollPack,
+  }))
+)
 
 const compact = new Intl.NumberFormat("en", {
   notation: "compact",
@@ -35,28 +39,30 @@ const compact = new Intl.NumberFormat("en", {
 export function PackStory() {
   const storyRef = useRef<HTMLDivElement>(null)
   const near = useNear(storyRef)
-  const [story, setStory] = useState<Story | null>(null)
+  const story = useStory(storyRef)
   const [sound, setSound] = useState(false)
-  const card = story?.phase === "open" ? SHOWCASE[story.index] : undefined
-  const preview = usePreview(sound ? card : undefined)
+  const onShow = story.phase === "open" ? SHOWCASE[story.index] : undefined
+  const preview = usePreview(sound ? onShow : undefined)
 
   return (
     <section aria-labelledby="pack-story-title" className="relative">
       <h2 id="pack-story-title" className="sr-only">
         Open a pack
       </h2>
-      <div ref={storyRef} className="relative">
-        <div className="h-dvh top-0 pointer-events-none sticky">
+      {/* Stage and chapters share one grid cell: the chapters set its height,
+          and the stage sticks to the screen while they scroll past. */}
+      <div ref={storyRef} className="grid *:col-start-1 *:row-start-1">
+        <div className="top-0 pointer-events-none sticky h-dvh">
           <div className="max-w-6xl md:px-8 lg:grid-cols-2 mx-auto grid h-full">
-            <div className="lg:col-start-2 pointer-events-auto relative h-full">
+            {/* Phones: the stage takes the screen above the caption. */}
+            <div className="lg:col-start-2 lg:h-full pointer-events-auto relative h-3/5">
               {near ? (
                 <Suspense fallback={null}>
                   <ScrollPack
                     cards={SHOWCASE}
                     covers={SHOWCASE_COVERS}
-                    chapters={storyRef}
+                    step={story}
                     sound={sound}
-                    onStory={setStory}
                   />
                 </Suspense>
               ) : null}
@@ -68,7 +74,7 @@ export function PackStory() {
             </div>
           </div>
         </div>
-        <ol className="relative -mt-[100dvh]">
+        <ol className="pointer-events-none relative">
           <Chapter step="Your pack" title="A free pack, every 8 hours">
             Scroll to open it. It holds five real cards from the biggest songs
             and artists on Spotify. Three can wait for you, so none are lost
@@ -86,12 +92,12 @@ export function PackStory() {
               Cutting…
             </Hint>
           </Chapter>
-          {SHOWCASE.map((card, index) => (
+          {SHOWCASE.map((pulled, index) => (
             <CardChapter
-              key={card.id}
-              card={card}
+              key={pulled.id}
+              card={pulled}
               index={index}
-              active={story?.phase === "open" && story.index === index}
+              active={story.phase === "open" && story.index === index}
             />
           ))}
           <Chapter step="Your turn" title="That pack could be yours">
@@ -117,15 +123,17 @@ function Chapter({
   children: ReactNode
 }) {
   return (
-    <li className="h-dvh max-w-6xl px-4 sm:px-6 md:px-8 lg:grid-cols-2 pointer-events-none mx-auto grid items-end lg:items-center">
-      <div className="max-w-md p-6 mb-8 lg:mb-0 pointer-events-auto rounded-3xl bg-card/85 shadow-xl backdrop-blur-md">
+    <li className="max-w-6xl px-4 sm:px-6 md:px-8 lg:grid-cols-2 lg:items-center pointer-events-none mx-auto grid h-dvh items-end">
+      <div className="max-w-md p-5 mb-6 lg:p-6 lg:mb-0 shadow-xl backdrop-blur-md pointer-events-auto rounded-3xl bg-card/85">
         <p className="text-sm font-bold tracking-wide text-ink/60 uppercase">
           {step}
         </p>
-        <h3 className="mt-2 text-3xl font-black md:text-4xl tracking-tighter font-heading text-balance">
+        <h3 className="mt-1 text-2xl font-black md:text-4xl lg:mt-2 tracking-tighter font-heading text-balance">
           {title}
         </h3>
-        <div className="mt-3 text-pretty text-ink/75">{children}</div>
+        <div className="mt-2 text-sm lg:mt-3 lg:text-base text-pretty text-ink/75">
+          {children}
+        </div>
       </div>
     </li>
   )
@@ -174,17 +182,56 @@ function SoundToggle({
   onChange: (on: boolean) => void
 }) {
   const Icon = on ? Volume2Icon : VolumeXIcon
+  let label = "Hear the cards"
+  if (on) label = playing ? "Playing the pull" : "Sound on"
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={() => onChange(!on)}
-      className="right-4 top-4 lg:top-8 px-4 py-2 gap-2 text-sm font-bold absolute z-30 flex items-center rounded-full border-2 border-ink bg-card shadow-lg game-safe-top"
+      className="right-4 top-4 lg:top-8 px-4 py-2 gap-2 text-sm font-bold shadow-lg absolute z-30 flex items-center rounded-full border-2 border-ink bg-card game-safe-top"
     >
       <Icon aria-hidden="true" className="size-4" />
-      {on ? (playing ? "Playing the pull" : "Sound on") : "Hear the cards"}
+      {label}
     </button>
   )
+}
+
+// The story at the page's scroll: chapters scrolled past the top of `ref`,
+// in screens.
+function useStory(ref: { current: HTMLElement | null }) {
+  const [story, setStory] = useState<Story>(() => storyAt(0, SHOWCASE.length))
+  useEffect(() => {
+    const element = ref.current
+    const scroller = element?.closest("[data-slot=landing-scroll]")
+    if (!element || !scroller) return undefined
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const chapter =
+        -element.getBoundingClientRect().top / scroller.clientHeight
+      const next = storyAt(chapter, SHOWCASE.length)
+      setStory((was) =>
+        was.phase === next.phase &&
+        was.cut === next.cut &&
+        was.index === next.index
+          ? was
+          : next
+      )
+    }
+    const schedule = () => {
+      frame ||= requestAnimationFrame(update)
+    }
+    update()
+    scroller.addEventListener("scroll", schedule, { passive: true })
+    addEventListener("resize", schedule)
+    return () => {
+      cancelAnimationFrame(frame)
+      scroller.removeEventListener("scroll", schedule)
+      removeEventListener("resize", schedule)
+    }
+  }, [ref])
+  return story
 }
 
 // True once `ref` is within a screen of the view, and from then on.
@@ -216,18 +263,25 @@ function usePreview(card: ShowcaseCard | undefined) {
     audio.loop = true
     audio.volume = 0
     let fade = 0
+    // A newer card (or sound off) took over: don't touch state for this one.
+    let stopped = false
     const step = () => {
       audio.volume = Math.min(audio.volume + 0.04, 0.7)
       if (audio.volume < 0.7) fade = requestAnimationFrame(step)
     }
-    audio
-      .play()
-      .then(() => {
+    async function start() {
+      try {
+        await audio.play()
+        if (stopped) return
         setPlaying(true)
         fade = requestAnimationFrame(step)
-      })
-      .catch(() => setPlaying(false))
+      } catch {
+        if (!stopped) setPlaying(false)
+      }
+    }
+    void start()
     return () => {
+      stopped = true
       cancelAnimationFrame(fade)
       audio.pause()
       setPlaying(false)

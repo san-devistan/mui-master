@@ -10,6 +10,19 @@ const FIRST_DROP = 0.35
 const DROP_STAGGER = 0.45
 const DROP = 0.6
 
+// Only grid cards on screen slide in the view transition: each named card
+// adds pseudo-elements the browser restyles every frame of it, and a long
+// collection's off-screen ones (over a hundred) cost dropped frames while
+// their slide can't be seen. The card dropping in (still hidden) keeps its
+// name.
+function nameOnScreenCards() {
+  for (const card of document.querySelectorAll<HTMLElement>(".game-slides")) {
+    const { top, bottom, height } = card.getBoundingClientRect()
+    const away = height > 0 && (bottom < 0 || top > innerHeight)
+    card.style.viewTransitionName = away ? "none" : ""
+  }
+}
+
 // New cards just pulled from a pack (the `added` search param), newest first:
 // shown first, under all rarities and the recent order, and badged NEW. They
 // aren't in the grid on arrival; they're added one by one, first pulled first,
@@ -45,6 +58,7 @@ export function useArrivals(onArrival: () => void) {
         if (!document.startViewTransition) {
           return setLanded((count) => count + 1)
         }
+        nameOnScreenCards()
         document.startViewTransition(() =>
           flushSync(() => setLanded((count) => count + 1))
         )

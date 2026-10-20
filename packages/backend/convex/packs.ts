@@ -128,7 +128,7 @@ const drawArtist = async (ctx: QueryCtx, rarity: CardRarity) => {
 }
 
 // A card's own row by id, song or artist (without its artists or top song); null when it's gone.
-const cardDoc = async (ctx: QueryCtx, id: string) => {
+export const cardDoc = async (ctx: QueryCtx, id: string) => {
   const songId = ctx.db.normalizeId("songs", id)
   const song = songId ? await ctx.db.get("songs", songId) : null
   if (song) return song
@@ -158,6 +158,34 @@ const pendingPack = (ctx: QueryCtx, player: string) =>
     .query("pendingPacks")
     .withIndex("by_playerId", (q) => q.eq("playerId", player))
     .unique()
+
+// Whether a collection card has an upgrade to play: its card is rarer now than when last seen
+// (unset counts as seen).
+export const isUpgraded = (
+  seenRarity: CardRarity | undefined,
+  rarity: CardRarity
+) =>
+  seenRarity !== undefined &&
+  rarityOrder.indexOf(rarity) < rarityOrder.indexOf(seenRarity)
+
+// Keeps the player's pendingUpgrades row for the card in step: there when `pending`, else gone.
+export const setPending = async (
+  ctx: MutationCtx,
+  player: string,
+  cardId: string,
+  pending: boolean
+) => {
+  const row = await ctx.db
+    .query("pendingUpgrades")
+    .withIndex("by_playerId_and_cardId", (q) =>
+      q.eq("playerId", player).eq("cardId", cardId)
+    )
+    .unique()
+  if (pending && !row) {
+    await ctx.db.insert("pendingUpgrades", { playerId: player, cardId })
+  }
+  if (!pending && row) await ctx.db.delete("pendingUpgrades", row._id)
+}
 
 // What a collection row is filtered and sorted by, from its card seen at `rarity` (see schema.ts).
 export const sortKeys = (card: Card, rarity = card.rarity) => ({
@@ -193,6 +221,8 @@ export const addCopy = async (
   pulledAt = Date.now()
 ) => {
   const seen = { seenRarity: card.rarity, ...sortKeys(card) }
+  // Seen at its current rarity: no upgrade left to play.
+  await setPending(ctx, player, card.id, false)
   const owned = await ownedCard(ctx, player, card.id)
   if (owned) {
     await ctx.db.patch("collection", owned._id, {
@@ -228,6 +258,7 @@ export const takeCopy = async (
     })
   } else {
     await ctx.db.delete("collection", owned._id)
+    await setPending(ctx, player, cardId, false)
     await countCards(ctx, player, -1)
   }
 }
@@ -312,46 +343,53 @@ export const claim = mutation({
   },
 })
 
+const byRarityThenStreams = (
+  a: { rarity: CardRarity; streams: number },
+  b: { rarity: CardRarity; streams: number }
+) =>
+  rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity) ||
+  b.streams - a.streams
+
+// The player's cards whose rarity went up since they last saw them, rarest first, each with the
+// rarity it was at, from their pendingUpgrades rows.
+// shortcut: the first 200 pending (by card id) only; the rest show once those are seen. Page it if
+// a refresh ever upgrades more than 200 of one player's cards.
+const pendingUpgradesOf = async (ctx: QueryCtx, player: string) => {
+  const pending = await ctx.db
+    .query("pendingUpgrades")
+    .withIndex("by_playerId_and_cardId", (q) => q.eq("playerId", player))
+    .take(200)
+  const found = (
+    await Promise.all(
+      pending.map(async ({ cardId }) => {
+        const owned = await ownedCard(ctx, player, cardId)
+        const doc = owned ? await cardDoc(ctx, cardId) : null
+        // A row gone stale (sold, or seen since) shows nothing.
+        return owned?.seenRarity &&
+          doc &&
+          isUpgraded(owned.seenRarity, doc.rarity)
+          ? [
+              {
+                ...(await toCard(ctx, doc)),
+                copies: owned.copies,
+                pulledAt: owned.pulledAt,
+                from: owned.seenRarity,
+              },
+            ]
+          : []
+      })
+    )
+  ).flat()
+  return found.toSorted(byRarityThenStreams)
+}
+
 // The signed-in player's cards whose rarity went up since they last saw them, rarest first, each
 // with the rarity it was at; empty for a visitor.
-// shortcut: reads the whole collection, one card read per row (and re-runs on every pull); fails
-// past ~4,000 non-legendary cards (Convex's 4,096 reads a call), so keep a list of pending upgrades
-// per player before collections get near that.
 export const upgrades = query({
   args: {},
   handler: async (ctx) => {
     const player = await playerId(ctx)
-    if (!player) return []
-    const rows = await ctx.db
-      .query("collection")
-      .withIndex("by_playerId_and_pulledAt", (q) => q.eq("playerId", player))
-      .take(5000)
-    const found = (
-      await Promise.all(
-        rows.map(async ({ cardId, copies, pulledAt, seenRarity }) => {
-          if (!seenRarity || seenRarity === "legendary") return []
-          // The card's own row has its rarity; the rest of the card (artists, top song) is read
-          // only for the few that went up.
-          const doc = await cardDoc(ctx, cardId)
-          return doc &&
-            rarityOrder.indexOf(doc.rarity) < rarityOrder.indexOf(seenRarity)
-            ? [
-                {
-                  ...(await toCard(ctx, doc)),
-                  copies,
-                  pulledAt,
-                  from: seenRarity,
-                },
-              ]
-            : []
-        })
-      )
-    ).flat()
-    return found.toSorted(
-      (a, b) =>
-        rarityOrder.indexOf(a.rarity) - rarityOrder.indexOf(b.rarity) ||
-        b.streams - a.streams
-    )
+    return player ? await pendingUpgradesOf(ctx, player) : []
   },
 })
 
@@ -369,6 +407,7 @@ export const seeUpgrade = mutation({
         ...sortKeys(card),
       })
     }
+    await setPending(ctx, player, cardId, false)
   },
 })
 

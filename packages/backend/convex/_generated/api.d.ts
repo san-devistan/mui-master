@@ -24,6 +24,7 @@ import type * as songs__lib_deezer from "../songs/_lib/deezer.js";
 import type * as songs__lib_economy from "../songs/_lib/economy.js";
 import type * as songs__lib_rarity from "../songs/_lib/rarity.js";
 import type * as songs__lib_validators from "../songs/_lib/validators.js";
+import type * as upgrades from "../upgrades.js";
 import type * as wallet from "../wallet.js";
 
 import type {
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   "songs/_lib/economy": typeof songs__lib_economy;
   "songs/_lib/rarity": typeof songs__lib_rarity;
   "songs/_lib/validators": typeof songs__lib_validators;
+  upgrades: typeof upgrades;
   wallet: typeof wallet;
 }>;
 

@@ -39,8 +39,10 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
   const nextPack = useMutation(api.packs.next)
   const claimPack = useMutation(api.packs.claim)
   const { data: catalog } = useQuery(convexQuery(api.packs.catalog, {}))
-  // Every second, so a pack coming in unlocks right as the countdown ends.
-  const wallet = useWallet(1000)
+  // Every second, so a pack coming in unlocks right as the countdown ends;
+  // not once it's being opened (it's no longer locked), so the whole page
+  // doesn't re-render each second under the reveal.
+  const wallet = useWallet(open ? 60_000 : 1000)
   const [error, setError] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
   const [shopping, setShopping] = useState(false)

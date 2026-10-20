@@ -1,5 +1,8 @@
 import { HoloShop } from "@/game/_components/holo-shop"
-import { holos, useWallet } from "@/game/_lib/wallet"
+import { holos, useNow } from "@/game/_lib/wallet"
+import { convexQuery } from "@convex-dev/react-query"
+import { useQuery } from "@tanstack/react-query"
+import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { GamePill } from "@workspace/ui/components/game-shell"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
@@ -7,10 +10,22 @@ import { Marquee } from "@workspace/ui/components/marquee"
 import { CrownIcon } from "lucide-react"
 import { useState } from "react"
 
+// The player's holos and whether they're Pro: only these, so a pack opened
+// (its free packs recounted) doesn't re-render every tab's header. Pro is
+// rechecked as useWallet does, every 30 s.
+function useHeaderWallet() {
+  const { data } = useQuery({
+    ...convexQuery(api.wallet.get, {}),
+    select: ({ coins, proUntil }) => ({ coins, proUntil: proUntil ?? 0 }),
+  })
+  const pro = useNow(30_000) < (data?.proUntil ?? 0)
+  return data ? { coins: data.coins, pro } : null
+}
+
 // Every tab's title, sliding when too long for its line, with going Pro and the player's holos
 // always in the top-right corner. Both open the shop.
 export function PageHeader({ title }: { title: string }) {
-  const wallet = useWallet()
+  const wallet = useHeaderWallet()
   const [shopping, setShopping] = useState(false)
   const coins = wallet?.coins ?? 0
   return (

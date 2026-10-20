@@ -306,6 +306,30 @@ const playerAuctions = async (
     .toSorted((one, other) => one.endsAt - other.endsAt)
 }
 
+// The signed-in player's part in the shared live list (auctions `shared`): the open auctions they
+// sell, left out of it, and those they lead. Empty for a visitor.
+// shortcut: the first 500 they lead; past that some show as not led. Count them if anyone leads more.
+export const standing = query({
+  args: {},
+  handler: async (ctx) => {
+    const player = await playerId(ctx)
+    if (!player) return { mine: [], leading: [] }
+    const [mine, leading] = await Promise.all([
+      playerAuctions(ctx, player, "mine"),
+      ctx.db
+        .query("auctions")
+        .withIndex("by_topBidderId_and_status_and_endsAt", (q) =>
+          q.eq("topBidderId", player).eq("status", "open")
+        )
+        .take(500),
+    ])
+    return {
+      mine: mine.map((row) => row._id),
+      leading: leading.map((row) => row._id),
+    }
+  },
+})
+
 // Everyone's open auctions of one rarity or all: matching `search`, best first, or ending soonest
 // first without.
 const openAuctions = (
@@ -364,6 +388,9 @@ const wonAuctions = (
 // ending soonest first), the player's own open ones ("mine") or those they've bid on ("bids"),
 // both ending soonest first, or those they won ("won", latest first). With `text`, those whose
 // card's title or artists match it, best match first for "live" and "won".
+// `shared` (live only): the same list for every player, without reading who asks, so one run serves
+// everyone watching it when a bid or a new auction changes it; the player's own are then in it,
+// `isMine`/`isLeading` false, and the app sets them from `standing`.
 export const auctions = query({
   args: {
     paginationOpts: paginationOptsValidator,
@@ -377,10 +404,20 @@ export const auctions = query({
     ),
     rarity: v.optional(cardRarity),
     text: v.optional(v.string()),
+    shared: v.optional(v.boolean()),
   },
-  handler: async (ctx, { paginationOpts, scope = "live", rarity, text }) => {
-    const player = await playerId(ctx)
+  handler: async (
+    ctx,
+    { paginationOpts, scope = "live", rarity, text, shared = false }
+  ) => {
     const search = text?.trim()
+    if (scope === "live" && shared) {
+      const rows = await openAuctions(ctx, rarity, search).paginate(
+        paginationOpts
+      )
+      return { ...rows, page: await views(ctx, rows.page, null) }
+    }
+    const player = await playerId(ctx)
     if (scope === "mine" || scope === "bids") {
       // A few dozen at most: filtered here, all on one page.
       const rows = player ? await playerAuctions(ctx, player, scope) : []

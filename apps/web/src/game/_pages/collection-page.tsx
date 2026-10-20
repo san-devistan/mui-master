@@ -8,17 +8,18 @@ import { CollectionCount } from "@/game/_components/collection-count"
 import { CollectionCard, MoreCards } from "@/game/_components/collection-grid"
 import { PageHeader } from "@/game/_components/page-header"
 import { useArrivals } from "@/game/_hooks/use-arrivals"
-import { useCollection, type CollectedSong } from "@/game/_lib/collection"
+import {
+  useCardCount,
+  useCollection,
+  type CollectedSong,
+} from "@/game/_lib/collection"
 import {
   RARITY_FILTERS,
   rarityArg,
   type RarityFilter,
 } from "@/game/_lib/rarity-filter"
 import { useSavedChoice } from "@/game/_lib/saved-choice"
-import { convexQuery } from "@convex-dev/react-query"
-import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { GameMain, GameScroll } from "@workspace/ui/components/game-shell"
 import {
@@ -262,7 +263,7 @@ export function CollectionPage({ shown }: { shown: boolean }) {
 
 // Shown once the backend counts no cards at all.
 function EmptyCollection() {
-  const { data: count } = useQuery(convexQuery(api.collection.count, {}))
+  const count = useCardCount()
   if (count !== 0) return null
   return (
     <div className="gap-4 pt-16 flex flex-col items-center text-center">

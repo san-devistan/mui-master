@@ -114,7 +114,13 @@ function SongRelated({
         onOpen={onOpen}
       />
       {artists.map((id) => (
-        <ArtistSongsBy key={id} artistId={id} skip={song.id} onOpen={onOpen} />
+        <ArtistSongsBy
+          key={id}
+          artistId={id}
+          row={artists.slice(0, ROW)}
+          skip={song.id}
+          onOpen={onOpen}
+        />
       ))}
     </>
   )
@@ -124,16 +130,22 @@ function SongRelated({
 // player owns: it's out on show).
 function ArtistSongsBy({
   artistId: id,
+  row,
   skip,
   onOpen,
 }: {
   artistId: Id<"artists">
+  row: ReadonlyArray<Id<"artists">>
   skip: string
   onOpen: OnOpen
 }) {
-  const { data: artist } = useQuery(
-    convexQuery(api.related.artists, { ids: [id] })
+  // Its card comes from the Artists row's first query, so the title adds no
+  // query of its own; past a row of artists, it asks for its own.
+  const inRow = row.includes(id)
+  const { data: artists } = useQuery(
+    convexQuery(api.related.artists, { ids: inRow ? [...row] : [id] })
   )
+  const artist = artists?.filter((card) => card.id === id)
   // Only the song counts are shown here, not who the artist works with.
   const { data: circle } = useQuery(
     convexQuery(api.related.artistCircle, { artistId: id, songsOnly: true })

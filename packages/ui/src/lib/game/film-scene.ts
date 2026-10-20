@@ -59,6 +59,12 @@ export type Stage = {
   disposables: Array<Disposable>
   // Per-frame update; delta is in seconds, capped so tab switches don't jump.
   onFrame: (update: (time: number, delta: number) => void) => void
+  // Caps the pixel ratio it draws at, at most; lower on a slow device.
+  capRatio: (most: number) => void
+  // While `check` is false (an animation playing out), frame times aren't
+  // judged and the pixel ratio holds: resizing the canvas mid-way is a dropped
+  // frame of its own. Always calm unless set.
+  whenCalm: (check: () => boolean) => void
   disposed: boolean
   dispose: () => void
 }
@@ -79,22 +85,27 @@ let noWebGL = false
 // Below 24 frames per second (median, so a hitch doesn't count, and a 30fps
 // display cap isn't slow), the stage tries a lower pixel ratio, one that should
 // make 30, down to 1 CSS px per px, or half that if under 8: sharpness gives,
-// the motion doesn't. A try that isn't GAIN faster is undone, and the page
-// stops trying: the pixels weren't what held it back. Frames only count once
-// the stage has run WARMUP seconds since it started or came back, in windows
-// not taken up by the page's other work (start-up, a new chunk, React). Later
-// stages start where a try paid off.
+// the motion doesn't. A try that isn't GAIN faster is undone, and not tried
+// again until the scene changes (its draw calls): the pixels weren't what held
+// it back. Nor is it tried while its own script takes most of a frame. Over 50
+// frames per second below its full ratio, it tries a step back up, kept unless
+// it slows under 24 again. Frames only count once the stage has run WARMUP
+// seconds since it started or came back, in windows not taken up by the
+// page's other work (start-up, a new chunk, React). Later stages start at the
+// ratio the last one kept.
 const SLOW_FRAME = 1 / 24
 const STUCK_FRAME = 1 / 8
 const TARGET_FRAME = 1 / 30
+const FAST_FRAME = 1 / 50
 const GAIN = 0.85
 const WARMUP = 3
 // Share of a window the page's other long tasks may take before it's set aside.
 const BUSY = 0.25
+// Share of a frame the stage's own script may take for pixels to be the limit.
+const OWN = 0.5
 // Judged over this many frames, or fewer if they take this many seconds.
 const MEASURE = { frames: 12, seconds: 3, least: 3 }
 let ratioCap = Infinity
-let scaling = true
 
 // When stage frames ran, and the long tasks that held none of them, recent.
 const frameTimes: Array<number> = []
@@ -115,15 +126,122 @@ function watchLongTasks() {
   longTasks.observe({ type: "longtask" })
 }
 
+// Notes a stage frame at `now`, forgetting those over 5 s old.
+function noteFrame(now: number) {
+  frameTimes.push(now)
+  while ((frameTimes[0] ?? now) < now - 5000) frameTimes.shift()
+}
+
 // Milliseconds of other long tasks since `since`; forgets older ones.
 function busySince(since: number) {
-  const cut = since - 5000
-  while ((frameTimes[0] ?? since) < cut) frameTimes.shift()
-  foreign = foreign.filter((task) => task.end > cut)
+  foreign = foreign.filter((task) => task.end > since - 5000)
   return foreign.reduce(
     (sum, task) => sum + Math.max(0, task.end - Math.max(task.start, since)),
     0
   )
+}
+
+// Work outside a stage's own loop that shares its frames (the thumbs' loop
+// drawing cards): a window it takes up isn't judged, as for a long task.
+export function noteWork(start: number, end: number) {
+  if (end - start > 4) foreign.push({ start, end })
+}
+
+const median = (values: Array<number>) =>
+  // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 lib, a copy
+  [...values].sort((a, b) => a - b)[values.length >> 1] ?? 0
+
+// The pixel ratio `renderer` draws `canvas` at, fitted to how fast the device
+// draws it (see SLOW_FRAME): `frame` takes each drawn frame's length (s), the
+// stage's own script time in it (ms) and whether the scene is calm; `settle`
+// restarts the warmup, as after a pause or an animation.
+function scaleTo(renderer: THREE.WebGLRenderer, canvas: HTMLCanvasElement) {
+  let full = Math.min(devicePixelRatio * 1.5, 3)
+  // Frame lengths and own script times in the window being measured.
+  let frames: Array<number> = []
+  let own: Array<number> = []
+  let since = performance.now()
+  // The try in progress, with the ratio and pace before it; the draw calls of
+  // a scene a try down didn't help; whether a try up slowed it.
+  let trying: { ratio: number; pace: number; up: boolean } | null = null
+  let stuck: number | null = null
+  let topped = false
+  watchLongTasks()
+  const setRatio = (next: number) => {
+    renderer.setPixelRatio(next)
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
+  }
+  const settle = () => {
+    since = performance.now()
+    frames = []
+    own = []
+  }
+  // Keeps or undoes a try, or tries another ratio.
+  const judge = (pace: number, script: number) => {
+    const ratio = renderer.getPixelRatio()
+    const calls = renderer.info.render.calls
+    if (trying) {
+      const tried = trying
+      trying = null
+      const worked = tried.up ? pace <= SLOW_FRAME : pace <= tried.pace * GAIN
+      if (worked) {
+        ratioCap = ratio
+        return
+      }
+      setRatio(tried.ratio)
+      if (tried.up) topped = true
+      else stuck = calls
+      return
+    }
+    if (pace <= FAST_FRAME && ratio < full && !topped) {
+      trying = { ratio, pace, up: true }
+      setRatio(Math.min(full, ratio * Math.SQRT2))
+      return
+    }
+    if (pace <= SLOW_FRAME || script > pace * OWN) return
+    if (stuck !== null && Math.abs(calls - stuck) <= stuck * 0.25) return
+    const floor = pace > STUCK_FRAME ? 0.5 : 1
+    if (ratio <= floor) return
+    stuck = null
+    trying = { ratio, pace, up: false }
+    // Fill cost goes with the pixel count, the square of the ratio.
+    setRatio(Math.max(floor, ratio * Math.sqrt(TARGET_FRAME / pace)))
+  }
+  return {
+    settle,
+    cap(most: number) {
+      full = Math.min(full, most)
+      if (renderer.getPixelRatio() > full) setRatio(full)
+    },
+    frame(length: number, script: number, calm: boolean) {
+      const now = performance.now()
+      noteFrame(now)
+      // Mid-animation: nothing judged, nothing changed, and it settles in
+      // again after (it may have built, uploaded or compiled meanwhile).
+      if (!calm) {
+        settle()
+        return
+      }
+      if (now - since < WARMUP * 1000) {
+        frames = []
+        own = []
+        return
+      }
+      frames.push(length)
+      own.push(script / 1000)
+      const spent = frames.reduce((sum, each) => sum + each, 0)
+      if (frames.length < MEASURE.frames) {
+        if (spent < MEASURE.seconds || frames.length < MEASURE.least) return
+      }
+      const pace = median(frames)
+      const ownPace = median(own)
+      frames = []
+      own = []
+      // The rest of the page was busy: this window says nothing about us.
+      if (busySince(now - spent * 1000) > spent * 1000 * BUSY) return
+      judge(pace, ownPace)
+    },
+  }
 }
 
 // A context the browser doesn't give back within this many seconds (of the
@@ -156,6 +274,8 @@ function sharedLut(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
   })
   return lut instanceof THREE.Texture ? lut : null
 }
+
+const always = () => true
 
 // `shown`: when given, frames are skipped while it's false. Null when WebGL
 // isn't there: show still art instead.
@@ -241,38 +361,11 @@ export function createStage(
     },
   ]
   const clock = new THREE.Timer()
-  // Frame times while shown, to see whether the device keeps up; the try in
-  // progress, with the ratio and pace before it.
-  let frames: Array<number> = []
-  let since = performance.now()
-  let trying: { ratio: number; pace: number } | null = null
-  watchLongTasks()
-  const setRatio = (next: number) => {
-    renderer.setPixelRatio(next)
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false)
-  }
-  // Judges a window of frames: tries a lower ratio, or keeps or undoes a try.
-  const judge = (pace: number) => {
-    if (trying) {
-      const tried = trying
-      trying = null
-      if (pace <= tried.pace * GAIN) {
-        ratioCap = renderer.getPixelRatio()
-      } else {
-        scaling = false
-        setRatio(tried.ratio)
-        return
-      }
-    }
-    if (!scaling || pace <= SLOW_FRAME) return
-    const ratio = renderer.getPixelRatio()
-    const floor = pace > STUCK_FRAME ? 0.5 : 1
-    if (ratio <= floor) return
-    // Fill cost goes with the pixel count, the square of the ratio.
-    trying = { ratio, pace }
-    setRatio(Math.max(floor, ratio * Math.sqrt(TARGET_FRAME / pace)))
-  }
+  const scaler = scaleTo(renderer, canvas)
+  // Calm unless its scene says otherwise (whenCalm).
+  let calm = always
   const loop = (stamp: DOMHighResTimeStamp) => {
+    const start = performance.now()
     clock.update(stamp)
     if (!shown()) return
     const frame = clock.getDelta()
@@ -280,37 +373,26 @@ export function createStage(
     if (!still) time.value += delta
     for (const update of updates) update(time.value, delta)
     renderer.render(scene, camera)
-    const now = performance.now()
-    frameTimes.push(now)
-    // Settling in after a start or a pause: building, uploading, compiling.
-    if (!scaling || now - since < WARMUP * 1000 || document.hidden) {
-      frames = []
-      return
-    }
-    frames.push(frame)
-    const spent = frames.reduce((sum, each) => sum + each, 0)
-    if (frames.length < MEASURE.frames) {
-      if (spent < MEASURE.seconds || frames.length < MEASURE.least) return
-    }
-    // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 lib, a copy
-    const pace = [...frames].sort((a, b) => a - b)[frames.length >> 1] ?? 0
-    frames = []
-    // The rest of the page was busy: this window says nothing about us.
-    if (busySince(now - spent * 1000) > spent * 1000 * BUSY) return
-    judge(pace)
+    scaler.frame(frame, performance.now() - start, calm())
   }
   // Draws only while the canvas is on screen: a hidden tab, a closed dialog or
   // a scrolled-away canvas costs no frames, and picks up on its next frame.
-  let onScreen = true
   const visibility = new IntersectionObserver(([entry]) => {
-    onScreen = entry?.isIntersecting ?? onScreen
-    since = performance.now()
-    frames = []
+    const onScreen = entry?.isIntersecting ?? true
+    scaler.settle()
     renderer.setAnimationLoop(onScreen && !stage.disposed ? loop : null)
   })
   // The thumbs' offscreen stage runs its own loop.
   if (canvas.isConnected) visibility.observe(canvas)
-  disposables.push({ dispose: () => visibility.disconnect() })
+  // Back from the background, it settles in again too.
+  const onPageShown = () => scaler.settle()
+  document.addEventListener("visibilitychange", onPageShown)
+  disposables.push({
+    dispose() {
+      visibility.disconnect()
+      document.removeEventListener("visibilitychange", onPageShown)
+    },
+  })
   renderer.setAnimationLoop(loop)
 
   const stage: Stage = {
@@ -321,6 +403,10 @@ export function createStage(
     still,
     disposables,
     onFrame: (update) => updates.push(update),
+    capRatio: (most) => scaler.cap(most),
+    whenCalm(check) {
+      calm = check
+    },
     disposed: false,
     dispose() {
       if (stage.disposed) return
@@ -531,6 +617,92 @@ export function mirrorPose({ subject, reflection }: Film) {
   reflection.quaternion.copy(subject.quaternion)
   reflection.scale.copy(subject.scale)
   reflection.visible = subject.visible
+}
+
+// A WebGL program three made, as far as warm() needs it.
+type Program = { isReady: () => boolean; getUniforms: () => unknown }
+const isProgram = (value: unknown): value is Program =>
+  value instanceof Object && "isReady" in value && "getUniforms" in value
+const isTexture = (value: unknown): value is THREE.Texture =>
+  value instanceof THREE.Texture
+// How long a program may compile on the GPU's threads before warm() waits
+// for it on the main thread anyway, in ms.
+const COMPILE_WAIT = 600
+
+// Readies `objects` (hidden, or not in view yet) for their first frame, so it
+// doesn't stall the animation they show in: their shaders compile and link,
+// and their art uploads, now, one step a frame (each can take tens of ms on a
+// phone; all at once, a long frame). Shaders compile on the GPU's own threads
+// where the browser can (KHR_parallel_shader_compile). Steps already done
+// are skipped.
+export function warm(stage: Stage, objects: Array<THREE.Object3D>) {
+  const { renderer, scene, camera } = stage
+  const meshes: Array<THREE.Object3D> = []
+  const materials = new Set<unknown>()
+  for (const object of objects) {
+    object.traverse((part) => {
+      if (!(part instanceof THREE.Mesh)) return
+      meshes.push(part)
+      const worn: Array<unknown> = [part.material].flat()
+      for (const material of worn) materials.add(material)
+    })
+  }
+  // Its programs, and its textures: on the material and in its shader's own
+  // uniforms (the foil ramp, the marquees).
+  const programs = new Set<Program>()
+  const textures = new Set<THREE.Texture>()
+  const gather = () => {
+    for (const material of materials) {
+      if (!(material instanceof Object)) continue
+      const bound = renderer.properties.get(material)
+      const program = dig(bound, "currentProgram")
+      if (isProgram(program)) programs.add(program)
+      const uniforms = dig(bound, "uniforms")
+      const values: Array<unknown> = Object.values(material)
+      if (uniforms instanceof Object) {
+        for (const uniform of Object.values(uniforms))
+          values.push(dig(uniform, "value"))
+      }
+      for (const value of values) if (isTexture(value)) textures.add(value)
+    }
+  }
+  // One mesh a frame: building a program's source is a few ms of script.
+  const steps: Array<() => boolean> = [
+    ...meshes.map((mesh) => () => {
+      renderer.compile(mesh, camera, scene)
+      return true
+    }),
+    () => {
+      gather()
+      // Each program's link checked once the GPU is done with it, one a
+      // frame, then each texture uploaded, one a frame.
+      const since = performance.now()
+      steps.splice(
+        1,
+        0,
+        ...[...programs].map((program) => () => {
+          if (!program.isReady() && performance.now() - since < COMPILE_WAIT)
+            return false
+          program.getUniforms()
+          return true
+        }),
+        // Uploads only what's new or changed.
+        ...[...textures].map((texture) => () => {
+          renderer.initTexture(texture)
+          return true
+        })
+      )
+      return true
+    },
+  ]
+  const next = () => {
+    if (stage.disposed) return
+    const step = steps[0]
+    if (!step) return
+    if (step()) steps.shift()
+    requestAnimationFrame(next)
+  }
+  requestAnimationFrame(next)
 }
 
 // Where to aim, null when away. Mice aim on hover, -0.5..0.5 across the

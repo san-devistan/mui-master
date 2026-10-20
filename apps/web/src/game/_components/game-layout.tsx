@@ -1,4 +1,6 @@
 import { CardUpgrades } from "@/game/_components/card-upgrades"
+import { CollectionPage } from "@/game/_pages/collection-page"
+import { MarketPage } from "@/game/_pages/market-page"
 import { PacksPage } from "@/game/_pages/packs-page"
 import { authClient } from "@/lib/auth-client"
 import { Link, Outlet, useRouterState } from "@tanstack/react-router"
@@ -10,22 +12,7 @@ import {
 } from "@workspace/ui/components/game-shell"
 import { useMutation } from "convex/react"
 import { BoxIcon, GavelIcon, LayersIcon, UserIcon } from "lucide-react"
-import { lazy, Suspense, useEffect, useRef, useState } from "react"
-
-// Collection and Market load after the first screen: the pack is opened first,
-// so their code doesn't hold it up on a slow network or phone. Asked for once
-// the pack is drawn (or after a while, or as soon as their tab is opened).
-const loadCollection = () => import("@/game/_pages/collection-page")
-const loadMarket = () => import("@/game/_pages/market-page")
-const CollectionPage = lazy(async () => ({
-  default: (await loadCollection()).CollectionPage,
-}))
-const MarketPage = lazy(async () => ({
-  default: (await loadMarket()).MarketPage,
-}))
-// shortcut: waits for the pack's data-drawn canvas (opening-scene.ts) or 8 s;
-// switch to a callback from PackOpening if that attribute ever goes away.
-const PAGES_AFTER = 8000
+import { useEffect, useRef, useState } from "react"
 
 const TABS = [
   { to: "/play", label: "Packs", Icon: BoxIcon },
@@ -38,10 +25,6 @@ export function GameLayout() {
   const ready = useGuestSession()
   useWeeklyHolos(ready)
   const path = useRouterState({ select: (state) => state.location.pathname })
-  const pagesWanted = usePagesWanted(
-    ready,
-    path === "/collection" || path === "/market"
-  )
   const onPacks = path === "/play"
   // Once shown, the Packs page stays mounted, hidden on other tabs, so coming
   // back finds its pack just as it was: no rebuild, no blink. An opened pack
@@ -62,22 +45,20 @@ export function GameLayout() {
           <PacksPage onOpen={() => setPackOpened(true)} />
         </div>
       ) : null}
-      {/* Mounted as soon as it's loaded, hidden: its first cards load and draw
-          while the player is on another tab, so it opens ready. */}
-      {ready && pagesWanted ? (
+      {/* Mounted from the start, hidden: its first cards load and draw while
+          the player is on another tab, so it opens ready, and a pack's end on
+          it adds only the new cards (a first mount there costs ~1 s of frames
+          on a low-end phone). */}
+      {ready ? (
         <div className="contents" hidden={path !== "/collection"}>
-          <Suspense fallback={<PageLoading shown={path === "/collection"} />}>
-            <CollectionPage shown={path === "/collection"} />
-          </Suspense>
+          <CollectionPage shown={path === "/collection"} />
         </div>
       ) : null}
       {/* The same for the market: it keeps its filters, scroll and drawn
           cards across tabs. */}
-      {ready && pagesWanted ? (
+      {ready ? (
         <div className="contents" hidden={path !== "/market"}>
-          <Suspense fallback={<PageLoading shown={path === "/market"} />}>
-            <MarketPage shown={path === "/market"} />
-          </Suspense>
+          <MarketPage shown={path === "/market"} />
         </div>
       ) : null}
       {ready ? null : <div className="min-h-0 flex-1" />}
@@ -138,48 +119,4 @@ function useWeeklyHolos(ready: boolean) {
   useEffect(() => {
     if (ready) void claimWeekly().catch(() => undefined)
   }, [ready, claimWeekly])
-}
-
-// While a tab's page is still loading: the same empty space as before sign-in.
-function PageLoading({ shown }: { shown: boolean }) {
-  return shown ? <div className="min-h-0 flex-1" /> : null
-}
-
-// True once Collection and Market should load: the pack is drawn on screen (the
-// first screen is playable), PAGES_AFTER has passed, or the player is on one of
-// their tabs.
-function usePagesWanted(ready: boolean, onTheirTab: boolean) {
-  const [wanted, setWanted] = useState(false)
-  if (ready && onTheirTab && !wanted) setWanted(true)
-
-  useEffect(() => {
-    if (!ready || wanted) return undefined
-    const want = () => {
-      setWanted(true)
-      // Their code starts downloading now, not once they mount.
-      void loadCollection().catch(() => undefined)
-      void loadMarket().catch(() => undefined)
-    }
-    const drawn = () =>
-      document.querySelector("[data-slot=pack-opening] canvas[data-drawn]")
-    if (drawn()) {
-      want()
-      return undefined
-    }
-    const observer = new MutationObserver(() => {
-      if (drawn()) want()
-    })
-    observer.observe(document.body, {
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["data-drawn"],
-    })
-    const timer = setTimeout(want, PAGES_AFTER)
-    return () => {
-      observer.disconnect()
-      clearTimeout(timer)
-    }
-  }, [ready, wanted])
-
-  return wanted
 }

@@ -2,12 +2,10 @@ import { DevTools } from "@/game/_components/dev-tools"
 import { NotificationSettings } from "@/game/_components/notification-settings"
 import { PageHeader } from "@/game/_components/page-header"
 import { ProfileShowcase } from "@/game/_components/profile-showcase"
+import { useCardCount } from "@/game/_lib/collection"
 import { sharePicture } from "@/game/_lib/share"
 import { useWallet } from "@/game/_lib/wallet"
 import { authClient } from "@/lib/auth-client"
-import { convexQuery } from "@convex-dev/react-query"
-import { useQuery } from "@tanstack/react-query"
-import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { GameAvatar } from "@workspace/ui/components/game-avatar"
 import { GameMain } from "@workspace/ui/components/game-shell"
@@ -38,7 +36,7 @@ function playingFor(since: Date) {
 // Guests play as "Anonymous".
 export function ProfilePage() {
   const { data: session } = authClient.useSession()
-  const { data: cards } = useQuery(convexQuery(api.collection.count, {}))
+  const cards = useCardCount()
   const wallet = useWallet()
   const showcaseRef = useRef<HTMLDivElement>(null)
   const user = session?.user

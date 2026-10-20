@@ -31,6 +31,7 @@ import {
   PILE_ZOOM,
   place,
   pose,
+  REVEAL_PLAYED,
   RISE,
   SHINE,
   span,
@@ -247,6 +248,8 @@ export function mountUpgradeScene(
   const pointer = trackPointer(canvas, stage, { touch: true })
   let shown = 0
   let turn: { start: number; done: () => void; swapped: boolean } | null = null
+  // Its turns play at the ratio they started at.
+  stage.whenCalm(() => turn === null)
   const lean = { x: 0, y: 0 }
   // Shows the film for the next rarity in place of the current one.
   const advance = () => {
@@ -331,6 +334,8 @@ export function newSticker(
   mesh.renderOrder = 1
   return {
     mesh,
+    // Once its art is on the material.
+    ready: texture.then(() => undefined),
     dispose() {
       geometry.dispose()
       material.dispose()
@@ -393,6 +398,8 @@ export function cardBack(
   return {
     geometry,
     material,
+    // Once its art is on the material.
+    ready: texture.then(() => undefined),
     dispose() {
       geometry.dispose()
       material.dispose()
@@ -585,6 +592,10 @@ export function mountCardScene(
   const flight = from && !stage.still ? flyCard(stage, song, from, land) : null
   if (!flight && land) frame(stage, land)
   if (!flight && reveal && !stage.still) revealCard(stage, song, !land)
+  // Its entrance (rise or flight, then celebration) plays at the ratio it
+  // started at; the sharpness may only change once it has played.
+  const playing = flight || reveal ? FLY + RISE + REVEAL_PLAYED[song.rarity] : 0
+  stage.whenCalm(() => stage.time.value > playing && !flight?.leaving())
   // A frame after the art lands, so the card is on screen.
   const ready = stage.film.ready.then(
     () => new Promise<void>((done) => requestAnimationFrame(() => done()))
@@ -740,7 +751,7 @@ function flyCard(
   // Off until the card lands.
   mirror.value = 0
   // The canvas spans the page, so cap its resolution; the card stays sharp.
-  stage.renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+  stage.capRatio(Math.min(devicePixelRatio, 2))
   const { zoom, shift } = frame(stage, land)
   if (from.time !== undefined) stage.time.value = from.time
   // A world unit is `zoom` CSS px at depth 0, and the film is CARD_W wide.
@@ -824,5 +835,7 @@ function flyCard(
         landed = done
       })
     },
+    // Heading home: an animation until it's in its slot.
+    leaving: () => leaving !== null,
   }
 }
