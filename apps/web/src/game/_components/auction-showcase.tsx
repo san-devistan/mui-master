@@ -4,6 +4,7 @@ import {
   type Showcase,
   type ShowcaseActionsProps,
 } from "@/game/_components/card-showcase"
+import { RelatedCards } from "@/game/_components/related-cards"
 import { useOnceAtATime } from "@/game/_hooks/use-once-at-a-time"
 import { toGameCard } from "@/game/_lib/cards"
 import type { CollectedSong } from "@/game/_lib/collection"
@@ -26,7 +27,7 @@ import type { CardSlot } from "@workspace/ui/lib/game/card-scene"
 import { useMutation } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
 import { GavelIcon, MinusIcon, PlusIcon, UndoIcon } from "lucide-react"
-import { useState } from "react"
+import { type ComponentProps, useState } from "react"
 
 // An auction as the market lists it.
 export type Auction = FunctionReturnType<
@@ -55,8 +56,9 @@ const timeOfDay = new Intl.DateTimeFormat("en", {
 
 // An auction picked from the market, on the card's own page as in the collection: the card
 // flies out of the grid, with its price and time left under it, then a bid (or taking it
-// back, for the player's own), and every bid below. One the player won shows what it went for
-// and the day. `phase` and the handlers are the showcase's.
+// back, for the player's own), and every bid below, then its related cards as in the
+// collection (`onRelated` opens an owned one over it). One the player won shows what it went
+// for and the day. `phase`, `covered` and the handlers are the showcase's.
 export function AuctionShowcase({
   auction,
   from,
@@ -65,6 +67,8 @@ export function AuctionShowcase({
   onShown,
   onReturn,
   onClose,
+  onRelated,
+  covered,
 }: {
   auction: Auction
   from: CardSlot | undefined
@@ -73,6 +77,8 @@ export function AuctionShowcase({
   onShown: () => void
   onReturn: () => void
   onClose: () => void
+  onRelated: ComponentProps<typeof RelatedCards>["onOpen"]
+  covered: boolean
 }) {
   const now = useNow()
   const { data: detail } = useQuery(
@@ -96,6 +102,7 @@ export function AuctionShowcase({
       onShown={onShown}
       onReturn={onReturn}
       onClose={onClose}
+      covered={covered}
       parts={{
         facts: (
           <>
@@ -114,7 +121,12 @@ export function AuctionShowcase({
         ),
         Actions: AuctionActions,
         context: auction,
-        below: <AuctionHistory detail={detail} />,
+        below: (
+          <>
+            <AuctionHistory detail={detail} />
+            <RelatedCards song={song} onOpen={onRelated} />
+          </>
+        ),
       }}
     />
   )

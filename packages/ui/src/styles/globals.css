@@ -157,6 +157,58 @@
   background: var(--brand-mesh);
 }
 
+/* Display type set over card art: a paper outline round the letters, and a
+   lavender drop under them like a sticker's edge. */
+@utility game-sticker-text {
+  -webkit-text-stroke: 0.14em var(--paper);
+  paint-order: stroke fill;
+  text-shadow:
+    0 0.07em 0 var(--lavender),
+    0 0.18em 0.35em rgb(56 36 110 / 0.22);
+}
+
+/* A four-point star cut from a rarity's foil (its data-rarity; the pack foil
+   without one), with an ink rim: a sparkle sticker. Sized by its width; needs
+   a positioned box. */
+@utility game-foil-star {
+  aspect-ratio: 1;
+  background: var(--ink);
+  clip-path: polygon(
+    50% 0%,
+    60% 40%,
+    100% 50%,
+    60% 60%,
+    50% 100%,
+    40% 60%,
+    0% 50%,
+    40% 40%
+  );
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--rarity-fill, var(--foil));
+    clip-path: polygon(
+      50% 24.7%,
+      55.1% 44.9%,
+      75.3% 50%,
+      55.1% 55.1%,
+      50% 75.3%,
+      44.9% 55.1%,
+      24.7% 50%,
+      44.9% 44.9%
+    );
+  }
+}
+
+/* The NEW badge's silver foil (drawn by its shader once the game has run), a
+   plain silver until then. */
+@utility game-silver-fill {
+  background: var(--silver-foil, linear-gradient(#f7f7ff, #b3b8cc 50%, #f7f7ff))
+    center / 100% 100%;
+}
+
 /* All four rarities at once, as a 2x2 grid of their colours. */
 @utility game-rarity-grid {
   background: conic-gradient(

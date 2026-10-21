@@ -1,4 +1,4 @@
-import { CardDetail, type Showcase } from "@/game/_components/card-showcase"
+import type { Showcase } from "@/game/_components/card-showcase"
 import {
   CardToolbar,
   OptionSelect,
@@ -7,6 +7,11 @@ import {
 import { CollectionCount } from "@/game/_components/collection-count"
 import { CollectionCard, MoreCards } from "@/game/_components/collection-grid"
 import { PageHeader } from "@/game/_components/page-header"
+import {
+  ShowcaseStack,
+  startStack,
+  type Opened,
+} from "@/game/_components/showcase-stack"
 import { useArrivals } from "@/game/_hooks/use-arrivals"
 import {
   useCardCount,
@@ -29,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import { songCardThumbSlot } from "@workspace/ui/components/song-card"
 import {
   ArrowDownAZIcon,
   ArrowDownUpIcon,
@@ -78,30 +82,9 @@ const collectionQuery = (
   ...rarityArg(filter),
   ...(kind === "all" ? {} : { kind }),
 })
-// A card out on show, and the related card's button it was opened from (null
-// for one picked from the grid); `key` tells apart the same card opened twice.
-type Opened = {
-  showcase: Showcase
-  opener: HTMLButtonElement | null
-  key: number
-}
-let opened = 0
 // The text a search looks for: opening or closing an empty search changes nothing found, so it
 // keeps the grid's scroll; typing starts the results at the top.
 const searched = (search: string | null) => search?.trim() ?? ""
-
-// The showcase moved on to `phase`.
-const toPhase = (phase: Showcase["phase"]) => (current: Showcase) => ({
-  ...current,
-  phase,
-})
-// Applies `change` to the card at `depth` in the stack, if it's still open.
-const atDepth =
-  (depth: number, change: (showcase: Showcase) => Showcase) =>
-  (open: ReadonlyArray<Opened>) =>
-    open.map((card, at) =>
-      at === depth ? { ...card, showcase: change(card.showcase) } : card
-    )
 
 // Kept mounted by GameLayout, hidden (`shown` false) on other tabs: it keeps
 // its scroll and drawn cards. Its filters and order are saved, so they're
@@ -153,7 +136,7 @@ export function CollectionPage({ shown }: { shown: boolean }) {
   const [stack, setStack] = useState<ReadonlyArray<Opened>>([])
   const showcase = stack[0]?.showcase ?? null
   const setShowcase = (next: Showcase | null) =>
-    setStack(next ? [{ showcase: next, opener: null, key: (opened += 1) }] : [])
+    setStack(next ? startStack(next.song, next.from) : [])
   // Left mid-showcase (browser back): they close, and their songs stop.
   if (!shown && stack.length) setStack([])
   const openCard = (next: Showcase) => {
@@ -233,30 +216,7 @@ export function CollectionPage({ shown }: { shown: boolean }) {
       <CardKindSelect kind={kind} onKind={setKind} />
       <CollectionCount />
 
-      {stack.map(({ showcase: card, opener, key }, depth) => (
-        <CardDetail
-          key={key}
-          showcase={card}
-          home={() => songCardThumbSlot(opener ?? openerRef.current)}
-          onShown={() => setStack(atDepth(depth, toPhase("shown")))}
-          onReturn={() => setStack(atDepth(depth, toPhase("returning")))}
-          onClose={() => setStack((above) => above.slice(0, depth))}
-          // Under another card it steps aside, as the page does for it, and
-          // comes back as that card heads home to it.
-          covered={
-            depth < stack.length - 1 &&
-            stack[depth + 1]?.showcase.phase !== "returning"
-          }
-          onRelated={(song, from, button) => {
-            const next = {
-              showcase: { song, from, phase: "lifting" as const },
-              opener: button,
-              key: (opened += 1),
-            }
-            setStack((above) => [...above.slice(0, depth + 1), next])
-          }}
-        />
-      ))}
+      <ShowcaseStack stack={stack} onStack={setStack} fallback={openerRef} />
     </div>
   )
 }

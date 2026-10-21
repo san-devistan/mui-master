@@ -126,8 +126,8 @@ function SongRelated({
   )
 }
 
-// "More from <artist>": their songs, less the one showcased (`skip`, which the
-// player owns: it's out on show).
+// "More from <artist>": their songs, less the one showcased (`skip`), owned or
+// not (an auction's).
 function ArtistSongsBy({
   artistId: id,
   row,
@@ -148,20 +148,19 @@ function ArtistSongsBy({
   const artist = artists?.filter((card) => card.id === id)
   // Only the song counts are shown here, not who the artist works with.
   const { data: circle } = useQuery(
-    convexQuery(api.related.artistCircle, { artistId: id, songsOnly: true })
+    convexQuery(api.related.artistCircle, {
+      artistId: id,
+      songsOnly: true,
+      except: skip,
+    })
   )
   // Only the showcased song: nothing more to show.
-  if (!artist?.[0] || (circle && circle.songs.total < 2)) return null
+  if (!artist?.[0] || circle?.songs.total === 0) return null
   return (
     <ArtistSongs
       artistId={id}
       title={`More from ${artist[0].title}`}
-      count={
-        circle && {
-          owned: circle.songs.owned - 1,
-          total: circle.songs.total - 1,
-        }
-      }
+      count={circle?.songs}
       skip={skip}
       onOpen={onOpen}
     />

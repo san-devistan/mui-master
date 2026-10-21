@@ -104,12 +104,16 @@ const ownedIds = async (
 // artists they share a song with, most shared songs first (as ids; the app reads their cards a
 // page at a time with `artists`), with how many of those the player owns.
 // `songsOnly`: just the songs (no collaborators), for a song's "More from" rows, a third of the
-// reads for the busiest artists.
+// reads for the busiest artists; `except`, the song showcased, left out of its counts.
 // shortcut: reads every credit of the artist's songs (about 600 rows for the busiest artist
 // today); keep a collaborators table if artists get thousands of songs.
 export const artistCircle = query({
-  args: { artistId: v.string(), songsOnly: v.optional(v.boolean()) },
-  handler: async (ctx, { artistId: card, songsOnly = false }) => {
+  args: {
+    artistId: v.string(),
+    songsOnly: v.optional(v.boolean()),
+    except: v.optional(v.string()),
+  },
+  handler: async (ctx, { artistId: card, songsOnly = false, except }) => {
     const player = await playerId(ctx)
     const artistId = ctx.db.normalizeId("artists", card)
     if (!artistId) {
@@ -119,10 +123,14 @@ export const artistCircle = query({
         collaboratorsOwned: 0,
       }
     }
-    const mine = await ctx.db
-      .query("credits")
-      .withIndex("by_artistId_and_playcount", (q) => q.eq("artistId", artistId))
-      .take(1000)
+    const mine = (
+      await ctx.db
+        .query("credits")
+        .withIndex("by_artistId_and_playcount", (q) =>
+          q.eq("artistId", artistId)
+        )
+        .take(1000)
+    ).filter((row) => row.songId !== except)
     const credits = songsOnly
       ? []
       : await Promise.all(

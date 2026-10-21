@@ -2,58 +2,44 @@ import type { GameSong } from "@workspace/ui/lib/game/theme"
 
 export type ShowcaseCard = GameSong & {
   isNew: true
-  // Its 30s Spotify preview.
+  // Its 30s Spotify preview (an artist's: their most played song's).
   preview: string
   blurb: string
 }
 
 const spotifyImage = (id: string) => `https://i.scdn.co/image/${id}`
+const spotifyPreview = (id: string) => `https://p.scdn.co/mp3-preview/${id}`
 
-// Real catalog cards for the landing's pack, least rare first like a real pull.
-// shortcut: copied from the catalog on 2026-10-20; refresh by hand if the
-// catalog drops them or their art changes.
+// shortcut: real catalog cards copied from the dev deployment on 2026-10-20;
+// refresh by hand if the catalog drops them or their art changes.
+
+// The landing's pack: three cards, least rare first like a real pull.
 export const SHOWCASE: ReadonlyArray<ShowcaseCard> = [
   {
-    id: "ms7ak5nf58x15a9n8agwxt1efx8g3km8",
+    id: "ms747pyn9p7sw00vrqy205hfzd8g3vv9",
     kind: "song",
-    title: "King Of My Heart",
-    artist: "Taylor Swift",
-    imageUrl: spotifyImage("ab67616d0000b273da5d5aeeabacacc1263c0f4b"),
-    streams: 388_592_948,
-    rarity: "common",
-    isNew: true,
-    preview:
-      "https://p.scdn.co/mp3-preview/0516a831776b659d81ca0ad0377cf9988285fa07",
-    blurb:
-      "Every card is a real song, rated by its real Spotify streams. 100M+ makes a common.",
-  },
-  {
-    id: "ms7ehgxsb69c139swc8qapgfvx8g3k4g",
-    kind: "song",
-    title: "I'm On Fire",
-    artist: "Bruce Springsteen",
-    imageUrl: spotifyImage("ab67616d0000b273a43a6482e327d623bb0c0f77"),
-    streams: 839_896_838,
+    title: "Papaoutai",
+    artist: "Stromae",
+    imageUrl: spotifyImage("ab67616d0000b2738a6bb98baff4c9b15f9972fc"),
+    streams: 716_787_275,
     rarity: "rare",
     isNew: true,
-    preview:
-      "https://p.scdn.co/mp3-preview/e9bb2268bc574f78cb700ad364fa087fe3fd04bb",
+    preview: spotifyPreview("7d2290b9e76b005ed08b362b747ab96d96911db5"),
     blurb:
-      "400M+ streams: rare. Turn the sound on and every card you pull plays its song.",
+      "Every card is a real song rated by its Spotify streams: 400M+ makes a rare.",
   },
   {
-    id: "ms78t6dvejcsjd4ghq6tqk21318g2er6",
-    kind: "song",
-    title: "Despacito - Remix",
-    artist: "Luis Fonsi, Daddy Yankee, Justin Bieber",
-    imageUrl: spotifyImage("ab67616d0000b273d8559d0280ffe2a2af6dacdf"),
-    streams: 1_941_249_657,
+    id: "mn7b6wx6zytn1zwxxvtj587mfx8g3j92",
+    kind: "artist",
+    title: "BLACKPINK",
+    artist: "Artist",
+    imageUrl: spotifyImage("ab6761610000e5eb623538b7014238c54ceee056"),
+    streams: 15_767_779_479,
     rarity: "epic",
     isNew: true,
-    preview:
-      "https://p.scdn.co/mp3-preview/e70482c7ad6c9806d90781418c5e578878d41b0e",
+    preview: spotifyPreview("29a60b8d3fe44fdab03a0921fe70a9ea4a972a59"),
     blurb:
-      "1B+ streams: epic. When a song climbs the charts, your card levels up with it.",
+      "Artist cards rate a whole career, wavy edge and all. 5B+ streams makes an epic artist.",
   },
   {
     id: "ms7596qrqwk4ftvtq751epydes8g3xc8",
@@ -64,31 +50,83 @@ export const SHOWCASE: ReadonlyArray<ShowcaseCard> = [
     streams: 5_631_276_067,
     rarity: "legendary",
     isNew: true,
-    preview:
-      "https://p.scdn.co/mp3-preview/51c08d92815cce4ac2de94a7335a430b81234624",
+    preview: spotifyPreview("51c08d92815cce4ac2de94a7335a430b81234624"),
     blurb:
       "2B+ streams: legendary. Every pack builds up to its best card, always rare or better.",
-  },
-  {
-    id: "mn7enav9n32s9javmsba5ddr0n8g2y69",
-    kind: "artist",
-    title: "Taylor Swift",
-    artist: "Artist",
-    imageUrl: spotifyImage("ab6761610000e5eb12184bdd29403de54cb9d9c7"),
-    streams: 121_987_546_094,
-    rarity: "legendary",
-    isNew: true,
-    preview:
-      "https://p.scdn.co/mp3-preview/dba15da5409f3c808022cf927c0ff8581f717aa4",
-    blurb:
-      "Artist cards rate a whole career, wavy edge and all. One pack in 1,000 is a god pack: five legendaries.",
   },
 ]
 
 // The pack's art, from legendary covers as in the game.
 export const SHOWCASE_COVERS = [
   "ab67616d0000b273c464fabb4e51b72d657f779a",
-  "ab67616d0000b27383e9b06ccd219248b5301264",
-  "ab67616d0000b273a07ff4ebd6264e7c124c3bdd",
-  "ab67616d0000b2738265a736a1eb838ad5a0b921",
+  "ab67616d0000b273755995e9ff2b1b0c753f5eb8",
+  "ab67616d0000b27327ddd747545c0d0cfe7595fa",
+  "ab67616d0000b27349d694203245f241a1bcaa72",
 ].map(spotifyImage)
+
+// The cards behind the hero, two artists and two songs.
+export const HERO_CARDS: ReadonlyArray<GameSong> = [
+  {
+    id: "mn7av407143t728x83n486dyn98g3md7",
+    kind: "artist",
+    title: "BTS",
+    artist: "Artist",
+    imageUrl: spotifyImage("ab6761610000e5ebf80ec63ea7a0ef0fba60957d"),
+    streams: 50_650_188_486,
+    rarity: "legendary",
+  },
+  {
+    id: "mn70z9qv3bh8mq76vgge52a2p18g25h6",
+    kind: "artist",
+    title: "Shakira",
+    artist: "Artist",
+    imageUrl: spotifyImage("ab6761610000e5eb17f15f351cba70561ad8bcac"),
+    streams: 27_824_205_863,
+    rarity: "legendary",
+  },
+  {
+    id: "ms740xppmx4mdnx0z5st6bar018g24ra",
+    kind: "song",
+    title: "Tití Me Preguntó",
+    artist: "Bad Bunny",
+    imageUrl: spotifyImage("ab67616d0000b27349d694203245f241a1bcaa72"),
+    streams: 2_405_692_208,
+    rarity: "legendary",
+  },
+  {
+    id: "ms75kp9z5dgndx5757v0cwscvx8g3nxw",
+    kind: "song",
+    title: "DESPECHÁ",
+    artist: "ROSALÍA",
+    imageUrl: spotifyImage("ab67616d0000b273938660520f09a1bae2ed4699"),
+    streams: 1_364_240_142,
+    rarity: "epic",
+  },
+  {
+    id: "ms74g79d5e3a4q6qcjt3h64dy18g3grj",
+    kind: "song",
+    title: "夜に駆ける",
+    artist: "YOASOBI",
+    imageUrl: spotifyImage("ab67616d0000b27339917845c74c9e64320fbed9"),
+    streams: 780_590_077,
+    rarity: "rare",
+  },
+  {
+    id: "mn75zn62s35dtzpphq6cj5ae6d8g3df0",
+    kind: "artist",
+    title: "Burna Boy",
+    artist: "Artist",
+    imageUrl: spotifyImage("ab6761610000e5ebb4e44d0f4e3e47af2cf06f3f"),
+    streams: 6_405_124_515,
+    rarity: "epic",
+  },
+  {
+    id: "ms707f9g9sqzaytv972bd0wyed8g25at",
+    kind: "song",
+    title: "Ella Baila Sola",
+    artist: "Eslabon Armado, Peso Pluma",
+    imageUrl: spotifyImage("ab67616d0000b2732071a0c79802d9375a53bfef"),
+    streams: 1_640_891_329,
+    rarity: "epic",
+  },
+]

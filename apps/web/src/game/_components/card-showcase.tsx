@@ -251,6 +251,13 @@ export function CardDetail({
       aria-label={song.title}
       inert={covered}
       data-covered={covered || undefined}
+      // The celebration sits in the fixed stage; keep it on the scrolling card.
+      onScroll={(event) =>
+        stageRef.current?.style.setProperty(
+          "--celebration-scroll",
+          `${event.currentTarget.scrollTop}px`
+        )
+      }
       className="inset-0 p-0 m-0 fixed z-30 game-no-scrollbar size-full max-h-none max-w-none overflow-y-auto overscroll-contain bg-transparent text-ink transition-opacity duration-300 data-covered:opacity-0"
     >
       {/* The card's own screen, as before; the related cards scroll up

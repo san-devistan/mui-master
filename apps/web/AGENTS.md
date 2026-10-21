@@ -5,9 +5,13 @@ composition; data and logic come from `@workspace/backend`.
 
 `/` is the server-rendered landing page (`src/landing/`), with its SEO metadata
 on `routes/index.tsx`; the game starts at `/play`, the Packs tab. Scrolling the
-landing opens a pack of real catalog cards (`showcase-pack.ts`) one screen per
-step (`story.ts`, checked by `story.check.mjs`); three.js loads only once that
-section is near.
+landing scrubs a film of the game's pack opening for its real catalog cards
+(`showcase-pack.ts`), forwards and back at any speed. `pack-film.ts` (checked by
+`pack-film.check.mjs`) holds the film's timeline and pacing and maps the scroll
+onto it. Change the pack or its timing, then re-film it from the game's own
+scene with the dev server up:
+`node scripts/record-pack-film.mjs` (it films the unlinked
+`/pack-film` route into `public/landing/`).
 
 ## UI
 

@@ -1551,7 +1551,7 @@ button[data-slot="pack-meter"] {
 
 .game-celebration > i {
   position: absolute;
-  top: calc(50% + var(--celebration-y, 0px));
+  top: calc(50% + var(--celebration-y, 0px) - var(--celebration-scroll, 0px));
   left: 50%;
 }
 

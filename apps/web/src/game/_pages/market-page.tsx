@@ -10,6 +10,12 @@ import {
 } from "@/game/_components/card-toolbar"
 import { MoreCards } from "@/game/_components/collection-grid"
 import { PageHeader } from "@/game/_components/page-header"
+import {
+  isCovering,
+  ShowcaseStack,
+  startStack,
+  type Opened as OpenedCard,
+} from "@/game/_components/showcase-stack"
 import { toGameCard } from "@/game/_lib/cards"
 import { useAuctions, type AuctionScope } from "@/game/_lib/market"
 import {
@@ -114,8 +120,13 @@ export function MarketPage({ shown }: { shown: boolean }) {
   // The auction tapped, out on show like a collection card: flown from its thumb, which hides
   // while the big card stands in for it, and back.
   const [open, setOpen] = useState<Opened | null>(null)
+  // Owned cards opened from its related cards, each over the last.
+  const [related, setRelated] = useState<ReadonlyArray<OpenedCard>>([])
   // Left mid-showcase (browser back): it closes.
-  if (!shown && open) setOpen(null)
+  if (!shown && (open || related.length)) {
+    setOpen(null)
+    setRelated([])
+  }
   const openerRef = useRef<HTMLButtonElement | null>(null)
   const setPhase = (phase: Showcase["phase"]) =>
     setOpen((current) => (current ? { ...current, phase } : null))
@@ -200,8 +211,13 @@ export function MarketPage({ shown }: { shown: boolean }) {
             setOpen(null)
             openerRef.current?.focus({ preventScroll: true })
           }}
+          onRelated={(song, from, button) =>
+            setRelated(startStack(song, from, button))
+          }
+          covered={isCovering(related[0])}
         />
       ) : null}
+      <ShowcaseStack stack={related} onStack={setRelated} />
     </div>
   )
 }
