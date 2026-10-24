@@ -11,20 +11,15 @@ patterns already here before introducing new ones.
   provider integrations added as Convex components.
 - `apps/web`: TanStack Start app that uses `packages/ui` components and tokens
   plus `packages/backend`.
-- `apps/mobile`: Expo app that uses `packages/ui` tokens, PanelUI components,
-  and `packages/backend`.
-- `scripts`: repo tooling such as design-system sync and the quality gate.
+- `scripts`: repo tooling such as the quality gate.
 
 Logic belongs in the backend; apps focus on presentation. Design starts in
-`packages/ui` and flows to both apps. Each workspace has its own `AGENTS.md`
+`packages/ui` and flows to the web app. Each workspace has its own `AGENTS.md`
 with the details.
 
 ## Local Development
 
-Dev servers keep stable URLs:
-
-- Web: `https://<project-name>.localhost`
-- Mobile: `https://mobile.<project-name>.localhost`
+The web dev server keeps a stable URL: `https://<project-name>.localhost`.
 
 Logs live in the attached Zellij session whose name contains `<project-name>`.
 

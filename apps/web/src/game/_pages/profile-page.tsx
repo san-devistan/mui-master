@@ -1,3 +1,4 @@
+import { AccountSettings } from "@/game/_components/account-settings"
 import { DevTools } from "@/game/_components/dev-tools"
 import { NotificationSettings } from "@/game/_components/notification-settings"
 import { PageHeader } from "@/game/_components/page-header"
@@ -40,7 +41,10 @@ export function ProfilePage() {
   const wallet = useWallet()
   const showcaseRef = useRef<HTMLDivElement>(null)
   const user = session?.user
-  const name = user && !user.isAnonymous && user.name ? user.name : "Anonymous"
+  const name =
+    user && !user.isAnonymous
+      ? user.displayUsername || user.username || user.name || "Anonymous"
+      : "Anonymous"
   const stats = [
     {
       label: "Playing for",
@@ -111,6 +115,7 @@ export function ProfilePage() {
         <ProfileShowcase />
       </div>
       <NotificationSettings />
+      <AccountSettings />
       <DevTools />
     </GameMain>
   )

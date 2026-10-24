@@ -1,5 +1,6 @@
 // Run: node apps/web/src/landing/pack-film.check.mjs
 import {
+  cuesBetween,
   FILM_SCREENS,
   FILM_SECONDS,
   filmCardAt,
@@ -40,3 +41,12 @@ check(filmCardAt(filmTimeOf(3)) === null, "no card till they're out")
 check(filmCardAt(filmTimeOf(4)) === 0, "first card")
 check(filmCardAt(filmTimeOf(6)) === 1, "second card")
 check(filmCardAt(FILM_SECONDS) === 2, "the last card holds")
+check(
+  cuesBetween(0, filmTimeOf(0.5))[0]?.cue === "press",
+  "the pack is pressed"
+)
+check(
+  cuesBetween(0, FILM_SECONDS).filter(({ cue }) => cue === "card").length === 3,
+  "every card is revealed once, scrolling straight through"
+)
+check(cuesBetween(FILM_SECONDS, 0).length === 0, "scrolling up is silent")

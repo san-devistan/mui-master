@@ -91,9 +91,16 @@ platform.
   `--save` run. Keep the thresholds fixed once the game is live: rarities
   can't go down, so raising a threshold would mix old and new rules. Check:
   `node packages/backend/convex/songs/_lib/rarity.check.mjs`.
-- Players (`auth.ts`): Better Auth in its Convex component, anonymous guests
-  only for now; `playerId(ctx)` is the signed-in user's id. Needs the Convex
-  env vars `BETTER_AUTH_SECRET` and `SITE_URL` (the web app's URL).
+- Players (`auth.ts`): Better Auth in its Convex component. Anonymous guests,
+  and accounts signed in with an emailed code (email OTP; a new email makes an
+  account, with a username), which take over the guest's game
+  (`players:adoptGuest`). A deleted account's game goes with it
+  (`players:deletePlayer`; deleting needs a sign-in within the last day).
+  `playerId(ctx)` is the signed-in user's id. Codes go
+  out through the Resend component. Needs the Convex env vars
+  `BETTER_AUTH_SECRET`, `SITE_URL` (the web app's URL) and `RESEND_API_KEY`;
+  `AUTH_EMAIL_FROM` sets the sender (an address on a domain verified in Resend;
+  without it, Resend's shared sender only reaches the Resend account's email).
 - Collection: `collection` holds one row per player and card (copies, first
   pull, and `seenRarity`, the rarity they last saw it at), plus the card's
   kind, rarity rank, title key and streams, copied in by `packs:claim` and

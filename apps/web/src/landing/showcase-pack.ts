@@ -130,3 +130,25 @@ export const HERO_CARDS: ReadonlyArray<GameSong> = [
     rarity: "epic",
   },
 ]
+
+// More cards for the feature list at the foot of the page, none of them seen above.
+export const JOIN_CARDS: ReadonlyArray<GameSong> = [
+  {
+    id: "ms7a9amgx01mhxsq14cymjj8098g299q",
+    kind: "song",
+    title: "BIRDS OF A FEATHER",
+    artist: "Billie Eilish",
+    imageUrl: spotifyImage("ab67616d0000b27371d62ea7ea8a5be92d3c1f62"),
+    streams: 4_037_340_288,
+    rarity: "legendary",
+  },
+  {
+    id: "mn76r47czpqqnhmnx5m8b4s48d8g3znx",
+    kind: "artist",
+    title: "Tame Impala",
+    artist: "Artist",
+    imageUrl: spotifyImage("ab6761610000e5ebe412a782245eb20d9626c601"),
+    streams: 12_415_010_024,
+    rarity: "epic",
+  },
+]

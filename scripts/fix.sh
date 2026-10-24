@@ -108,9 +108,6 @@ start_quiet "pnpm exec react-doctor --yes --verbose ." \
 
 start_quiet_in packages/backend pnpm exec tsc --noEmit
 start_quiet_in packages/ui pnpm exec tsc --noEmit
-if [[ -d apps/mobile ]]; then
-  start_quiet_in apps/mobile pnpm exec tsc --noEmit
-fi
 start_quiet_in apps/web pnpm exec tsc --noEmit
 
 wait_for_parallel_checks

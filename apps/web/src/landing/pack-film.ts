@@ -106,3 +106,30 @@ export function filmCardAt(film: number) {
   if (scene < SCENE.out) return null
   return CARDS.findLastIndex((at) => scene >= at)
 }
+
+// The game's sound cues through the opening (sfx.ts), at the scene times the
+// game plays them (pack-opening.tsx): the pack pressed, its seam torn, its
+// legendary light, each card swiped away, and each card's reveal once out.
+export type FilmCue = {
+  at: number
+  cue: "press" | "rip" | "glow" | "swipe" | "card"
+  card?: number
+}
+export const FILM_CUES: ReadonlyArray<FilmCue> = [
+  { at: SCENE.cut, cue: "press" },
+  { at: SCENE.open, cue: "rip" },
+  { at: SCENE.open, cue: "glow" },
+  { at: SCENE.out, cue: "card", card: 0 },
+  ...SCENE.swipes.flatMap(([, release], index) => [
+    { at: release, cue: "swipe" as const },
+    { at: release + 0.2, cue: "card" as const, card: index + 1 },
+  ]),
+]
+
+// The cues passed going forwards from film time `from` to `to`; none going
+// back, so scrolling up is silent.
+export function cuesBetween(from: number, to: number) {
+  if (to <= from) return []
+  const [start, end] = [sceneTimeAt(from), sceneTimeAt(to)]
+  return FILM_CUES.filter(({ at }) => at > start && at <= end)
+}

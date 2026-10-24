@@ -266,6 +266,19 @@
   max-height: 53rem;
 }
 
+/* The landing's pack film, a screen tall, pulled up under the hero: only the
+   pack's crimped top and seal (21% to 26% down the film) show above the fold. */
+@utility game-pack-peek {
+  margin-top: -24dvh;
+}
+
+/* The section after the landing's pack film, pulled up over the film's last
+   frame to just under its card (which ends about 64% down): the space below
+   it is empty sky. */
+@utility game-after-pack {
+  margin-top: -20dvh;
+}
+
 @utility game-no-scrollbar {
   scrollbar-width: none;
 

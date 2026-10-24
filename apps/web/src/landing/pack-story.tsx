@@ -1,13 +1,19 @@
 import {
+  fadeIn,
+  fadeOut,
+  silentWhileHidden,
+} from "@/game/_hooks/use-song-preview"
+import {
+  cuesBetween,
   filmCardAt,
+  type FilmCue,
   filmTimeAt,
   PACK_FILM,
   PACK_POSTER,
 } from "@/landing/pack-film"
-import { PlayButton } from "@/landing/play-button"
 import { SHOWCASE, type ShowcaseCard } from "@/landing/showcase-pack"
 import { RarityBadge } from "@workspace/ui/components/rarity-badge"
-import { Volume2Icon, VolumeXIcon } from "lucide-react"
+import { play, soundTaps } from "@workspace/ui/lib/game/sfx"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 
 const compact = new Intl.NumberFormat("en", {
@@ -22,12 +28,15 @@ export function PackStory() {
   const storyRef = useRef<HTMLDivElement>(null)
   const filmRef = useRef<HTMLVideoElement>(null)
   const shown = useFilmScroll(storyRef, filmRef)
-  const [sound, setSound] = useState(false)
-  const onShow = shown === null ? undefined : SHOWCASE[shown]
-  const preview = usePreview(sound ? onShow : undefined)
+  usePreview(shown === null ? undefined : SHOWCASE[shown])
 
   return (
-    <section aria-labelledby="pack-story-title" className="relative">
+    // Pulled up under the hero (drawn above it): the top of the pack peeks out
+    // at the hero's foot.
+    <section
+      aria-labelledby="pack-story-title"
+      className="relative game-pack-peek"
+    >
       <h2 id="pack-story-title" className="sr-only">
         Open a pack
       </h2>
@@ -40,7 +49,7 @@ export function PackStory() {
                 frame a little wider than a phone on bigger screens, so the
                 pack is the size it is in the game. The film's sky fades out
                 at its edges into the page's own. */}
-            <div className="md:aspect-560/844 md:w-auto pointer-events-auto relative h-full w-full">
+            <div className="md:aspect-560/844 md:w-auto h-full w-full">
               <video
                 ref={filmRef}
                 src={PACK_FILM}
@@ -51,21 +60,16 @@ export function PackStory() {
                 aria-hidden="true"
                 className="md:mask-x-from-84% size-full mask-t-from-85% mask-b-from-92% object-cover"
               />
-              <SoundToggle
-                on={sound}
-                playing={preview}
-                onChange={(on) => setSound(on)}
-              />
             </div>
           </div>
         </div>
         <ol className="pointer-events-none relative">
-          {/* While the pack opens, its chapters are just scroll length: two
-              screens, the pack's and the first card's (the others take
-              none), for the film's FILM_SCREENS and a beat on its last
-              frame. Their text is for screen readers and search, not over
-              the pack. */}
-          <Chapter step="Your pack" title="A free pack, every 8 hours" hidden>
+          {/* The chapters are just scroll length: two screens, the pack's and
+              the first card's (the others take none), for the film's
+              FILM_SCREENS and a beat on its last frame, then a last screen
+              holding that frame before the sign-up. Their text is for screen
+              readers and search, not over the pack. */}
+          <Chapter step="Your pack" title="A free pack, every 8 hours">
             Scroll to slice it open: in the game you drag your finger along the
             seam. Three packs can wait for you, so none are lost overnight.
           </Chapter>
@@ -77,13 +81,7 @@ export function PackStory() {
               active={shown === index}
             />
           ))}
-          <Chapter step="Your turn" title="That pack could be yours">
-            Every pull is random. A real pack holds five cards, and one in 1,000
-            is a god pack: five legendaries. Open yours now, free, no sign-up.
-            <div className="mt-6 pointer-events-auto">
-              <PlayButton>Open my first pack</PlayButton>
-            </div>
-          </Chapter>
+          <li aria-hidden="true" className="h-dvh" />
         </ol>
       </div>
     </section>
@@ -93,38 +91,21 @@ export function PackStory() {
 function Chapter({
   step,
   title,
-  hidden = false,
   room = true,
   children,
 }: {
   step: string
   title: string
-  // Kept for its scroll length and for screen readers, but not shown.
-  hidden?: boolean
   // A screen of scroll length; without it, only its text.
   room?: boolean
   children: ReactNode
 }) {
   return (
-    <li
-      className={`px-4 sm:px-6 pointer-events-none flex items-end justify-center ${room ? "h-dvh" : ""}`}
-    >
-      <div
-        className={
-          hidden
-            ? "sr-only"
-            : "max-w-md p-5 mb-6 lg:p-6 lg:mb-8 shadow-xl backdrop-blur-md pointer-events-auto w-full rounded-3xl bg-card/85 text-center"
-        }
-      >
-        <p className="text-sm font-bold tracking-wide text-ink/60 uppercase">
-          {step}
-        </p>
-        <h3 className="mt-1 text-2xl font-black md:text-4xl lg:mt-2 tracking-tighter font-heading text-balance">
-          {title}
-        </h3>
-        <div className="mt-2 text-sm lg:mt-3 lg:text-base text-pretty text-ink/75 *:justify-center">
-          {children}
-        </div>
+    <li className={room ? "h-dvh" : undefined}>
+      <div className="sr-only">
+        <p>{step}</p>
+        <h3>{title}</h3>
+        <div>{children}</div>
       </div>
     </li>
   )
@@ -145,7 +126,6 @@ function CardChapter({
     <Chapter
       step={`Card ${index + 1} of ${SHOWCASE.length}`}
       title={name}
-      hidden
       room={index === 0}
     >
       <span className="gap-3 mb-3 flex items-center">
@@ -157,31 +137,6 @@ function CardChapter({
       {card.blurb}
       {active ? <span className="sr-only">On show now.</span> : null}
     </Chapter>
-  )
-}
-
-function SoundToggle({
-  on,
-  playing,
-  onChange,
-}: {
-  on: boolean
-  playing: boolean
-  onChange: (on: boolean) => void
-}) {
-  const Icon = on ? Volume2Icon : VolumeXIcon
-  let label = "Hear the cards"
-  if (on) label = playing ? "Playing the pull" : "Sound on"
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={() => onChange(!on)}
-      className="bottom-2 px-4 py-2 gap-2 text-sm font-bold shadow-lg absolute left-1/2 z-30 flex -translate-x-1/2 items-center rounded-full border-2 border-ink bg-card"
-    >
-      <Icon aria-hidden="true" className="size-4" />
-      {label}
-    </button>
   )
 }
 
@@ -198,12 +153,18 @@ function useFilmScroll(
     const video = film.current
     const scroller = element?.closest("[data-slot=landing-scroll]")
     if (!element || !video || !scroller) return undefined
+    // The film time last shown: cues between it and the next play.
+    let last = filmTimeAt(
+      -element.getBoundingClientRect().top / scroller.clientHeight
+    )
     let frame = 0
     const update = () => {
       frame = 0
       const chapter =
         -element.getBoundingClientRect().top / scroller.clientHeight
       const time = filmTimeAt(chapter)
+      for (const { cue, card } of cuesBetween(last, time)) sound(cue, card)
+      last = time
       seek(video, time)
       setShown(filmCardAt(time))
     }
@@ -225,45 +186,87 @@ function useFilmScroll(
   return shown
 }
 
+// A legendary inside opens with its light's flourish, as in the game
+// (opening-scene.ts glowHold; not imported, as it pulls three.js into the
+// server render).
+const HAS_LEGENDARY = SHOWCASE.some((card) => card.rarity === "legendary")
+
+// Plays a film cue as the game does: a card's reveal by its rarity, and a
+// legendary's light in place of the plain opening.
+function sound(cue: FilmCue["cue"], card?: number) {
+  if (cue === "card") {
+    const rarity = card === undefined ? undefined : SHOWCASE[card]?.rarity
+    if (rarity) play(rarity)
+  } else if (cue === "glow") play(HAS_LEGENDARY ? "glow" : "open")
+  else play(cue)
+}
+
 // A seek still in flight is overtaken by this one; tiny moves are skipped.
 function seek(video: HTMLVideoElement, time: number) {
   if (Math.abs(video.currentTime - time) > 1 / 60) video.currentTime = time
 }
 
-// Plays `card`'s preview while it's on show (and sound is on), fading it in.
-// True while one plays.
+// Plays `card`'s preview while it's on show, always, with the game's fades:
+// the last song fades out fully, then the next fades in, and each loops with
+// a fade at its ends. Silent while the page is out of sight. A play refused
+// before the visitor's first tap or key is tried again on it.
 function usePreview(card: ShowcaseCard | undefined) {
-  const [playing, setPlaying] = useState(false)
-  const url = card?.preview
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  // The song wanted now: a quick scroll skips songs still fading.
+  const wantedRef = useRef<string | null>(null)
+  const url = card?.preview ?? null
+
   useEffect(() => {
-    if (!url) return undefined
-    const audio = new Audio(url)
-    audio.loop = true
-    audio.volume = 0
-    let fade = 0
-    // A newer card (or sound off) took over: don't touch state for this one.
-    let stopped = false
-    const step = () => {
-      audio.volume = Math.min(audio.volume + 0.04, 0.7)
-      if (audio.volume < 0.7) fade = requestAnimationFrame(step)
+    const unhide = silentWhileHidden(
+      () => audioRef.current,
+      (audio) => {
+        if (wantedRef.current) void fadeIn(audio).catch(() => undefined)
+      },
+      () => {
+        wantedRef.current = null
+      }
+    )
+    // The game's sound starts with the first click or tap, here too.
+    const untap = soundTaps()
+    return () => {
+      untap()
+      unhide()
+      if (audioRef.current) void fadeOut(audioRef.current)
+      audioRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    wantedRef.current = url
+    const audio = (audioRef.current ??= new Audio())
+    const retry = () => {
+      if (wantedRef.current === url && audio.paused) void start()
+    }
+    const unlisten = () => {
+      for (const gesture of GESTURES) removeEventListener(gesture, retry)
     }
     async function start() {
+      if (!url) return
+      // The last song fades out before the next one starts.
+      await fadeOut(audio)
+      if (wantedRef.current !== url) return
+      if (audio.src !== url) audio.src = url
+      if (document.hidden) return
       try {
-        await audio.play()
-        if (stopped) return
-        setPlaying(true)
-        fade = requestAnimationFrame(step)
+        await fadeIn(audio)
+        unlisten()
       } catch {
-        if (!stopped) setPlaying(false)
+        // Refused until a gesture: tried again on the next one.
       }
     }
-    void start()
-    return () => {
-      stopped = true
-      cancelAnimationFrame(fade)
-      audio.pause()
-      setPlaying(false)
-    }
+    if (url) {
+      for (const gesture of GESTURES) addEventListener(gesture, retry)
+      void start()
+    } else void fadeOut(audio)
+    return unlisten
   }, [url])
-  return playing
 }
+
+// The page events that let a browser start sound: until the visitor has made
+// one of them, play() is refused.
+const GESTURES = ["pointerdown", "keydown", "touchend"] as const

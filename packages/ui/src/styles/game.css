@@ -595,6 +595,28 @@ button[data-slot="game-pill"] {
   border-radius: 1.5rem;
 }
 
+/* The profile's sign out and account deletion, fenced off in red. */
+[data-slot="danger-zone"] {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding: 1.25rem;
+  border: 2.5px solid color-mix(in oklab, var(--destructive) 55%, transparent);
+  border-radius: 1.5rem;
+  background: color-mix(in oklab, var(--destructive) 5%, transparent);
+}
+
+/* A game button for what can't be undone: red, its icon disc too. */
+[data-slot="button"][data-variant="game"][data-danger] {
+  background: color-mix(in oklab, var(--destructive) 12%, #fff);
+  color: var(--destructive);
+
+  & > svg:first-child {
+    background: var(--destructive);
+    color: #fff;
+  }
+}
+
 [data-slot="game-avatar"] {
   border: 3px solid var(--ink);
   box-shadow:
@@ -1331,6 +1353,36 @@ button[data-slot="pack-meter"] {
 
   &:focus-visible {
     border-color: var(--ink);
+    outline: 3px solid var(--brand);
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
+
+/* One-time code boxes to match: each digit its own sunk-in tile. */
+[data-slot="input-otp-group"][data-variant="game"] {
+  gap: 0.375rem;
+
+  & [data-slot="input-otp-slot"] {
+    width: 2.5rem;
+    height: 3.25rem;
+    border: 2.5px solid var(--ink);
+    border-radius: 0.875rem;
+    background: #fff;
+    color: var(--ink);
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 900;
+    box-shadow: 0 3px 0 color-mix(in oklab, var(--lavender) 60%, transparent)
+      inset;
+
+    @media (width >= 40rem) {
+      width: 3rem;
+      height: 3.5rem;
+    }
+  }
+
+  & [data-slot="input-otp-slot"][data-active="true"] {
     outline: 3px solid var(--brand);
     outline-offset: 2px;
     box-shadow: none;

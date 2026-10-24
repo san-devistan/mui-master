@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GameRouteImport } from './routes/_game'
 import { Route as PackFilmRouteImport } from './routes/pack-film'
+import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as GameCollectionRouteImport } from './routes/_game.collection'
 import { Route as GameMarketRouteImport } from './routes/_game.market'
 import { Route as GamePlayRouteImport } from './routes/_game.play'
@@ -30,6 +31,11 @@ const GameRoute = GameRouteImport.update({
 const PackFilmRoute = PackFilmRouteImport.update({
   id: '/pack-film',
   path: '/pack-film',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GameCollectionRoute = GameCollectionRouteImport.update({
@@ -61,6 +67,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/pack-film': typeof PackFilmRoute
+  '/sign-in': typeof SignInRoute
   '/collection': typeof GameCollectionRoute
   '/market': typeof GameMarketRoute
   '/play': typeof GamePlayRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/pack-film': typeof PackFilmRoute
+  '/sign-in': typeof SignInRoute
   '/collection': typeof GameCollectionRoute
   '/market': typeof GameMarketRoute
   '/play': typeof GamePlayRoute
@@ -81,6 +89,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_game': typeof GameRouteWithChildren
   '/pack-film': typeof PackFilmRoute
+  '/sign-in': typeof SignInRoute
   '/_game/collection': typeof GameCollectionRoute
   '/_game/market': typeof GameMarketRoute
   '/_game/play': typeof GamePlayRoute
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/pack-film'
+    | '/sign-in'
     | '/collection'
     | '/market'
     | '/play'
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/pack-film'
+    | '/sign-in'
     | '/collection'
     | '/market'
     | '/play'
@@ -111,6 +122,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_game'
     | '/pack-film'
+    | '/sign-in'
     | '/_game/collection'
     | '/_game/market'
     | '/_game/play'
@@ -122,6 +134,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GameRoute: typeof GameRouteWithChildren
   PackFilmRoute: typeof PackFilmRoute
+  SignInRoute: typeof SignInRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -146,6 +159,13 @@ declare module '@tanstack/react-router' {
       path: '/pack-film'
       fullPath: '/pack-film'
       preLoaderRoute: typeof PackFilmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_game/collection': {
@@ -206,6 +226,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GameRoute: GameRouteWithChildren,
   PackFilmRoute: PackFilmRoute,
+  SignInRoute: SignInRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

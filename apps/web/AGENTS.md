@@ -33,15 +33,23 @@ its bid history. A showcased card scrolls down to its related cards
 songs); owned ones open over it, the rest show grayed out. Cards are songs or artists (`src/game/_lib/cards.ts`). On app
 open, `packs.upgrades` cards that went up a rarity climb one rarity per tap on
 their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
-shows the player and their showcase, and turns this device's notifications on
-(`public/sw.js` shows them; iOS only once added to the Home Screen).
+shows the player and their showcase, turns this device's notifications on
+(`public/sw.js` shows them; iOS only once added to the Home Screen), and holds
+the account: the username (unique across players, any case), signing out and
+deleting the account (`src/game/_components/account-settings.tsx`).
 
 ## Auth
 
-Players are Better Auth users (`src/lib/auth-client.ts`). Everyone plays as an
-anonymous guest for now: the game layout signs a visitor in on arrival.
+Players are Better Auth users (`src/lib/auth-client.ts`). A visitor plays as an
+anonymous guest (the game layout signs them in on arrival) until they sign in at
+`/sign-in` (`src/auth/`): one flow for new and returning players, an email,
+then the 6-digit code emailed to it (Better Auth's email OTP, sent with Resend
+from `convex/auth.ts`). A new email makes an account, which picks its username
+before going to `/play`. The backend moves the guest's game to the account
+(`convex/players.ts`).
 Better Auth's endpoints are served at `/api/auth/*` (`routes/api.auth.$.ts`),
-forwarded to the Convex deployment, so it needs `VITE_CONVEX_SITE_URL` (the
+forwarded to the Convex deployment with the request body buffered (Node's fetch
+fails a streamed body that gets a 401), so it needs `VITE_CONVEX_SITE_URL` (the
 `.convex.site` URL) in `.env.local`.
 
 ## Effect

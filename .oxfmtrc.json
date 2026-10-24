@@ -38,15 +38,6 @@
           "functions": ["cn", "cva"]
         }
       }
-    },
-    {
-      "files": ["apps/mobile/**/*.ts", "apps/mobile/**/*.tsx"],
-      "options": {
-        "sortTailwindcss": {
-          "stylesheet": "apps/mobile/global.css",
-          "functions": ["cn"]
-        }
-      }
     }
   ],
   "ignorePatterns": [
@@ -65,7 +56,6 @@
     "node_modules/**",
     "pnpm-lock.yaml",
     "tools/oxlint/anti-slop/**",
-    "apps/mobile/uniwind-types.d.ts",
     "apps/web/src/routeTree.gen.*",
     "packages/backend/convex/_generated/**"
   ]

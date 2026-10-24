@@ -1,4 +1,5 @@
 import { CardUpgrades } from "@/game/_components/card-upgrades"
+import { InstallPrompt } from "@/game/_components/install-prompt"
 import { CollectionPage } from "@/game/_pages/collection-page"
 import { MarketPage } from "@/game/_pages/market-page"
 import { PacksPage } from "@/game/_pages/packs-page"
@@ -63,6 +64,7 @@ export function GameLayout() {
       ) : null}
       {ready ? null : <div className="min-h-0 flex-1" />}
       {ready ? <CardUpgrades /> : null}
+      {ready ? <InstallPrompt /> : null}
       <GameTabBar aria-label="Main">
         {TABS.map(({ to, label, Icon }) => (
           <GameTab

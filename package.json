@@ -6,8 +6,7 @@
     "build": "turbo run build --filter=web",
     "dev": "turbo run dev --filter=web --filter=@workspace/backend",
     "fix": "bash scripts/fix.sh",
-    "update:deps": "pnpm update -r && pnpm peers check --lockfile-only",
-    "sync:design-system": "node scripts/sync-design-system.mjs"
+    "update:deps": "pnpm update -r && pnpm peers check --lockfile-only"
   },
   "devDependencies": {
     "@shadcn/lint": "^0.1.5",

@@ -1,4 +1,3 @@
-import { FAQ } from "@/landing/faq"
 import { LandingPage } from "@/landing/landing-page"
 import { createFileRoute } from "@tanstack/react-router"
 
@@ -37,17 +36,6 @@ export const Route = createFileRoute("/")({
           applicationCategory: "GameApplication",
           operatingSystem: "Any",
           offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
-        },
-      },
-      {
-        "script:ld+json": {
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: FAQ.map(({ question, answer }) => ({
-            "@type": "Question",
-            name: question,
-            acceptedAnswer: { "@type": "Answer", text: answer },
-          })),
         },
       },
     ],

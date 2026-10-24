@@ -22,7 +22,8 @@ const OUT = fileURLToPath(
 )
 // A phone's height, wider than a phone: desktop shows the sides too.
 const SIZE = { width: 560, height: 844 }
-const SCALE = 2
+// Phones show the film full height at 3x: filmed at their pixels, not upscaled.
+const SCALE = 3
 const FRAMES = Math.round(FILM_SECONDS * FILM_FPS)
 
 // The scene's own clock, in ms: every animation frame is handed it as its
@@ -116,14 +117,12 @@ execFileSync("ffmpeg", [
   String(FILM_FPS),
   "-i",
   join(frames, "%04d.png"),
-  "-vf",
-  "scale=840:-2",
   "-c:v",
   "libx264",
   "-preset",
   "slow",
   "-crf",
-  "27",
+  "24",
   "-pix_fmt",
   "yuv420p",
   "-g",
@@ -139,10 +138,8 @@ execFileSync("ffmpeg", [
   "error",
   "-i",
   join(frames, "0000.png"),
-  "-vf",
-  "scale=840:-2",
   "-q:v",
-  "4",
+  "3",
   join(OUT, "pack-opening.jpg"),
 ])
 rmSync(frames, { recursive: true })

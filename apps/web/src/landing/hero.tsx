@@ -1,32 +1,25 @@
+import { FloatingCards, type Floater } from "@/landing/floating-cards"
 import { PlayButton } from "@/landing/play-button"
 import { HERO_CARDS } from "@/landing/showcase-pack"
-import { ClientOnly } from "@tanstack/react-router"
-import type { GameSong, Rarity } from "@workspace/ui/lib/game/theme"
+import type { Rarity } from "@workspace/ui/lib/game/theme"
 import { ChevronsDownIcon } from "lucide-react"
-import { lazy, Suspense, useEffect, useRef } from "react"
-
-// The game's own card thumbs (three.js), loaded once the page has painted.
-const SongCardThumb = lazy(() =>
-  import("@workspace/ui/components/song-card").then((module) => ({
-    default: module.SongCardThumb,
-  }))
-)
 
 // Real cards framing the title from behind, each at its own depth and tilt:
 // the parallax layers, the nearer ones rising faster as the page scrolls. The
 // rarest hold the clear corners, whole on a phone; the last three sit right
-// behind the words (on desktop, Bad Bunny's song and YOASOBI's swap places). A
-// phone shows five, bigger: the corners and Ella Baila Sola. Fixed so server
-// and client agree.
-const FLOATERS = HERO_CARDS.map((card, index) => ({
+// behind the words (on desktop, Bad Bunny's song swaps with Burna Boy, and
+// ROSALÍA's with Shakira). A phone shows five, bigger: the corners (ROSALÍA's
+// in Shakira's place, YOASOBI's and Bad Bunny's along the bottom) and Ella
+// Baila Sola. Fixed so server and client agree.
+const FLOATERS: ReadonlyArray<Floater> = HERO_CARDS.map((card, index) => ({
   card,
   place: [
     "left-5 top-24 w-34 sm:left-[2%] sm:w-40 lg:left-[8%] lg:top-[16%] lg:w-52 -rotate-12",
-    "right-5 top-24 w-34 sm:right-[3%] sm:w-40 lg:right-[9%] lg:top-[17%] lg:w-48 rotate-[9deg]",
-    "left-5 top-[calc(100dvh-14.5rem)] w-34 sm:top-auto sm:bottom-[4%] sm:left-[9%] sm:w-40 lg:left-[31%] lg:top-[19%] lg:bottom-auto lg:w-48 rotate-[7deg] lg:-rotate-[14deg]",
-    "right-5 top-[calc(100dvh-14.5rem)] w-34 sm:top-auto sm:bottom-[2%] sm:right-[8%] sm:w-40 lg:right-[15%] lg:w-52 -rotate-[10deg]",
-    "hidden sm:block sm:left-[25%] sm:top-[30%] sm:w-44 lg:left-[17%] lg:top-auto lg:bottom-[3%] lg:w-48 -rotate-[17deg] lg:rotate-[7deg]",
-    "hidden sm:block sm:right-[24%] sm:top-[39%] sm:w-44 lg:right-[30%] lg:top-[45%] lg:w-52 rotate-[15deg]",
+    "hidden sm:block sm:top-24 sm:right-[3%] sm:w-40 lg:top-auto lg:bottom-[2%] lg:right-[15%] lg:w-52 rotate-[9deg] lg:-rotate-[10deg]",
+    "right-5 top-[calc(100dvh-18rem)] w-34 sm:top-auto sm:bottom-[4%] sm:right-auto sm:left-[9%] sm:w-40 lg:left-[31%] lg:top-[19%] lg:bottom-auto lg:w-48 -rotate-[10deg] sm:rotate-[7deg] lg:-rotate-[14deg]",
+    "right-5 top-24 w-34 sm:top-auto sm:bottom-[2%] sm:right-[8%] sm:w-40 lg:top-[17%] lg:bottom-auto lg:right-[9%] lg:w-48 rotate-[9deg] sm:-rotate-[10deg] lg:rotate-[9deg]",
+    "left-5 top-[calc(100dvh-18rem)] w-34 sm:left-[25%] sm:top-[30%] sm:w-44 lg:left-auto lg:right-[30%] lg:top-[45%] lg:w-52 rotate-[7deg] sm:-rotate-[17deg] lg:rotate-[15deg]",
+    "hidden sm:block sm:right-[24%] sm:top-[39%] sm:w-44 lg:right-auto lg:left-[17%] lg:top-auto lg:bottom-[3%] lg:w-48 rotate-[15deg] lg:rotate-[7deg]",
     "left-[calc(50%-4.5rem)] top-[40%] w-36 sm:left-[42%] sm:top-[50%] sm:w-36 lg:left-[45%] lg:top-[46%] lg:w-40 -rotate-[5deg]",
   ][index],
   depth: [0.55, 0.2, 0.35, 0.75, 0.42, 0.26, 0.5][index] ?? 0.3,
@@ -40,28 +33,12 @@ const VERBS: ReadonlyArray<{ text: string; rarity: Rarity; tilt: string }> = [
 ]
 
 export function Hero() {
-  const layersRef = useRef<HTMLDivElement>(null)
-  useParallax(layersRef)
-
   return (
-    <section className="-mt-24 pt-24 relative isolate flex min-h-dvh items-center overflow-hidden">
-      <div
-        ref={layersRef}
-        aria-hidden="true"
-        className="inset-0 absolute -z-10"
-      >
-        {FLOATERS.map(({ card, place, depth }) => (
-          <div
-            key={card.id}
-            data-depth={depth}
-            className={`absolute will-change-transform ${place}`}
-          >
-            <Thumb card={card} />
-          </div>
-        ))}
+    <section className="-mt-24 pt-24 relative isolate z-10 flex min-h-dvh items-center overflow-hidden">
+      <FloatingCards floaters={FLOATERS}>
         {/* A faint light behind the words; the cards still show through. */}
         <div className="inset-0 absolute bg-radial from-paper/55 via-paper/25 via-35% to-transparent to-70%" />
-      </div>
+      </FloatingCards>
       <div className="max-w-3xl px-4 py-24 sm:px-6 mx-auto text-center">
         <p className="gap-2 px-3 py-1.5 text-xs font-bold tracking-wide shadow-lg inline-flex -rotate-2 items-center rounded-full bg-ink text-ink-foreground uppercase">
           <span
@@ -105,50 +82,12 @@ export function Hero() {
         <div className="mt-8 gap-4 flex flex-wrap items-center justify-center">
           <PlayButton>Open your first pack</PlayButton>
         </div>
-        <p className="mt-10 gap-2 text-sm font-bold animate-bounce inline-flex items-center text-ink/60">
+        {/* On a phone, in the gap between the bottom cards and the pack's top. */}
+        <p className="bottom-15 gap-2 text-sm font-bold sm:static sm:mt-10 sm:inline-flex inset-x-0 animate-bounce absolute flex items-center justify-center text-ink/60">
           <ChevronsDownIcon aria-hidden="true" className="size-5" />
           Scroll to open a pack
         </p>
       </div>
     </section>
   )
-}
-
-// One of the game's card thumbs, drawn in the browser only.
-function Thumb({ card }: { card: GameSong }) {
-  return (
-    <ClientOnly>
-      <Suspense fallback={null}>
-        <SongCardThumb song={card} />
-      </Suspense>
-    </ClientOnly>
-  )
-}
-
-// Moves each `data-depth` child up as the page scrolls, deeper ones slower.
-function useParallax(ref: { current: HTMLElement | null }) {
-  useEffect(() => {
-    const layers = ref.current
-    const scroller = layers?.closest("[data-slot=landing-scroll]")
-    if (!layers || !scroller) return undefined
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined
-    const items = [...layers.querySelectorAll<HTMLElement>("[data-depth]")]
-    let frame = 0
-    const update = () => {
-      frame = 0
-      const y = scroller.scrollTop
-      for (const item of items) {
-        const depth = Number(item.dataset.depth)
-        item.style.translate = `0 ${-y * depth}px`
-      }
-    }
-    const schedule = () => {
-      frame ||= requestAnimationFrame(update)
-    }
-    scroller.addEventListener("scroll", schedule, { passive: true })
-    return () => {
-      cancelAnimationFrame(frame)
-      scroller.removeEventListener("scroll", schedule)
-    }
-  }, [ref])
 }

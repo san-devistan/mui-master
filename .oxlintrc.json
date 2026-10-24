@@ -180,7 +180,6 @@
     "dist/**",
     "**/dist/**",
     "node_modules/**",
-    "apps/mobile/uniwind-types.d.ts",
     "apps/web/src/routeTree.gen.*",
     "packages/backend/convex/_generated/**"
   ]

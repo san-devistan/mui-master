@@ -16,6 +16,7 @@ import type * as market from "../market.js";
 import type * as notify from "../notify.js";
 import type * as packs from "../packs.js";
 import type * as playback from "../playback.js";
+import type * as players from "../players.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as related from "../related.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   notify: typeof notify;
   packs: typeof packs;
   playback: typeof playback;
+  players: typeof players;
   profile: typeof profile;
   push: typeof push;
   related: typeof related;
@@ -82,4 +84,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  resend: import("@convex-dev/resend/_generated/component.js").ComponentApi<"resend">;
 };
