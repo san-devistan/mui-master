@@ -2,8 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Dependencies allowed to run install scripts (pnpm fails a clean CI install on
-# any it wasn't told about).
+# Dependencies allowed (true) or denied (false) their install scripts: pnpm
+# fails a clean CI install on any it wasn't told about. core-js (from
+# posthog-js) only prints a banner.
 allowBuilds:
+  core-js: false
   esbuild: true
   workerd: true
