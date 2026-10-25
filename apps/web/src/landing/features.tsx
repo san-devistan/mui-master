@@ -1,6 +1,6 @@
 import { CardThumb } from "@/landing/floating-cards"
 import { JOIN_CARDS, SHOWCASE } from "@/landing/showcase-pack"
-import { atLeastOne, percent } from "@/legal/pack-odds"
+import { atLeastOne, percent, pullRate } from "@/legal/pack-odds"
 import { Link } from "@tanstack/react-router"
 import { GameBadge } from "@workspace/ui/components/count-badge"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
@@ -144,29 +144,31 @@ const TIERS: ReadonlyArray<{ rarity: Rarity; streams: string }> = [
   { rarity: "legendary", streams: "2B+" },
 ]
 
-// Streams, rarity and pack odds side by side: the counts right-aligned in a
-// column wide enough for the longest, the badges lined up beside them, then
-// the chance a pack holds that rarity or better (pack-odds.ts).
+// Streams, rarity and pull rate in one grid, each column as wide as its
+// longest entry and the same gap between them: the counts right-aligned, the
+// badges centered, then the share of pulled cards of that rarity
+// (pack-odds.ts), left-aligned, adding up to 100%.
 function RarityVisual() {
+  const head = "text-xs text-ink/50"
   return (
-    <div className="gap-2 text-sm font-black grid font-heading">
-      <div className="gap-3 text-xs flex items-center whitespace-nowrap text-ink/50">
-        <span className="w-16 text-right">Streams</span>
-        <span className="w-28">Rarity</span>
-        <span className="w-16 text-right">In a pack</span>
-      </div>
+    <div className="gap-x-5 gap-y-2 text-sm font-black grid grid-flow-col grid-rows-5 items-center font-heading">
+      <span className={`${head} text-right`}>Streams</span>
       {TIERS.map(({ rarity, streams }) => (
-        <div key={rarity} className="gap-3 flex items-center">
-          <span className="w-16 text-right text-ink/60 tabular-nums">
-            {streams}
-          </span>
-          <span className="w-28">
-            <RarityBadge rarity={rarity} />
-          </span>
-          <span className="w-16 text-right tabular-nums">
-            {percent(atLeastOne(rarity))}
-          </span>
-        </div>
+        <span key={rarity} className="text-right text-ink/60 tabular-nums">
+          {streams}
+        </span>
+      ))}
+      <span className={`${head} text-center`}>Rarity</span>
+      {TIERS.map(({ rarity }) => (
+        <span key={rarity} className="flex justify-center">
+          <RarityBadge rarity={rarity} />
+        </span>
+      ))}
+      <span className={head}>Pulls</span>
+      {TIERS.map(({ rarity }) => (
+        <span key={rarity} className="tabular-nums">
+          {percent(pullRate(rarity))}
+        </span>
       ))}
     </div>
   )

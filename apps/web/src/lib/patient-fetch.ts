@@ -2,8 +2,9 @@
 // gateway error is tried again, backing off to every 10 s and right away once the browser is back
 // online, until the auth server itself answers. Only its answers come back (2xx, or a 4xx such as
 // a refused sign-in): Better Auth reads a failed session or token fetch as "signed out", and the
-// game then stayed blank for good.
-const RETRIED_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+// game then stayed blank for good. A 429 is the backend's rate limit, an answer to show (the
+// session and token calls are never limited): retrying it would only keep the form waiting.
+const RETRIED_STATUSES = new Set([408, 500, 502, 503, 504])
 // Long enough for a slow 3G round trip or two.
 const ATTEMPT_TIMEOUT = 20_000
 const MAX_DELAY = 10_000

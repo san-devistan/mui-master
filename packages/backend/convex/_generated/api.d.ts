@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as billing from "../billing.js";
 import type * as catalog from "../catalog.js";
 import type * as collection from "../collection.js";
+import type * as crons from "../crons.js";
 import type * as flags from "../flags.js";
 import type * as grants from "../grants.js";
 import type * as http from "../http.js";
@@ -28,6 +29,7 @@ import type * as songs__lib_deezer from "../songs/_lib/deezer.js";
 import type * as songs__lib_economy from "../songs/_lib/economy.js";
 import type * as songs__lib_rarity from "../songs/_lib/rarity.js";
 import type * as songs__lib_validators from "../songs/_lib/validators.js";
+import type * as throttle from "../throttle.js";
 import type * as upgrades from "../upgrades.js";
 import type * as wallet from "../wallet.js";
 
@@ -42,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   billing: typeof billing;
   catalog: typeof catalog;
   collection: typeof collection;
+  crons: typeof crons;
   flags: typeof flags;
   grants: typeof grants;
   http: typeof http;
@@ -58,6 +61,7 @@ declare const fullApi: ApiFromModules<{
   "songs/_lib/economy": typeof songs__lib_economy;
   "songs/_lib/rarity": typeof songs__lib_rarity;
   "songs/_lib/validators": typeof songs__lib_validators;
+  throttle: typeof throttle;
   upgrades: typeof upgrades;
   wallet: typeof wallet;
 }>;

@@ -28,14 +28,16 @@ Convex itself is reachable through its MCP and the workspace CLI
 ## Deployments
 
 - Dev: `scrupulous-hedgehog-1`, the one in `packages/backend/.env.local`,
-  synced by `convex dev`. Has `DEV_TOOLS=1`, the Stripe sandbox and
-  `SITE_URL=https://musi-master.localhost`.
+  synced by `convex dev`. Has `DEV_TOOLS=1` (so everyone pays in the Stripe
+  sandbox), no live Stripe keys, and `SITE_URL=https://musi-master.localhost`.
 - Prod: `courteous-scorpion-345`, behind `holotrack.art` (the web app's
   Cloudflare build sets `VITE_CONVEX_URL`/`VITE_CONVEX_SITE_URL` to it). Deploy
   with `pnpm exec convex deploy`; add `--prod` to `convex run`, `env` and
   `import`/`export` to reach it. Never set `DEV_TOOLS` there. Its own
   `BETTER_AUTH_SECRET` and VAPID keys (changing the VAPID keys drops every push
-  subscription); `SITE_URL=https://holotrack.art`.
+  subscription); `SITE_URL=https://holotrack.art`. Has both Stripe accounts:
+  live (`holotrack.art`, `acct_1SJzWNIlWQvtfyXh`) and the sandbox, each with
+  its webhook endpoint pointed at this deployment's `.convex.site`.
 - Only the catalog (`songs`, `artists`, `credits`, `catalogStats`) is copied
   between them, as a snapshot (`convex export`, then `convex import --prod` of
   those tables). Player data is never copied: prod fills it by being played.
@@ -109,13 +111,25 @@ platform.
   `node packages/backend/convex/songs/_lib/rarity.check.mjs`.
 - Players (`auth.ts`): Better Auth in its Convex component, no guests: everyone
   signs in with an emailed code before playing (email OTP; a new email makes an
-  account, which picks a username). A deleted account's game goes with it
-  (`players:deletePlayer`; deleting needs a sign-in within the last day).
+  account, which picks a username). Deleting an account (a sign-in within the
+  last day) first cancels its Stripe subscriptions in both accounts
+  (`billing:cancelSubscriptions`; Stripe unreachable, the account stays), then
+  its game goes with it (`players:deletePlayer`).
   `playerId(ctx)` is the signed-in user's id. Codes go
   out through the Resend component. Needs the Convex env vars
   `BETTER_AUTH_SECRET`, `SITE_URL` (the web app's URL) and `RESEND_API_KEY`;
   `AUTH_EMAIL_FROM` sets the sender (an address on a domain verified in Resend;
   without it, Resend's shared sender only reaches the Resend account's email).
+  Rate limits (`throttle.ts`) are on in every deployment (Better Auth
+  only turns them on for `NODE_ENV=production`, which Convex never sets), kept
+  in the component's `rateLimit` table: per IP, 3 codes sent or tried a minute;
+  per email, 3 codes per 10 minutes and 10 a day, whatever the IP. The web
+  app's `/api/auth` Worker passes the player's IP signed with
+  `AUTH_PROXY_SECRET`, the same random value as a Convex env var and a Worker
+  secret (`wrangler secret put AUTH_PROXY_SECRET`); unsigned, a request counts
+  against the IP in front of Convex, so on prod without it every player shares
+  the Worker's. `crons.ts` deletes sent emails (they hold the codes) a day
+  after they're done, and rate limit rows a day after their last request.
 - Collection: `collection` holds one row per player and card (copies, first
   pull, and `seenRarity`, the rarity they last saw it at), plus the card's
   kind, rarity rank, title key and streams, copied in by `packs:claim` and
@@ -172,13 +186,20 @@ platform.
   them, or puts the keys on matching products made by hand, in the account the
   Stripe CLI is logged in to, with each product's icon from
   `scripts/stripe-icons/`); `billing:portal` opens Stripe's
-  billing portal. Nothing is given on the client's word: the webhook
-  (`http.ts`, `/stripe/webhook`, signature checked by the component) gives the
-  holos once per paid session (`fulfilledCheckouts`) and keeps `proUntil` at
-  the subscription's period end (0 once cancelled or unpaid). Needs
-  `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`; dev uses the Stripe sandbox
-  (test cards such as 4242 4242 4242 4242) and its webhook endpoint for this
-  deployment's `.convex.site`. `market.ts`: `sell` gives a
+  billing portal. Two Stripe accounts, each its own component (`stripe`,
+  `stripeSandbox`), env vars and webhook: a player in dev mode pays in the
+  sandbox (`STRIPE_SANDBOX_SECRET_KEY`, `STRIPE_SANDBOX_WEBHOOK_SECRET`,
+  `/stripe/sandbox/webhook`; test cards such as 4242 4242 4242 4242), everyone
+  else live (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `/stripe/webhook`).
+  A key of the wrong mode counts as unset (live takes only `sk_live_`/`rk_live_`),
+  and an unset key keeps that account's checkout closed. Checkout asks for the
+  buyer's billing address and Stripe Tax adds the VAT it owes (prices include
+  it) whenever the account's Stripe Tax is active (live is; the sandbox isn't
+  set up, so it checks out without). Nothing is given on the
+  client's word: each webhook (`http.ts`, signature checked by its component)
+  gives the holos once per paid session (`fulfilledCheckouts`) and keeps
+  `proUntil` at the subscription's period end (0 once cancelled or unpaid).
+  `market.ts`: `sell` gives a
   copy to the bank (the last one too); `list`/`bid`/`cancel` run auctions, the listed copy
   and the top bid's coins held until `settle` (scheduled at `endsAt`, and again
   if a late bid pushed it back) hands over the card and pays the seller the

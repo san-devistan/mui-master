@@ -229,6 +229,7 @@ export function DangerZone() {
               <DialogDescription>
                 Your cards, holos, showcase and unbid auctions are deleted now,
                 and can&apos;t come back. Auctions with a bid run to their end.
+                Pro, if you have it, is cancelled right away.
               </DialogDescription>
             </DialogHeader>
             {error ? (

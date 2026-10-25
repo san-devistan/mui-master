@@ -84,6 +84,10 @@ Better Auth's endpoints are served at `/api/auth/*` (`routes/api.auth.$.ts`),
 forwarded to the Convex deployment with the request body buffered (Node's fetch
 fails a streamed body that gets a 401), so it needs `VITE_CONVEX_SITE_URL` (the
 `.convex.site` URL) in `.env.local`, inlined into the build.
+The route also passes the player's IP for the backend's rate limits, signed with
+the Worker secret `AUTH_PROXY_SECRET` (the same value as the Convex env var:
+`pnpm exec wrangler secret put AUTH_PROXY_SECRET`); without it every player on
+prod shares the Worker's IP, and so its limits.
 
 ## Analytics
 

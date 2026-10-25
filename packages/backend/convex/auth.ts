@@ -1,6 +1,9 @@
 import { createClient, type GenericCtx } from "@convex-dev/better-auth"
 import { convex } from "@convex-dev/better-auth/plugins"
-import { requireRunMutationCtx } from "@convex-dev/better-auth/utils"
+import {
+  requireActionCtx,
+  requireRunMutationCtx,
+} from "@convex-dev/better-auth/utils"
 import { Resend } from "@convex-dev/resend"
 import { betterAuth, type BetterAuthOptions } from "better-auth/minimal"
 import { emailOTP } from "better-auth/plugins/email-otp"
@@ -10,6 +13,12 @@ import { components, internal } from "./_generated/api"
 import type { DataModel } from "./_generated/dataModel"
 import type { QueryCtx } from "./_generated/server"
 import authConfig from "./auth.config"
+import {
+  codesPerEmailLimit,
+  ipAddress,
+  rateLimit,
+  trustedClientIp,
+} from "./throttle"
 
 declare const process: { env: Record<string, string | undefined> }
 
@@ -36,11 +45,22 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     baseURL: process.env.SITE_URL,
     database: authComponent.adapter(ctx),
     trustedOrigins: process.env.SITE_URL ? [process.env.SITE_URL] : [],
+    // On whatever NODE_ENV (Convex never sets it), stored in the component: throttle.ts.
+    rateLimit,
+    advanced: { ipAddress },
     // A player can delete their account (signed in within the last day, Better Auth's freshAge);
-    // their game goes with it (players:deletePlayer).
+    // their Pro subscriptions are cancelled first (billing:cancelSubscriptions), so nobody is
+    // charged for an account that's gone, then their game goes with it (players:deletePlayer).
     user: {
       deleteUser: {
         enabled: true,
+        beforeDelete: async (user) => {
+          // Deleting runs through the auth HTTP routes, so this is always an action's context.
+          await requireActionCtx(ctx).runAction(
+            internal.billing.cancelSubscriptions,
+            { player: user.id }
+          )
+        },
         afterDelete: async (user) => {
           await requireRunMutationCtx(ctx).runMutation(
             internal.players.deletePlayer,
@@ -62,6 +82,9 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
         },
       }),
       username(),
+      trustedClientIp,
+      // Codes per email, whatever IP asked for them (throttle.ts).
+      codesPerEmailLimit(ctx),
       convex({ authConfig }),
     ],
   } satisfies BetterAuthOptions)

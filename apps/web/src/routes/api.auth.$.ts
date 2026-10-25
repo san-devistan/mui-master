@@ -4,6 +4,22 @@ const convexSite = import.meta.env.VITE_CONVEX_SITE_URL ?? ""
 // The Convex site's host, checked once at startup like the library's own handler did.
 const convexHost = URL.canParse(convexSite) ? new URL(convexSite).host : ""
 
+// The player's IP, for the backend's rate limits (convex/throttle.ts): Cloudflare gives
+// this Worker's requests to Convex the Worker's own address, so the route passes the IP it got,
+// signed with the AUTH_PROXY_SECRET it shares with the backend (a Worker secret here, a Convex env
+// var there). Without the secret (local dev), Convex counts the request against its sender's IP.
+const proxySecret = () => process.env.AUTH_PROXY_SECRET ?? ""
+
+const passClientIp = (request: Request, upstream: Headers) => {
+  upstream.delete("x-holotrack-client-ip")
+  upstream.delete("x-holotrack-proxy-secret")
+  const ip = request.headers.get("cf-connecting-ip")
+  const secret = proxySecret()
+  if (!ip || !secret) return
+  upstream.set("x-holotrack-client-ip", ip)
+  upstream.set("x-holotrack-proxy-secret", secret)
+}
+
 // Better Auth's endpoints, forwarded to the Convex deployment, as @convex-dev/better-auth's
 // handler does, but with the body read up front: Node's fetch (undici 7.21) fails a streamed
 // request body that gets a 401 back, such as a wrong password, with "expected non-null body
@@ -25,6 +41,7 @@ const forward = async (request: Request) => {
   upstream.set("x-forwarded-proto", proto)
   upstream.set("x-better-auth-forwarded-host", url.host)
   upstream.set("x-better-auth-forwarded-proto", proto)
+  passClientIp(request, upstream)
   const response = await fetch(`${convexSite}${url.pathname}${url.search}`, {
     method: request.method,
     headers: upstream,

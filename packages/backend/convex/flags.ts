@@ -14,8 +14,9 @@ declare const process: { env: Record<string, string | undefined> }
 // directly, so a flag the client only hid behind would stop nobody calling a mutation. The client
 // reads them (flags:get) only to hide what's off.
 // - DEV_TOOLS=1, dev mode: the dev tools (wallet:setPro, wallet:addHolos), for testing without
-//   paying. Anyone signed in can mint holos and Pro with it: never production; there, grant
-//   `dev` to your own email instead.
+//   paying, and checkout in the Stripe sandbox instead of live (billing.ts), test cards only.
+//   Anyone signed in can mint holos and Pro with it: never production; there, grant `dev` to
+//   your own email instead.
 // - PREMIUM=1, premium: the holo shop (Stripe checkout, billing.ts), Holotrack Pro and all their
 //   UI. Off, there's no shop and nobody paid is Pro; a `pro` grant still is, with premium on for
 //   them alone.

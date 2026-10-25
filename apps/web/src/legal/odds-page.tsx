@@ -3,9 +3,11 @@ import {
   atLeastOne,
   GOD_PACK_PERCENT,
   percent,
+  pullRate,
   SLOT_ODDS,
 } from "@/legal/pack-odds"
 import { RarityBadge } from "@workspace/ui/components/rarity-badge"
+import { RARITY_ORDER } from "@workspace/ui/lib/game/theme"
 
 const UPDATED = "October 25, 2026"
 const ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"] as const
@@ -72,6 +74,17 @@ export function OddsPage() {
         </p>
       </LegalSection>
       <LegalSection title="Odds per pack">
+        <p>Across all packs, god packs included, the cards you pull are:</p>
+        <ul className="gap-x-5 gap-y-2 flex flex-wrap">
+          {RARITY_ORDER.map((rarity) => (
+            <li key={rarity} className="gap-2 flex items-center">
+              <RarityBadge rarity={rarity} />
+              <span className="font-bold text-ink tabular-nums">
+                {percent(pullRate(rarity))}
+              </span>
+            </li>
+          ))}
+        </ul>
         <p>
           Every pack has at least one rare or better card. A pack has a{" "}
           {percent(atLeastOne("epic"))} chance of at least one epic or legendary

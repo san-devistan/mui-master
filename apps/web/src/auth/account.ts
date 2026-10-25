@@ -3,6 +3,7 @@ const MESSAGES: Partial<Record<string, string>> = {
   INVALID_OTP: "That code isn't right. Check it and try again.",
   OTP_EXPIRED: "That code has expired. Send a new one.",
   TOO_MANY_ATTEMPTS: "Too many tries. Send a new code.",
+  TOO_MANY_CODES: "Too many codes sent to this email. Try again later.",
   USERNAME_IS_ALREADY_TAKEN: "That username is taken. Try another.",
   USERNAME_TOO_SHORT: "Use at least 3 characters.",
   USERNAME_TOO_LONG: "Use 30 characters or fewer.",

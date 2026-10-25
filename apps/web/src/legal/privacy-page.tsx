@@ -47,9 +47,10 @@ export function PrivacyPage() {
               text: (
                 <>
                   <strong>Your purchases</strong>: when you buy holos or Pro,
-                  Stripe handles the payment. We keep your Stripe customer id,
-                  what you bought and your subscription status. Your card
-                  details go to Stripe only, never to us.
+                  Stripe handles the payment and asks for your billing address,
+                  to work out the VAT. We keep your Stripe customer id, what you
+                  bought and your subscription status. Your card details go to
+                  Stripe only, never to us.
                 </>
               ),
             },
@@ -142,10 +143,11 @@ export function PrivacyPage() {
       <LegalSection title="How long we keep it">
         <p>
           We keep your account and game for as long as you have an account.
-          Deleting your account (Profile, then Delete account) erases your game
-          and account data. Payment records stay with Stripe for as long as tax
-          and accounting law requires. Analytics data is kept for up to 7 years,
-          then deleted.
+          Deleting your account (Profile, then Delete account) cancels your Pro
+          subscription and erases your game and account data. Sign-in code
+          emails are deleted from our side a day after they're sent. Payment
+          records stay with Stripe for as long as tax and accounting law
+          requires. Analytics data is kept for up to 7 years, then deleted.
         </p>
       </LegalSection>
       <LegalSection title="Your rights">
