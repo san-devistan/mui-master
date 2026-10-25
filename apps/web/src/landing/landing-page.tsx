@@ -2,6 +2,7 @@ import { Hero } from "@/landing/hero"
 import { Join } from "@/landing/join"
 import { PackStory } from "@/landing/pack-story"
 import { PlayButton } from "@/landing/play-button"
+import { SiteFooter } from "@/legal/site-footer"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { useEffect } from "react"
 
@@ -26,10 +27,7 @@ export function LandingPage() {
         <PackStory />
         <Join />
       </main>
-      <footer className="max-w-6xl px-4 pb-10 sm:px-6 md:px-8 gap-2 text-sm sm:flex-row sm:justify-between mx-auto flex flex-col text-ink/60">
-        <p>© 2026 Holotrack</p>
-        <p>Not affiliated with Spotify or Deezer.</p>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }

@@ -11,12 +11,12 @@ import {
   type QueryCtx,
 } from "./_generated/server"
 import { playerId } from "./auth"
+import { proAt } from "./flags"
 import { addCopy, cardById, sortKeys, takeCopy } from "./packs"
 import { notify } from "./push"
 import { normalizeText } from "./songs/_lib/dedupe"
 import {
   auctionHours,
-  isPro,
   maxOpenAuctions,
   maxStartPrice,
   minBid,
@@ -82,7 +82,7 @@ export const list = mutation({
       throw new ConvexError("The start price must be a whole number of holos")
     }
     const seller = await ensurePlayer(ctx, player)
-    const most = isPro(seller.proUntil, Date.now())
+    const most = (await proAt(ctx, seller, Date.now()))
       ? proMaxOpenAuctions
       : maxOpenAuctions
     const open = await ctx.db

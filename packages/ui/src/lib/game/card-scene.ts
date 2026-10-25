@@ -198,10 +198,38 @@ function stillCard(
 const pileWidth = (width: number, height: number) =>
   Math.min(CARD_W * PILE_ZOOM, width - 64, (height * 0.6 * CARD_W) / CARD_H)
 
+// How far above its middle the upgrading card bobs, in card units.
+const BOB = { low: 6, high: 14 }
+
+// Where the upgrading card's edges sit on its canvas, so the page can set text
+// just clear of it: --card-top at the top of its bob and --card-bottom at the
+// bottom, in % of the canvas height, on the canvas's parent.
+function markCard(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+  bob = BOB
+) {
+  const cardWidth = pileWidth(width, height)
+  const zoom = cardWidth / CARD_W
+  const half = (cardWidth * CARD_H) / CARD_W / 2
+  const holder = canvas.parentElement ?? canvas
+  const percent = (y: number) => `${(y / height) * 100}%`
+  holder.style.setProperty(
+    "--card-top",
+    percent(height / 2 - half - bob.high * zoom)
+  )
+  holder.style.setProperty(
+    "--card-bottom",
+    percent(height / 2 + half - bob.low * zoom)
+  )
+}
+
 // A card going up through `rarities`, one per step: one film per rarity, posed
 // together, with only the current one shown. Each step turns the card round
 // and shows the next while its back faces the viewer. Framed like the opened
-// pile (smaller when the canvas is narrow or short), the pointer tilting it.
+// pile (smaller when the canvas is narrow or short), the pointer tilting it;
+// marks where it sits (markCard).
 export function mountUpgradeScene(
   canvas: HTMLCanvasElement,
   song: GameSong,
@@ -213,10 +241,10 @@ export function mountUpgradeScene(
     const flat = stillCard(
       canvas,
       { ...song, rarity: rarities[0] ?? song.rarity },
-      (width, height) => ({
-        y: 0,
-        width: pileWidth(width, height),
-      })
+      (width, height) => {
+        markCard(canvas, width, height, { low: 0, high: 0 })
+        return { y: 0, width: pileWidth(width, height) }
+      }
     )
     return {
       dispose: flat.still.dispose,
@@ -228,6 +256,7 @@ export function mountUpgradeScene(
     }
   }
   const { clientWidth: width, clientHeight: height } = canvas
+  markCard(canvas, width, height)
   // Clear of the sides, and of a header and footer a fifth of the height each.
   stage.camera.position.z /= Math.min(
     PILE_ZOOM,
@@ -279,7 +308,9 @@ export function mountUpgradeScene(
     lean.y += (sway + (pointer.at?.x ?? 0) * 0.8 - lean.y) * ease
     lean.x += ((pointer.at?.y ?? 0) * 0.7 - lean.x) * ease
     place(card, { ...at, rx: at.rx + lean.x, ry: at.ry + lean.y })
-    card.position.y += 6 + 4 * (1 - Math.cos((time * Math.PI * 2) / 5))
+    card.position.y +=
+      BOB.low +
+      ((BOB.high - BOB.low) / 2) * (1 - Math.cos((time * Math.PI * 2) / 5))
   })
   return {
     dispose: stage.dispose,

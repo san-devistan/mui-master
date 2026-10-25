@@ -199,8 +199,9 @@ export default defineSchema({
     // Packs bought with coins and not opened yet (wallet:buyPacks); opened once the free ones are
     // gone, and they never run out.
     boughtPacks: v.number(),
-    // Pro until then (ms); past (0 for a player who never had it), the free game. Paid monthly;
-    // no checkout yet, so for now only the dev switch sets it (wallet:setPro).
+    // Pro until then (ms); past (0 for a player who never had it), the free game. Paid monthly
+    // through Stripe (billing.ts keeps it at the subscription's period end), or set by the dev
+    // switch (wallet:setPro). A free grant (`grants`) counts as Pro on top of it.
     proUntil: v.number(),
     // When Pro's weekly holos were last given (wallet:claimWeekly); 0 before the first.
     weeklyHolosAt: v.number(),
@@ -210,6 +211,22 @@ export default defineSchema({
     // Up to 6 card ids the player shows on their profile, in order (profile.ts).
     showcase: v.array(v.string()),
   }).index("by_playerId", ["playerId"]),
+  // Flags given by hand to one player, by email (grants.ts): `pro`, Pro for free and premium on
+  // for them alone; `dev`, the dev tools for them alone. Until revoked. Only internal functions
+  // write it, from the dashboard or `convex run`; the email is lowercased.
+  grants: defineTable({
+    email: v.string(),
+    pro: v.boolean(),
+    dev: v.boolean(),
+    // Why, for whoever reads the table later ("founder", "beta tester").
+    note: v.optional(v.string()),
+  }).index("by_email", ["email"]),
+  // Each Stripe checkout session already paid out (billing.ts), so a webhook Stripe sends again
+  // never gives the same holos twice.
+  fulfilledCheckouts: defineTable({
+    sessionId: v.string(),
+    playerId: v.string(),
+  }).index("by_sessionId", ["sessionId"]),
   // One row per device a player turned notifications on from: its Web Push subscription
   // (push.ts), dropped once the push service says it's gone (notify.ts).
   pushSubscriptions: defineTable({

@@ -1,6 +1,5 @@
 import { toGameCard } from "@/game/_lib/cards"
 import { api } from "@workspace/backend/api"
-import { Button } from "@workspace/ui/components/button"
 import { Celebration } from "@workspace/ui/components/celebration"
 import { GameMotes } from "@workspace/ui/components/game-motes"
 import { GameStage } from "@workspace/ui/components/game-stage"
@@ -65,38 +64,24 @@ function UpgradeQueue({
     else onDone()
   }
 
-  // Skipping marks every card left as seen.
-  function skip() {
-    for (const left of queue.slice(index)) {
-      void seeUpgrade({ cardId: left.id })
-    }
-    onDone()
-  }
-
   return (
     <UpgradeShow
       key={card.id}
       card={card}
-      count={{ at: index + 1, of: queue.length }}
       onSeen={() => void seeUpgrade({ cardId: card.id })}
       onNext={next}
-      onSkip={skip}
     />
   )
 }
 
 function UpgradeShow({
   card,
-  count,
   onSeen,
   onNext,
-  onSkip,
 }: {
   card: Upgrade
-  count: { at: number; of: number }
   onSeen: () => void
   onNext: () => void
-  onSkip: () => void
 }) {
   const cardRef = useRef<UpgradingCardHandle>(null)
   const [rarities] = useState(() => climb(card.from, card.rarity))
@@ -156,12 +141,13 @@ function UpgradeShow({
         className="inset-0 absolute cursor-pointer outline-none focus-visible:ring-4 focus-visible:ring-ring focus-visible:ring-inset"
         onClick={() => void climbOnce()}
       />
-      <header className="inset-x-0 top-0 px-5 pt-6 md:pt-12 pointer-events-none absolute flex flex-col items-center game-safe-top text-center">
-        <p className="text-sm font-bold tracking-wide text-ink/60 uppercase">
-          {count.of > 1 ? `Upgrade ${count.at} of ${count.of}` : "Upgrade"}
-        </p>
-        <h2 className="mt-1 text-3xl font-black tracking-tighter font-heading">
-          {top && step > 0 ? "Rarity up!" : "Your card is evolving"}
+      {/* Set just clear of the card, wherever its scene puts it. */}
+      <header className="inset-x-0 top-0 px-5 pb-8 pointer-events-none absolute flex game-upgrade-head flex-col items-center justify-end-safe game-safe-top text-center">
+        <h2
+          data-big={(top && step > 0) || undefined}
+          className="font-black tracking-tighter font-heading game-upgrade-title text-nowrap"
+        >
+          {top && step > 0 ? "Rarity up!" : "Something's happening…"}
         </h2>
         <div className="mt-3 gap-2 flex items-center" aria-live="polite">
           {rarities.slice(0, step + 1).map((reached, at) => (
@@ -174,22 +160,13 @@ function UpgradeShow({
           ))}
         </div>
       </header>
-      <footer className="inset-x-0 bottom-0 pb-8 md:pb-12 gap-4 pointer-events-none absolute flex flex-col items-center">
+      <footer className="inset-x-0 bottom-0 pt-8 pointer-events-none absolute game-upgrade-foot flex flex-col items-center">
         <p
           data-shown={(ready && !turning) || undefined}
           className="text-sm font-semibold text-ink/70 opacity-0 transition-opacity duration-300 data-shown:opacity-100"
         >
           {top ? "Tap to continue" : "Tap to upgrade"}
         </p>
-        {count.of > count.at ? (
-          <Button
-            variant="game"
-            className="pointer-events-auto"
-            onClick={onSkip}
-          >
-            Skip all
-          </Button>
-        ) : null}
       </footer>
     </dialog>
   )

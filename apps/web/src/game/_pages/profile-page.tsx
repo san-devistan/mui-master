@@ -2,9 +2,10 @@ import {
   AccountSettings,
   DangerZone,
 } from "@/game/_components/account-settings"
+import { BillingSettings } from "@/game/_components/billing-settings"
 import { DevTools } from "@/game/_components/dev-tools"
-import { NotificationSettings } from "@/game/_components/notification-settings"
 import { PageHeader } from "@/game/_components/page-header"
+import { PreferenceSettings } from "@/game/_components/preference-settings"
 import { ProfileShowcase } from "@/game/_components/profile-showcase"
 import { useCardCount } from "@/game/_lib/collection"
 import { sharePicture } from "@/game/_lib/share"
@@ -114,7 +115,8 @@ export function ProfilePage() {
         <ProfileShowcase />
       </div>
       <AccountSettings />
-      <NotificationSettings />
+      <BillingSettings />
+      <PreferenceSettings />
       <DangerZone />
       <DevTools />
     </GameMain>

@@ -6,7 +6,10 @@ composition; data and logic come from `@workspace/backend`.
 It runs on Cloudflare Workers (`wrangler.jsonc`), in dev too: the server code
 runs in `workerd`, so it uses Web APIs and `nodejs_compat`, not a Node server.
 `pnpm run deploy` builds it into `dist/` and deploys it with Wrangler;
-`public/_headers` sets the static assets' caching.
+`public/_headers` sets the static assets' caching. The Worker's entry is
+`src/server.ts`: TanStack Start, plus the landing's film served in byte ranges
+(static assets answer a `Range` request with the whole file, and Chrome then
+can't seek the video), so `/landing/*.mp4` runs the Worker first.
 
 `/` is the server-rendered landing page (`src/landing/`), with its SEO metadata
 on `routes/index.tsx`; the game starts at `/play`, the Packs tab. Scrolling the
@@ -17,6 +20,15 @@ onto it. Change the pack or its timing, then re-film it from the game's own
 scene with the dev server up:
 `node scripts/record-pack-film.mjs` (it films the unlinked
 `/pack-film` route into `public/landing/`).
+
+The landing's footer (`src/legal/site-footer.tsx`) links the public legal
+pages, all server-rendered and in `public/sitemap.xml`: `/odds`, every pack's
+odds read from the backend's own draw constants
+(`@workspace/backend/rarity`, through `src/legal/pack-odds.ts`, also behind
+the landing's rarity odds), so they can't drift from what the game rolls;
+`/terms`; and `/privacy`. Change what the game collects, who processes it, or
+how purchases work, and update those pages with their date. Players reach us
+at `hello@holotrack.art` (Cloudflare Email Routing forwards it).
 
 ## UI
 
@@ -38,10 +50,26 @@ its bid history. A showcased card scrolls down to its related cards
 songs); owned ones open over it, the rest show grayed out. Cards are songs or artists (`src/game/_lib/cards.ts`). On app
 open, `packs.upgrades` cards that went up a rarity climb one rarity per tap on
 their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
-shows the player and their showcase, turns this device's notifications on
-(`public/sw.js` shows them; iOS only once added to the Home Screen), and holds
-the account: the username (unique across players, any case), signing out and
-deleting the account (`src/game/_components/account-settings.tsx`).
+shows the player and their showcase, then the account: the username (unique
+across players, any case; `src/game/_components/account-settings.tsx`); this
+device's preferences (`src/game/_components/preference-settings.tsx`):
+notifications (`public/sw.js` shows them; iOS only once added to the Home
+Screen), sound effects and music (`@workspace/ui/lib/game/sound-settings`, kept
+in localStorage), and, in a phone's browser, the Home Screen install guide
+(`src/game/_components/install-prompt.tsx`, also shown once on its own); and the
+danger zone, signing out and deleting the account.
+
+Feature flags come from the backend (`convex/flags.ts`, read with `useFlags` in
+`src/game/_lib/flags.ts`), per player (a grant can turn them on for one email),
+and only hide UI; the backend enforces them. `premium` shows the holo shop
+(`src/game/_components/holo-shop.tsx`), the Go Pro button, the holos pill
+opening it, "Get holos" and the Pro badge; `dev` shows the dev tools on the
+profile page (`src/game/_components/dev-tools.tsx`). A shop buy goes to Stripe
+Checkout (`billing.checkout`) and comes back to `/play?checkout=done` (or
+`=cancelled`), said once by `src/game/_components/checkout-return.tsx`; the
+holos or Pro arrive through Stripe's webhook and show live. Once they've bought
+something, the profile's Billing row opens Stripe's billing portal
+(`src/game/_components/billing-settings.tsx`).
 
 ## Auth
 

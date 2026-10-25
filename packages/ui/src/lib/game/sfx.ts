@@ -1,3 +1,4 @@
+import { soundOn } from "@workspace/ui/lib/game/sound-settings"
 import type { Rarity } from "@workspace/ui/lib/game/theme"
 
 // The game's sounds, made on the fly with Web Audio: no files to load. All of
@@ -484,8 +485,10 @@ const CUES: Record<Cue, (audio: Engine, at: number) => void> = {
   },
 }
 
-// Plays `cue` in `delay` seconds. Silent until the player first interacts.
+// Plays `cue` in `delay` seconds. Silent until the player first interacts, and
+// while they've turned sound effects off (sound-settings.ts).
 export function play(cue: Cue, delay = 0) {
+  if (!soundOn("sfx")) return
   const audio = engine?.ctx.state === "running" ? engine : wake()
   if (!audio) return
   const { ctx } = audio

@@ -1,5 +1,7 @@
 import { CardThumb } from "@/landing/floating-cards"
 import { JOIN_CARDS, SHOWCASE } from "@/landing/showcase-pack"
+import { atLeastOne, percent } from "@/legal/pack-odds"
+import { Link } from "@tanstack/react-router"
 import { GameBadge } from "@workspace/ui/components/count-badge"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
 import { PackMeter } from "@workspace/ui/components/pack-meter"
@@ -31,7 +33,7 @@ const FEATURES: ReadonlyArray<{
   Icon: LucideIcon
   rarity: Rarity
   title: string
-  text: string
+  text: ReactNode
   visual: ReactNode
 }> = [
   {
@@ -45,7 +47,16 @@ const FEATURES: ReadonlyArray<{
     Icon: SparklesIcon,
     rarity: "legendary",
     title: "Chase real rarities",
-    text: "A song's rarity comes from its Spotify streams, and your card rises a rarity when the song does.",
+    text: (
+      <>
+        A song's rarity comes from its Spotify streams, and your card rises a
+        rarity when the song does. Every pack has a rare or better, and a{" "}
+        {percent(atLeastOne("legendary"))} chance of a legendary.{" "}
+        <Link to="/odds" className="font-bold text-ink underline">
+          See all the odds
+        </Link>
+      </>
+    ),
     visual: <RarityVisual />,
   },
   {
@@ -133,22 +144,31 @@ const TIERS: ReadonlyArray<{ rarity: Rarity; streams: string }> = [
   { rarity: "legendary", streams: "2B+" },
 ]
 
-// Streams and rarity side by side: the counts right-aligned in a column wide
-// enough for the longest, the badges lined up beside them.
+// Streams, rarity and pack odds side by side: the counts right-aligned in a
+// column wide enough for the longest, the badges lined up beside them, then
+// the chance a pack holds that rarity or better (pack-odds.ts).
 function RarityVisual() {
   return (
-    <dl className="gap-2 text-sm font-black grid font-heading">
+    <div className="gap-2 text-sm font-black grid font-heading">
+      <div className="gap-3 text-xs flex items-center whitespace-nowrap text-ink/50">
+        <span className="w-16 text-right">Streams</span>
+        <span className="w-28">Rarity</span>
+        <span className="w-16 text-right">In a pack</span>
+      </div>
       {TIERS.map(({ rarity, streams }) => (
         <div key={rarity} className="gap-3 flex items-center">
-          <dt className="w-16 text-right text-ink/60 tabular-nums">
+          <span className="w-16 text-right text-ink/60 tabular-nums">
             {streams}
-          </dt>
-          <dd>
+          </span>
+          <span className="w-28">
             <RarityBadge rarity={rarity} />
-          </dd>
+          </span>
+          <span className="w-16 text-right tabular-nums">
+            {percent(atLeastOne(rarity))}
+          </span>
         </div>
       ))}
-    </dl>
+    </div>
   )
 }
 

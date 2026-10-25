@@ -19,7 +19,8 @@ import { useState } from "react"
 
 // More packs, from the pack meter or the grayed pack once every pack is opened: skip the wait for
 // the next free one (wallet:skipFreePack), then buy packs, as many as the holos pay for, kept
-// until opened on top of the free ones (wallet:buyPacks). Short of holos, it points to the shop.
+// until opened on top of the free ones (wallet:buyPacks). Short of holos, it points to the shop
+// when there's one (`onGetHolos`, premium on).
 export function GetPacks({
   open,
   onOpenChange,
@@ -27,7 +28,7 @@ export function GetPacks({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onGetHolos: () => void
+  onGetHolos?: () => void
 }) {
   const wallet = useWallet()
   const posthog = usePostHog()
@@ -165,9 +166,9 @@ function PackFooter({
   cost: number
   disabled: boolean
   onBuy: () => void
-  onGetHolos: () => void
+  onGetHolos?: () => void
 }) {
-  if (short) {
+  if (short && onGetHolos) {
     return (
       <Button variant="game" onClick={onGetHolos}>
         <HoloCoin />

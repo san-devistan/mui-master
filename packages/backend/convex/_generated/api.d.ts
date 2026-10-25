@@ -9,8 +9,11 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as billing from "../billing.js";
 import type * as catalog from "../catalog.js";
 import type * as collection from "../collection.js";
+import type * as flags from "../flags.js";
+import type * as grants from "../grants.js";
 import type * as http from "../http.js";
 import type * as market from "../market.js";
 import type * as notify from "../notify.js";
@@ -36,8 +39,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  billing: typeof billing;
   catalog: typeof catalog;
   collection: typeof collection;
+  flags: typeof flags;
+  grants: typeof grants;
   http: typeof http;
   market: typeof market;
   notify: typeof notify;
@@ -85,4 +91,6 @@ export declare const internal: FilterApi<
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
   resend: import("@convex-dev/resend/_generated/component.js").ComponentApi<"resend">;
+  stripe: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripe">;
+  stripeSandbox: import("@convex-dev/stripe/_generated/component.js").ComponentApi<"stripeSandbox">;
 };

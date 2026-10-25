@@ -66,6 +66,6 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
     ],
   } satisfies BetterAuthOptions)
 
-// The signed-in player's id, or null when signed out.
-export const playerId = async (ctx: QueryCtx) =>
+// The signed-in player's id, or null when signed out; from a query, mutation or action.
+export const playerId = async (ctx: Pick<QueryCtx, "auth">) =>
   (await ctx.auth.getUserIdentity())?.subject ?? null

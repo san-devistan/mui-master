@@ -11,8 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GameRouteImport } from './routes/_game'
+import { Route as OddsRouteImport } from './routes/odds'
 import { Route as PackFilmRouteImport } from './routes/pack-film'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as GameCollectionRouteImport } from './routes/_game.collection'
 import { Route as GameMarketRouteImport } from './routes/_game.market'
 import { Route as GamePlayRouteImport } from './routes/_game.play'
@@ -28,14 +31,29 @@ const GameRoute = GameRouteImport.update({
   id: '/_game',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OddsRoute = OddsRouteImport.update({
+  id: '/odds',
+  path: '/odds',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PackFilmRoute = PackFilmRouteImport.update({
   id: '/pack-film',
   path: '/pack-film',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GameCollectionRoute = GameCollectionRouteImport.update({
@@ -66,8 +84,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/odds': typeof OddsRoute
   '/pack-film': typeof PackFilmRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/collection': typeof GameCollectionRoute
   '/market': typeof GameMarketRoute
   '/play': typeof GamePlayRoute
@@ -76,8 +97,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/odds': typeof OddsRoute
   '/pack-film': typeof PackFilmRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/collection': typeof GameCollectionRoute
   '/market': typeof GameMarketRoute
   '/play': typeof GamePlayRoute
@@ -88,8 +112,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_game': typeof GameRouteWithChildren
+  '/odds': typeof OddsRoute
   '/pack-film': typeof PackFilmRoute
+  '/privacy': typeof PrivacyRoute
   '/sign-in': typeof SignInRoute
+  '/terms': typeof TermsRoute
   '/_game/collection': typeof GameCollectionRoute
   '/_game/market': typeof GameMarketRoute
   '/_game/play': typeof GamePlayRoute
@@ -100,8 +127,11 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/odds'
     | '/pack-film'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
     | '/collection'
     | '/market'
     | '/play'
@@ -110,8 +140,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/odds'
     | '/pack-film'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
     | '/collection'
     | '/market'
     | '/play'
@@ -121,8 +154,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_game'
+    | '/odds'
     | '/pack-film'
+    | '/privacy'
     | '/sign-in'
+    | '/terms'
     | '/_game/collection'
     | '/_game/market'
     | '/_game/play'
@@ -133,8 +169,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GameRoute: typeof GameRouteWithChildren
+  OddsRoute: typeof OddsRoute
   PackFilmRoute: typeof PackFilmRoute
+  PrivacyRoute: typeof PrivacyRoute
   SignInRoute: typeof SignInRoute
+  TermsRoute: typeof TermsRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -154,6 +193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/odds': {
+      id: '/odds'
+      path: '/odds'
+      fullPath: '/odds'
+      preLoaderRoute: typeof OddsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pack-film': {
       id: '/pack-film'
       path: '/pack-film'
@@ -161,11 +207,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PackFilmRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in': {
       id: '/sign-in'
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_game/collection': {
@@ -225,8 +285,11 @@ const GameRouteWithChildren = GameRoute._addFileChildren(GameRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GameRoute: GameRouteWithChildren,
+  OddsRoute: OddsRoute,
   PackFilmRoute: PackFilmRoute,
+  PrivacyRoute: PrivacyRoute,
   SignInRoute: SignInRoute,
+  TermsRoute: TermsRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

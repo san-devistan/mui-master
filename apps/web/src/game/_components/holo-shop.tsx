@@ -1,5 +1,5 @@
 import { useOnceAtATime } from "@/game/_hooks/use-once-at-a-time"
-import { holos, useWallet } from "@/game/_lib/wallet"
+import { errorText, holos, useWallet } from "@/game/_lib/wallet"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
 import { api } from "@workspace/backend/api"
@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@workspace/ui/components/dialog"
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
-import { useMutation } from "convex/react"
+import { useAction } from "convex/react"
 import { CheckIcon, CrownIcon, XIcon } from "lucide-react"
 import { usePostHog } from "posthog-js/react"
 import { useState } from "react"
@@ -22,10 +22,11 @@ const euros = (cents: number) =>
   (cents / 100).toLocaleString("en", { style: "currency", currency: "EUR" })
 
 // The shop, opened from the holos pill: three holo bundles, then Pro, billed
-// monthly. Styled in game.css.
-// shortcut: no checkout yet, so a buy is free through the dev tools (wallet:addHolos,
-// wallet:setPro), only where they're on (DEV_TOOLS=1); elsewhere it says checkout isn't open.
-// Wire it to Stripe when payments open.
+// monthly. Styled in game.css. Only with premium on (flags.ts): wallet:shop is
+// null otherwise, and nothing opens it.
+// A buy goes to Stripe Checkout (billing:checkout) and comes back to
+// /play?checkout=done; the holos or Pro arrive by Stripe's webhook, and the
+// holos pill and the Pro card show them as they land.
 export function HoloShop({
   open,
   onOpenChange,
@@ -36,26 +37,30 @@ export function HoloShop({
   const { data: shop } = useQuery(convexQuery(api.wallet.shop, {}))
   const wallet = useWallet()
   const posthog = usePostHog()
-  const addHolos = useMutation(api.wallet.addHolos)
-  const setPro = useMutation(api.wallet.setPro)
+  const checkout = useAction(api.billing.checkout)
   const [busy, setBusy] = useState(false)
+  // Stripe's page is opening: the offers stay off until it's there.
+  const [leaving, setLeaving] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const once = useOnceAtATime()
   const base = shop?.holoBundles[0]
   // Holos per cent at the smallest bundle: each bundle's bonus is over it.
   const rate = base ? base.holos / base.priceCents : 0
   const best = shop?.holoBundles.at(-1)?.id
+  if (shop === null) return null
 
-  // The holos pill and the Pro card show what changed, so only a refusal says anything.
-  const buy = (give: () => Promise<unknown>, onCompleted: () => void) =>
+  // Off to Stripe's checkout page; busy until it opens, so only a refusal says anything.
+  const buy = (offer: string, onStarted: () => void) =>
     once(async () => {
       setBusy(true)
       setNote(null)
       try {
-        await give()
-        onCompleted()
-      } catch {
-        setNote("Checkout isn't open yet.")
+        const url = await checkout({ offer })
+        onStarted()
+        setLeaving(true)
+        window.location.assign(url)
+      } catch (caught) {
+        setNote(errorText(caught))
       } finally {
         setBusy(false)
       }
@@ -124,16 +129,14 @@ export function HoloShop({
                   <Button
                     variant="game"
                     className="w-full"
-                    disabled={busy}
+                    disabled={busy || leaving}
                     aria-label={`Buy ${holos(bundle.holos)} for ${euros(bundle.priceCents)}`}
                     onClick={() =>
-                      void buy(
-                        () => addHolos({ amount: bundle.holos }),
-                        () =>
-                          posthog.capture("holo_bundle_added", {
-                            holo_amount: bundle.holos,
-                            price_cents: bundle.priceCents,
-                          })
+                      void buy(bundle.id, () =>
+                        posthog.capture("holo_checkout_started", {
+                          holo_amount: bundle.holos,
+                          price_cents: bundle.priceCents,
+                        })
                       )
                     }
                   >
@@ -181,11 +184,10 @@ export function HoloShop({
                 <Button
                   variant="game"
                   className="mt-5 w-full"
-                  disabled={busy}
+                  disabled={busy || leaving}
                   onClick={() =>
-                    void buy(
-                      () => setPro({ pro: true }),
-                      () => posthog.capture("pro_enabled")
+                    void buy("pro", () =>
+                      posthog.capture("pro_checkout_started")
                     )
                   }
                 >

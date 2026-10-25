@@ -8,13 +8,13 @@ import {
   type QueryCtx,
 } from "./_generated/server"
 import { playerId } from "./auth"
+import { flagsFor, proAt, proUntilOf, requireDev } from "./flags"
 import { scheduleFreePackPush } from "./push"
 import {
   auctionHours,
   freePackPlan,
   freePacks,
   holoBundles,
-  isPro,
   maxPacksBought,
   packPrice,
   pro,
@@ -26,11 +26,9 @@ import {
   weeklyHolosDue,
 } from "./songs/_lib/economy"
 
-declare const process: { env: Record<string, string | undefined> }
-
 // A player's coins, free packs and Pro, on their `players` row (see schema.ts).
 
-const playerRow = (ctx: QueryCtx, player: string) =>
+export const playerRow = (ctx: QueryCtx, player: string) =>
   ctx.db
     .query("players")
     .withIndex("by_playerId", (q) => q.eq("playerId", player))
@@ -74,7 +72,7 @@ export const payForPack = async (ctx: MutationCtx, player: string) => {
   const free = freePacks(
     row.freePacksSince,
     now,
-    freePackPlan(isPro(row.proUntil, now))
+    freePackPlan(await proAt(ctx, row, now))
   )
   if (free.count > 0) {
     await ctx.db.patch("players", row._id, { freePacksSince: free.usedSince })
@@ -114,7 +112,7 @@ export const skipFreePack = mutation({
     if (!player) throw new ConvexError("Not signed in")
     const row = await ensurePlayer(ctx, player)
     const now = Date.now()
-    const plan = freePackPlan(isPro(row.proUntil, now))
+    const plan = freePackPlan(await proAt(ctx, row, now))
     const free = freePacks(row.freePacksSince, now, plan)
     if (free.nextAt === null) throw new ConvexError("Free packs are full")
     const cost = skipPrice(free.nextAt, now, plan)
@@ -131,7 +129,8 @@ export const skipFreePack = mutation({
 // The signed-in player's coins, free packs and Pro, how many different cards they own, and the
 // prices. A query doesn't re-run as time passes, so the client counts the free packs from
 // `freePacksSince` (see economy.ts freePacks), at Pro's pace while `proUntil` is ahead. `cards` is
-// collection:count's, read from the same row, so the app watches the row once.
+// collection:count's, read from the same row, so the app watches the row once. `proUntil` is Pro
+// as the game counts it (flags.ts proUntilOf): paid only while premium is on, granted forever.
 export const get = query({
   args: {},
   handler: async (ctx) => {
@@ -143,7 +142,7 @@ export const get = query({
       coins: row?.coins ?? startingCoins,
       freePacksSince: row?.freePacksSince ?? 0,
       boughtPacks: row?.boughtPacks ?? 0,
-      proUntil: row?.proUntil ?? 0,
+      proUntil: row ? await proUntilOf(ctx, row) : 0,
       cards: row?.cards ?? 0,
       freePackHours: regular.hours,
       maxFreePacks: regular.max,
@@ -157,10 +156,14 @@ export const get = query({
   },
 })
 
-// What the shop offers: holo bundles and Pro, with their prices. No checkout yet.
+// What the shop offers: holo bundles and Pro, with their prices, bought through Stripe
+// (billing.ts); null with premium off for this player.
 export const shop = query({
   args: {},
-  handler: () => ({ holoBundles, pro }),
+  handler: async (ctx) => {
+    const { premium } = await flagsFor(ctx, await playerId(ctx))
+    return premium ? { holoBundles, pro } : null
+  },
 })
 
 // Pro's weekly holos: given when the app opens, to a player who is Pro, a week after the last.
@@ -172,7 +175,7 @@ export const claimWeekly = mutation({
     if (!player) return 0
     const row = await playerRow(ctx, player)
     const now = Date.now()
-    if (!row || !isPro(row.proUntil, now)) return 0
+    if (!row || !(await proAt(ctx, row, now))) return 0
     if (!weeklyHolosDue(row.weeklyHolosAt, now)) return 0
     await ctx.db.patch("players", row._id, {
       coins: row.coins + proWeeklyHolos,
@@ -182,28 +185,33 @@ export const claimWeekly = mutation({
   },
 })
 
-// Dev tools, for testing without a checkout: switch Pro on or off and add holos to yourself.
-// Only on a deployment with the env var DEV_TOOLS=1 (dev), never in production.
-const devPlayer = async (ctx: MutationCtx) => {
-  if (process.env.DEV_TOOLS !== "1") throw new ConvexError("Dev tools are off")
+// Paid Pro until `proUntil` (0: none), as Stripe's subscription says (billing.ts) or the dev
+// switch sets; the free pack push moves with its pace.
+export const setProUntil = async (
+  ctx: MutationCtx,
+  row: Parameters<typeof scheduleFreePackPush>[1],
+  proUntil: number
+) => {
+  await ctx.db.patch("players", row._id, { proUntil })
+  await scheduleFreePackPush(ctx, { ...row, proUntil })
+}
+
+// The signed-in player's row, for a dev tool, refused unless dev mode is on for them (flags.ts).
+const devRow = async (ctx: MutationCtx) => {
   const player = await playerId(ctx)
   if (!player) throw new ConvexError("Not signed in")
+  await requireDev(ctx, player)
   return await ensurePlayer(ctx, player)
 }
 
-export const devToolsOn = query({
-  args: {},
-  handler: () => process.env.DEV_TOOLS === "1",
-})
-
-// Pro for a month from now, or not Pro any more.
+// Dev tools, for testing without paying: paid Pro for a month from now or none (it counts
+// while premium is on, flags.ts), and holos added to yourself.
 export const setPro = mutation({
   args: { pro: v.boolean() },
   handler: async (ctx, args) => {
-    const row = await devPlayer(ctx)
-    const proUntil = args.pro ? Date.now() + proMonthDays * 24 * 3_600_000 : 0
-    await ctx.db.patch("players", row._id, { proUntil })
-    await scheduleFreePackPush(ctx, { ...row, proUntil })
+    const row = await devRow(ctx)
+    const month = proMonthDays * 24 * 3_600_000
+    await setProUntil(ctx, row, args.pro ? Date.now() + month : 0)
   },
 })
 
@@ -213,7 +221,7 @@ export const addHolos = mutation({
     if (!Number.isInteger(amount) || amount < 1 || amount > 100_000) {
       throw new ConvexError("Add 1 to 100,000 holos")
     }
-    const row = await devPlayer(ctx)
+    const row = await devRow(ctx)
     await ctx.db.patch("players", row._id, { coins: row.coins + amount })
   },
 })

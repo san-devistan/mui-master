@@ -4,6 +4,7 @@ import { HoloShop } from "@/game/_components/holo-shop"
 import { PageHeader } from "@/game/_components/page-header"
 import { useRevealMusic } from "@/game/_hooks/use-reveal-music"
 import { toGameCard, type GameCard } from "@/game/_lib/cards"
+import { useFlags } from "@/game/_lib/flags"
 import { errorText, useWallet } from "@/game/_lib/wallet"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -36,6 +37,7 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
   const [shopping, setShopping] = useState(false)
+  const { premium } = useFlags()
   // Locked until the wallet is known, then while there's no pack to open, free or bought.
   const locked = !open && (!wallet || wallet.packs === 0)
   // The waiting pack, drawn ahead so its cards are ready once it's cut open; the backend keeps it
@@ -109,12 +111,16 @@ export function PacksPage({ onOpen }: { onOpen: () => void }) {
       <GetPacks
         open={buying}
         onOpenChange={setBuying}
-        onGetHolos={() => {
-          setBuying(false)
-          setShopping(true)
-        }}
+        onGetHolos={
+          premium
+            ? () => {
+                setBuying(false)
+                setShopping(true)
+              }
+            : undefined
+        }
       />
-      <HoloShop open={shopping} onOpenChange={setShopping} />
+      {premium ? <HoloShop open={shopping} onOpenChange={setShopping} /> : null}
       <header className="inset-x-0 top-0 max-w-6xl px-4 sm:px-6 md:px-8 md:pt-8 in-data-immersive:-translate-y-4 pointer-events-none absolute z-30 mx-auto game-safe-top transition duration-300 in-data-immersive:opacity-0">
         <PageHeader title="Packs" />
         {/* Centred over the waiting pack, out of the header's way; tapped, get

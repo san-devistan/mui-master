@@ -5,7 +5,13 @@
   "name": "musi-master",
   "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  // TanStack Start's server entry, wrapped to serve the landing's film in byte ranges.
+  "main": "src/server.ts",
+  "assets": {
+    "binding": "ASSETS",
+    // Static assets ignore Range requests: the film goes through src/server.ts so videos can seek.
+    "run_worker_first": ["/landing/*.mp4"],
+  },
   // Served at holotrack.art (a Cloudflare zone, www too); workers.dev stays on as a fallback.
   "routes": [
     { "pattern": "holotrack.art", "custom_domain": true },

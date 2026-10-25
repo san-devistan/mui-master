@@ -1,4 +1,5 @@
 import { HoloShop } from "@/game/_components/holo-shop"
+import { useFlags } from "@/game/_lib/flags"
 import { holos, useNow } from "@/game/_lib/wallet"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"
@@ -23,9 +24,11 @@ function useHeaderWallet() {
 }
 
 // Every tab's title, sliding when too long for its line, with going Pro and the player's holos
-// always in the top-right corner. Both open the shop.
+// always in the top-right corner. Both open the shop, with premium on (flags.ts); off, there's
+// no Pro and the holos are just shown.
 export function PageHeader({ title }: { title: string }) {
   const wallet = useHeaderWallet()
+  const { premium } = useFlags()
   const [shopping, setShopping] = useState(false)
   const coins = wallet?.coins ?? 0
   return (
@@ -33,7 +36,7 @@ export function PageHeader({ title }: { title: string }) {
       <h1 className="min-w-0 text-4xl font-black md:text-6xl tracking-tighter flex-1 font-heading">
         <Marquee>{title}</Marquee>
       </h1>
-      {wallet && !wallet.pro ? (
+      {premium && wallet && !wallet.pro ? (
         <Button
           variant="game"
           size="icon-game"
@@ -49,17 +52,24 @@ export function PageHeader({ title }: { title: string }) {
           </span>
         </Button>
       ) : null}
-      <GamePill
-        render={
-          <button type="button" aria-label={`${holos(coins)}, get more`} />
-        }
-        className="pointer-events-auto"
-        onClick={() => setShopping(true)}
-      >
-        <HoloCoin />
-        {coins.toLocaleString("en")}
-      </GamePill>
-      <HoloShop open={shopping} onOpenChange={setShopping} />
+      {premium ? (
+        <GamePill
+          render={
+            <button type="button" aria-label={`${holos(coins)}, get more`} />
+          }
+          className="pointer-events-auto"
+          onClick={() => setShopping(true)}
+        >
+          <HoloCoin />
+          {coins.toLocaleString("en")}
+        </GamePill>
+      ) : (
+        <GamePill aria-label={holos(coins)}>
+          <HoloCoin />
+          {coins.toLocaleString("en")}
+        </GamePill>
+      )}
+      {premium ? <HoloShop open={shopping} onOpenChange={setShopping} /> : null}
     </header>
   )
 }

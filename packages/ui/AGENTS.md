@@ -12,4 +12,6 @@ Source of truth for design across the repo.
   `scroll-pack` (the same opening, stepped by the caller, e.g. to film the
   landing's), `card-back`, `rarity-badge`, `holo-coin`, and `celebration` are the
   Musi Master primitives. The three.js and shader engine lives in
-  `src/lib/game`; global effects live in `src/styles/game.css`.
+  `src/lib/game`; global effects live in `src/styles/game.css`. Sound effects
+  (`sfx.ts`) and music (`waiting-music.ts`, the app's song previews) check the
+  player's switches in `sound-settings.ts`.

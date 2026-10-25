@@ -1,6 +1,6 @@
 // Syncs the songs and artists tables (convex/catalog.ts) with DJ Salty's "100+ Million Streams"
 // playlists, the catalog's source of truth. Run monthly:
-// node scripts/import-songs.mjs [--save] [--parallel=6]
+// node scripts/import-songs.mjs [--save] [--prod] [--parallel=6]
 // 1. Reads every track of the playlists (fetchPlaylistMetadata).
 // 2. Imports the tracks not stored as a song or a song's duplicate. Per song: getTrack (name,
 //    artists, count, cover, duration, explicit, release date and year), the embed page (preview),
@@ -11,9 +11,10 @@
 //    listeners (queryArtistOverview), nothing else. A song that leaves the playlists stays.
 // 4. catalog:updateRarities: each artist's playcount becomes the sum of its catalog songs', and
 //    songs' and artists' rarities rise to what their playcounts give (never down).
-// Writes go to the deployment in packages/backend/.env.local, a batch of 100 at a time. Without
-// --save it runs the first batch of each step and prints it, saving nothing. Exits 1 when more
-// than 1% of the songs and artists fail, so whatever runs it notices.
+// Writes go to the deployment in packages/backend/.env.local (dev), or to production with --prod,
+// a batch of 100 at a time. Without --save it runs the first batch of each step and prints it,
+// saving nothing. Exits 1 when more than 1% of the songs and artists fail, so whatever runs it
+// notices.
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 
@@ -39,6 +40,7 @@ const playlists = [
 
 const args = process.argv.slice(2)
 const save = args.includes("--save")
+const prod = args.includes("--prod")
 const parallel = Number(
   args.find((arg) => arg.startsWith("--parallel="))?.slice(11) ?? 6
 )
@@ -113,7 +115,14 @@ const run = promisify(execFile)
 const convex = async (fn, fnArgs) => {
   const { stdout } = await run(
     "pnpm",
-    ["exec", "convex", "run", fn, JSON.stringify(fnArgs)],
+    [
+      "exec",
+      "convex",
+      "run",
+      ...(prod ? ["--prod"] : []),
+      fn,
+      JSON.stringify(fnArgs),
+    ],
     { cwd: new URL("../packages/backend", import.meta.url), maxBuffer: 1e8 }
   )
   return JSON.parse(stdout || "null")

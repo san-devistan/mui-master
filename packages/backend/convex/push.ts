@@ -11,7 +11,8 @@ import {
   type QueryCtx,
 } from "./_generated/server"
 import { playerId } from "./auth"
-import { freePackPlan, freePacks, isPro } from "./songs/_lib/economy"
+import { proAt } from "./flags"
+import { freePackPlan, freePacks } from "./songs/_lib/economy"
 
 declare const process: { env: Record<string, string | undefined> }
 
@@ -66,14 +67,15 @@ const isPushEndpoint = (endpoint: string) => {
 }
 
 // The free packs the player holds now and when the next comes, at their plan's pace.
-const freePacksNow = (
-  row: Pick<Doc<"players">, "freePacksSince" | "proUntil">
+const freePacksNow = async (
+  ctx: QueryCtx,
+  row: Pick<Doc<"players">, "playerId" | "freePacksSince" | "proUntil">
 ) => {
   const now = Date.now()
   return freePacks(
     row.freePacksSince,
     now,
-    freePackPlan(isPro(row.proUntil, now))
+    freePackPlan(await proAt(ctx, row, now))
   )
 }
 
@@ -101,7 +103,7 @@ export const scheduleFreePackPush = async (
     "_id" | "playerId" | "freePacksSince" | "proUntil" | "freePackPushAt"
   >
 ) => {
-  const { nextAt } = freePacksNow(row)
+  const { nextAt } = await freePacksNow(ctx, row)
   if (nextAt === null || nextAt === row.freePackPushAt) return
   if (!(await deviceOf(ctx, row.playerId))) return
   await ctx.db.patch("players", row._id, { freePackPushAt: nextAt })
@@ -117,7 +119,7 @@ export const freePackReady = internalMutation({
     const row = await playerRow(ctx, player)
     if (!row || row.freePackPushAt !== at) return
     // Pro may have run out since, putting the pack off: then only the new time is scheduled.
-    if (freePacksNow(row).count > 0) {
+    if ((await freePacksNow(ctx, row)).count > 0) {
       await notify(ctx, player, {
         title: "Free pack ready",
         body: "A free pack is waiting for you. Rip it open!",

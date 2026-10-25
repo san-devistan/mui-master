@@ -25,6 +25,21 @@ External providers are added as Convex components:
 Convex itself is reachable through its MCP and the workspace CLI
 (`pnpm exec convex`).
 
+## Deployments
+
+- Dev: `scrupulous-hedgehog-1`, the one in `packages/backend/.env.local`,
+  synced by `convex dev`. Has `DEV_TOOLS=1`, the Stripe sandbox and
+  `SITE_URL=https://musi-master.localhost`.
+- Prod: `courteous-scorpion-345`, behind `holotrack.art` (the web app's
+  Cloudflare build sets `VITE_CONVEX_URL`/`VITE_CONVEX_SITE_URL` to it). Deploy
+  with `pnpm exec convex deploy`; add `--prod` to `convex run`, `env` and
+  `import`/`export` to reach it. Never set `DEV_TOOLS` there. Its own
+  `BETTER_AUTH_SECRET` and VAPID keys (changing the VAPID keys drops every push
+  subscription); `SITE_URL=https://holotrack.art`.
+- Only the catalog (`songs`, `artists`, `credits`, `catalogStats`) is copied
+  between them, as a snapshot (`convex export`, then `convex import --prod` of
+  those tables). Player data is never copied: prod fills it by being played.
+
 ## Song catalog
 
 Cards are songs with at least 100M Spotify streams, in `songs` (keyed by
@@ -43,7 +58,8 @@ platform.
   refreshes every stored song's play count and every stored artist's
   monthly listeners (`catalog:refresh`, nothing else). A song that leaves
   the playlists stays in the game. Writes go to the deployment in
-  `packages/backend/.env.local` (dev; the web app reads it too). Exits 1
+  `packages/backend/.env.local` (dev; the web app reads it too), or to
+  production with `--prod` (run it on both to keep dev in step). Exits 1
   when more than 1% of songs and artists fail, a sign that a Spotify
   persisted-query hash expired.
 - Import (`scripts/import-songs.mjs`, saved by `catalog:save`): reads
@@ -139,10 +155,30 @@ platform.
   bought one. Pro (`players.proUntil` ahead; no
   checkout yet) gets one free pack per 4 hours, 6 held, 1,000 holos a week
   (`wallet:claimWeekly`, called as the app opens, a week after the last) and 30 open
-  auctions instead of 10. `wallet:setPro` and `wallet:addHolos` are dev tools
-  for testing, refused unless the env var `DEV_TOOLS=1` is set (dev only, never
-  prod); until checkout opens, the shop's buy buttons call them, so they're free
-  on dev and only say checkout isn't open elsewhere. `market.ts`: `sell` gives a
+  auctions instead of 10. Feature flags (`flags.ts`), enforced in the functions
+  themselves (`flags:get` only lets the app hide what's off), on for everyone by
+  an env var per deployment or for one player by a grant on their email
+  (`grants.ts`, internal only: `pnpm exec convex run grants:give
+'{"email":"…","pro":true,"dev":false}'`, `grants:revoke`, `grants:list`, add
+  `--prod` for production): dev mode (`DEV_TOOLS=1`, or a `dev` grant) allows
+  the dev tools `wallet:setPro` and `wallet:addHolos` (`DEV_TOOLS` never on
+  prod: anyone could mint holos and Pro; grant `dev` to yourself there);
+  premium (`PREMIUM=1`, or a `pro` grant) opens the shop. Who's Pro is
+  `proUntilOf`/`proAt`, which every perk asks: a `pro` grant forever, else
+  `players.proUntil` only while `PREMIUM=1`. Payments (`billing.ts`) go through
+  the Stripe component: `billing:checkout` opens Stripe Checkout for a holo
+  bundle (one-time) or Pro (monthly subscription), priced by Stripe from the
+  lookup keys in `economy.ts` (`node scripts/stripe-prices.mjs [--live]` makes
+  them, or puts the keys on matching products made by hand, in the account the
+  Stripe CLI is logged in to, with each product's icon from
+  `scripts/stripe-icons/`); `billing:portal` opens Stripe's
+  billing portal. Nothing is given on the client's word: the webhook
+  (`http.ts`, `/stripe/webhook`, signature checked by the component) gives the
+  holos once per paid session (`fulfilledCheckouts`) and keeps `proUntil` at
+  the subscription's period end (0 once cancelled or unpaid). Needs
+  `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`; dev uses the Stripe sandbox
+  (test cards such as 4242 4242 4242 4242) and its webhook endpoint for this
+  deployment's `.convex.site`. `market.ts`: `sell` gives a
   copy to the bank (the last one too); `list`/`bid`/`cancel` run auctions, the listed copy
   and the top bid's coins held until `settle` (scheduled at `endsAt`, and again
   if a late bid pushed it back) hands over the card and pays the seller the

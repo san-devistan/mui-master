@@ -1,4 +1,5 @@
 import { api } from "@workspace/backend/api"
+import { onSoundChange, soundOn } from "@workspace/ui/lib/game/sound-settings"
 import { useConvex } from "convex/react"
 import { useEffect, useRef } from "react"
 
@@ -78,8 +79,10 @@ async function rewind(audio: HTMLAudioElement) {
   void fadeAudio(audio, PREVIEW_VOLUME)
 }
 
-// Starts `audio` silent and fades it up; it loops from then on.
+// Starts `audio` silent and fades it up; it loops from then on. Not while the
+// player has turned music off (sound-settings.ts): it stays paused.
 export async function fadeIn(audio: HTMLAudioElement) {
+  if (!soundOn("music")) return
   stopFade(audio)
   loopPreview(audio)
   audio.volume = 0
@@ -109,7 +112,8 @@ export async function fadeInFresh(
 // Silent while the page is out of sight, like the rest of the game's sound:
 // paused at once when hidden (fades can't be counted on to run there), then
 // `resume`d when back. Leaving the page, or its back/forward cache, `leave`s
-// it for good, so it doesn't come back blaring. Returns the cleanup.
+// it for good, so it doesn't come back blaring. Turning music off fades it
+// out, and back on resumes it. Returns the cleanup.
 export function silentWhileHidden(
   audio: () => HTMLAudioElement | null,
   resume: (audio: HTMLAudioElement) => void,
@@ -130,11 +134,19 @@ export function silentWhileHidden(
     leave()
     hide()
   }
+  const musicChange = () => {
+    const current = audio()
+    if (!current) return
+    if (!soundOn("music")) void fadeOut(current)
+    else if (current.paused && !document.hidden) resume(current)
+  }
   document.addEventListener("visibilitychange", visibility)
   addEventListener("pagehide", pagehide)
+  const unlisten = onSoundChange(musicChange)
   return () => {
     document.removeEventListener("visibilitychange", visibility)
     removeEventListener("pagehide", pagehide)
+    unlisten()
   }
 }
 

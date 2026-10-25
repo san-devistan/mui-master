@@ -239,6 +239,27 @@
   bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+/* The upgrade screen's title over its card and hint under it, set just clear
+   of where card-scene.ts says the card sits (--card-top, --card-bottom). The
+   title fits one line on a phone; its short "Rarity up!" can be bigger. */
+@utility game-upgrade-head {
+  height: var(--card-top, 20%);
+}
+
+@utility game-upgrade-foot {
+  top: var(--card-bottom, 76%);
+}
+
+@utility game-upgrade-title {
+  font-size: min(1.875rem, 5.5vw);
+  line-height: 1.2;
+
+  &[data-big] {
+    font-size: min(3rem, 11vw);
+    line-height: 1.1;
+  }
+}
+
 @utility game-viewport {
   height: 100dvh;
 

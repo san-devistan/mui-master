@@ -6,6 +6,7 @@ import {
   tone,
   wake,
 } from "@workspace/ui/lib/game/sfx"
+import { soundOn } from "@workspace/ui/lib/game/sound-settings"
 // Waiting music: a music-box loop round C, Am, F and G over a slow heartbeat,
 // a riser on the last bar leading back round. Seconds per bar.
 const BAR = 2.5
@@ -63,8 +64,10 @@ function waitingBar(audio: Engine, at: number, bar: number) {
 }
 
 // Loops the waiting music, a bar at a time, until the returned stop fades it
-// out. Silent in a background tab.
+// out. Silent in a background tab, and while the player has turned music off
+// (sound-settings.ts).
 export function waitingMusic() {
+  if (!soundOn("music")) return () => undefined
   const audio = wake()
   if (!audio) return () => undefined
   const { ctx } = audio

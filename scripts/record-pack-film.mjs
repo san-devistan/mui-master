@@ -1,7 +1,8 @@
 // Films the landing's pack opening from the game's own scene (/pack-film), on
 // a virtual clock so each frame is exact however slow the machine, paced as
 // apps/web/src/landing/pack-film.ts says, and encodes it for scroll
-// scrubbing: a keyframe every few frames, so any seek is quick.
+// scrubbing: a keyframe every few frames, so any seek is quick, and tuned for
+// the scene's flat art, a third smaller than the default tuning at the same look.
 // Run with the web dev server up: node scripts/record-pack-film.mjs
 // [url], then commit apps/web/public/landing/pack-opening.{mp4,jpg}.
 import { execFileSync } from "node:child_process"
@@ -120,9 +121,11 @@ execFileSync("ffmpeg", [
   "-c:v",
   "libx264",
   "-preset",
-  "slow",
+  "veryslow",
+  "-tune",
+  "animation",
   "-crf",
-  "24",
+  "26",
   "-pix_fmt",
   "yuv420p",
   "-g",

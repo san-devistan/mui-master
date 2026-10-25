@@ -296,6 +296,9 @@ importers:
       '@convex-dev/resend':
         specifier: ^0.2.9
         version: 0.2.9(convex-helpers@0.1.128(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.3.0))(hono@4.13.12)(react@19.3.0)(typescript@5.9.3)(zod@4.6.5))(convex@1.46.0(react@19.3.0))(react@19.3.0)
+      '@convex-dev/stripe':
+        specifier: 0.1.7
+        version: 0.1.7(@types/node@25.9.8)(convex@1.46.0(react@19.3.0))(react@19.3.0)
       better-auth:
         specifier: 1.6.15
         version: 1.6.15(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.169.2(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.11)(rollup@4.63.5)(supports-color@8.1.1))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -305,6 +308,9 @@ importers:
       effect:
         specifier: 4.0.0-rc.118
         version: 4.0.0-rc.118
+      stripe:
+        specifier: ^22.6.2
+        version: 22.6.2(@types/node@25.9.8)
       ts-pattern:
         specifier: ^5.9.0
         version: 5.9.0
@@ -778,6 +784,12 @@ packages:
     peerDependencies:
       convex: ^1.43.0
       convex-helpers: ^0.1.106
+
+  '@convex-dev/stripe@0.1.7':
+    resolution: {integrity: sha512-2IRVKfzxNO4dGnMuY9y4fEIXo+upPR+Bhz7WCHhEX1plMbWwJz7VctX6uIiRDzvRc7Ne/GM4+LRsDobSnw7MmQ==}
+    peerDependencies:
+      convex: ^1.29.3
+      react: ^18.3.1 || ^19.0.0
 
   '@convex-dev/workpool@0.4.14':
     resolution: {integrity: sha512-uTgOlLo7/Sv5OYhb6jjQ/+COAgLhOd1sMfHtJbN5qB298SHJQGoUUab66f6kqfEb8ugD1FnkL0oNZmk6fMqkow==}
@@ -5201,6 +5213,15 @@ packages:
     resolution: {integrity: sha512-aulFJcD6YK8V1G7iRB5tigAP4TsHBZZrOV8pjV++zdUwmeV8uzbY7yn6h9MswN62adStNZFuCIx4haBnRuMDaw==}
     engines: {node: '>=18'}
 
+  stripe@22.6.2:
+    resolution: {integrity: sha512-PwRE2scocvXqDKPiskMa5vRJEAEkq46W69XyUYmAwrNSLr675lQnfqLwnsndAWizwgihOWw/irLmoFRo3ez7ew==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
   stubborn-fs@2.0.0:
     resolution: {integrity: sha512-Y0AvSwDw8y+nlSNFXMm2g6L51rBGdAQT20J3YSOqxC53Lo3bjWRtr2BKcfYoAf352WYpsZSTURrA0tqhfgudPA==}
 
@@ -6029,6 +6050,14 @@ snapshots:
     transitivePeerDependencies:
       - '@react-email/render'
       - react
+
+  '@convex-dev/stripe@0.1.7(@types/node@25.9.8)(convex@1.46.0(react@19.3.0))(react@19.3.0)':
+    dependencies:
+      convex: 1.46.0(react@19.3.0)
+      react: 19.3.0
+      stripe: 22.6.2(@types/node@25.9.8)
+    transitivePeerDependencies:
+      - '@types/node'
 
   '@convex-dev/workpool@0.4.14(convex-helpers@0.1.128(@standard-schema/spec@1.1.0)(convex@1.46.0(react@19.3.0))(hono@4.13.12)(react@19.3.0)(typescript@5.9.3)(zod@4.6.5))(convex@1.46.0(react@19.3.0))(react@19.3.0)':
     dependencies:
@@ -10034,6 +10063,10 @@ snapshots:
   strip-final-newline@2.0.0: {}
 
   strip-final-newline@4.0.0: {}
+
+  stripe@22.6.2(@types/node@25.9.8):
+    optionalDependencies:
+      '@types/node': 25.9.8
 
   stubborn-fs@2.0.0:
     dependencies:

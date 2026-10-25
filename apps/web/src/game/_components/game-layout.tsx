@@ -1,4 +1,5 @@
 import { CardUpgrades } from "@/game/_components/card-upgrades"
+import { CheckoutReturn } from "@/game/_components/checkout-return"
 import { InstallPrompt } from "@/game/_components/install-prompt"
 import { CollectionPage } from "@/game/_pages/collection-page"
 import { MarketPage } from "@/game/_pages/market-page"
@@ -70,6 +71,7 @@ export function GameLayout() {
       {ready ? null : <div className="min-h-0 flex-1" />}
       {ready ? <CardUpgrades /> : null}
       {ready ? <InstallPrompt /> : null}
+      {ready ? <CheckoutReturn /> : null}
       <GameTabBar aria-label="Main">
         {TABS.map(({ to, label, Icon }) => (
           <GameTab

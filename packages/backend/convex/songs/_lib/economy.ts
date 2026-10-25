@@ -81,15 +81,17 @@ export const maxOpenAuctions = 10
 export const auctionHours = [1, 3, 6, 12, 24] as const
 export const maxStartPrice = 1_000_000
 
-// The shop (no checkout yet). Holo bundles, best value last, and Pro, billed monthly.
-// Prices in euro cents, so checkout can take them as they are.
+// The shop, paid through Stripe (billing.ts). Holo bundles, best value last, and Pro, billed
+// monthly. Prices in euro cents, for the shop to show; Stripe charges its own prices, found by
+// `lookupKey` and made to match these (scripts/stripe-prices.mjs).
 export const holoBundles = [
-  { id: "pouch", holos: 500, priceCents: 199 },
-  { id: "chest", holos: 1_500, priceCents: 499 },
-  { id: "vault", holos: 4_000, priceCents: 999 },
+  { id: "pouch", holos: 500, priceCents: 199, lookupKey: "holos_pouch" },
+  { id: "chest", holos: 1_500, priceCents: 499, lookupKey: "holos_chest" },
+  { id: "vault", holos: 4_000, priceCents: 999, lookupKey: "holos_vault" },
 ] as const
 export const pro = {
   priceCents: 499,
+  lookupKey: "holotrack_pro_monthly",
   perks: [
     {
       id: "freePacks",
