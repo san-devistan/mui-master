@@ -16,8 +16,9 @@ coverage
 # Turbo
 .turbo
 
-# Vercel
-.vercel
+# Cloudflare
+.wrangler
+.dev.vars*
 
 # Build Outputs
 dist

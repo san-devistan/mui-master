@@ -1,8 +1,8 @@
+import { cloudflare } from "@cloudflare/vite-plugin"
 import tailwindcss from "@tailwindcss/vite"
 import { tanstackStart } from "@tanstack/react-start/plugin/vite"
 import type { Config as RouterPluginConfig } from "@tanstack/router-plugin/vite"
 import viteReact from "@vitejs/plugin-react"
-import { nitro } from "nitro/vite"
 import { defineConfig, type Rollup } from "vite"
 import viteTsConfigPaths from "vite-tsconfig-paths"
 
@@ -64,11 +64,8 @@ const config = defineConfig({
     },
   },
   plugins: [
-    nitro({
-      rollupConfig: {
-        onwarn: handleRollupWarning,
-      },
-    }),
+    // Builds the server for Cloudflare Workers (wrangler.jsonc) and runs it in workerd in dev.
+    cloudflare({ viteEnvironment: { name: "ssr" } }),
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],
     }),

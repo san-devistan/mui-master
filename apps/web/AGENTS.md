@@ -3,6 +3,11 @@
 TanStack Start app (Router + Query). It owns routes, loaders, and screen
 composition; data and logic come from `@workspace/backend`.
 
+It runs on Cloudflare Workers (`wrangler.jsonc`), in dev too: the server code
+runs in `workerd`, so it uses Web APIs and `nodejs_compat`, not a Node server.
+`pnpm run deploy` builds it into `dist/` and deploys it with Wrangler;
+`public/_headers` sets the static assets' caching.
+
 `/` is the server-rendered landing page (`src/landing/`), with its SEO metadata
 on `routes/index.tsx`; the game starts at `/play`, the Packs tab. Scrolling the
 landing scrubs a film of the game's pack opening for its real catalog cards
@@ -50,7 +55,7 @@ before going to `/play`. The backend moves the guest's game to the account
 Better Auth's endpoints are served at `/api/auth/*` (`routes/api.auth.$.ts`),
 forwarded to the Convex deployment with the request body buffered (Node's fetch
 fails a streamed body that gets a 401), so it needs `VITE_CONVEX_SITE_URL` (the
-`.convex.site` URL) in `.env.local`.
+`.convex.site` URL) in `.env.local`, inlined into the build.
 
 ## Effect
 

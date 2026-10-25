@@ -2,4 +2,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://musi-master.vercel.app/sitemap.xml
+Sitemap: https://www.golazo.fit/sitemap.xml

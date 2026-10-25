@@ -7,6 +7,7 @@
     "dev": "portless run vite dev",
     "build": "vite build",
     "preview": "vite preview",
+    "deploy": "vite build && wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,7 +26,6 @@
     "effect": "4.0.0-rc.118",
     "lucide-react": "^1.49.0",
     "next-themes": "^0.4.6",
-    "nitro": "latest",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",
@@ -34,12 +34,14 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.65.0",
     "@types/node": "^25.9.8",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.6"
+    "vite": "^7.3.6",
+    "wrangler": "^4.152.0"
   },
   "portless": {
     "name": "musi-master"

@@ -2,7 +2,7 @@
 
 ```mermaid
 flowchart LR
-  Web["Web App<br/>TanStack Start + Vercel"]
+  Web["Web App<br/>TanStack Start + Cloudflare Workers"]
   Backend["Backend<br/>Convex + Stripe<br/>Resend + Better Auth"]
   Tokens["Shared Tokens<br/>packages/ui"]
   WebUI["Web UI<br/>shadcn components"]
@@ -19,7 +19,15 @@ flowchart LR
 ## AI Setup
 
 - Skills are scoped under each workspace's `.agents/skills` directory.
-- Configured MCPs cover Convex, Better Auth, Stripe, shadcn, and Vercel.
+- Configured MCPs cover Convex, Better Auth, Stripe, shadcn, and Cloudflare.
+
+## Deploy
+
+The web app runs on Cloudflare Workers (`apps/web/wrangler.jsonc`), served at
+`https://www.golazo.fit`. Pushes to `main` build and deploy it through Workers
+Builds (root `apps/web`, the Convex URLs set as its build variables).
+`pnpm deploy:web` deploys from this machine instead, with the Convex URLs from
+`apps/web/.env.local` (`pnpm --filter web exec wrangler login` once).
 
 ## Quality Gate
 

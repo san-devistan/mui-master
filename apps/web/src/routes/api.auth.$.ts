@@ -1,8 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
-declare const process: { env: Record<string, string | undefined> }
-
-const convexSite = process.env.VITE_CONVEX_SITE_URL ?? ""
+const convexSite = import.meta.env.VITE_CONVEX_SITE_URL ?? ""
 // The Convex site's host, checked once at startup like the library's own handler did.
 const convexHost = URL.canParse(convexSite) ? new URL(convexSite).host : ""
 

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "turbo run build --filter=web",
+    "deploy:web": "pnpm --filter web run deploy",
     "dev": "turbo run dev --filter=web --filter=@workspace/backend",
     "fix": "bash scripts/fix.sh",
     "update:deps": "pnpm update -r && pnpm peers check --lockfile-only"

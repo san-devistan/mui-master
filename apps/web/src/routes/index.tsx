@@ -1,8 +1,8 @@
 import { LandingPage } from "@/landing/landing-page"
 import { createFileRoute } from "@tanstack/react-router"
 
-// shortcut: production URL is hardcoded, update it (and public/sitemap.xml) with a custom domain.
-const SITE = "https://musi-master.vercel.app"
+// The production URL (also in public/robots.txt and public/sitemap.xml).
+const SITE = "https://www.golazo.fit"
 const TITLE = "Holotrack: Free Music Trading Card Game"
 const DESCRIPTION =
   "Open free packs of holo cards for the world's biggest songs and artists. Hear every pull, chase legendary hits and trade in live auctions."
