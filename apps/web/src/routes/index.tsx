@@ -2,7 +2,7 @@ import { LandingPage } from "@/landing/landing-page"
 import { createFileRoute } from "@tanstack/react-router"
 
 // The production URL (also in public/robots.txt and public/sitemap.xml).
-const SITE = "https://www.golazo.fit"
+const SITE = "https://holotrack.art"
 const TITLE = "Holotrack: Free Music Trading Card Game"
 const DESCRIPTION =
   "Open free packs of holo cards for the world's biggest songs and artists. Hear every pull, chase legendary hits and trade in live auctions."

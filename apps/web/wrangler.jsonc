@@ -6,6 +6,12 @@
   "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
+  // Served at holotrack.art (a Cloudflare zone, www too); workers.dev stays on as a fallback.
+  "routes": [
+    { "pattern": "holotrack.art", "custom_domain": true },
+    { "pattern": "www.holotrack.art", "custom_domain": true },
+  ],
+  "workers_dev": true,
   "observability": {
     "enabled": true,
   },

@@ -24,8 +24,9 @@ flowchart LR
 ## Deploy
 
 The web app runs on Cloudflare Workers (`apps/web/wrangler.jsonc`), served at
-`https://www.golazo.fit`. Pushes to `main` build and deploy it through Workers
-Builds (root `apps/web`, the Convex URLs set as its build variables).
+`https://holotrack.art`. Pushes to `main` build and deploy it through Workers
+Builds (root `apps/web`; the Convex URLs and `VITE_PUBLIC_POSTHOG_*` are its build
+variables).
 `pnpm deploy:web` deploys from this machine instead, with the Convex URLs from
 `apps/web/.env.local` (`pnpm --filter web exec wrangler login` once).
 
