@@ -49,11 +49,11 @@ assert.equal(freePacks(0, now, proPlan).count, 6)
 const proOpened = freePacks(0, now, proPlan).usedSince
 assert.equal(freePacks(proOpened, now, proPlan).nextAt, now + 4 * hour)
 assert.equal(freePacks(proOpened, now + 4 * hour, proPlan).count, 6)
-assert.ok(isPro(now + 1, now) && !isPro(now, now) && !isPro(undefined, now))
+assert.ok(isPro(now + 1, now) && !isPro(now, now) && !isPro(0, now))
 
 // Pro's weekly holos: the first straight away, then a week after the last.
 const week = 7 * 24 * hour
-assert.ok(weeklyHolosDue(undefined, now))
+assert.ok(weeklyHolosDue(0, now))
 assert.ok(!weeklyHolosDue(now, now + week - 1))
 assert.ok(weeklyHolosDue(now, now + week))
 

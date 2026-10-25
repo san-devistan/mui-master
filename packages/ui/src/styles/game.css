@@ -595,15 +595,72 @@ button[data-slot="game-pill"] {
   border-radius: 1.5rem;
 }
 
-/* The profile's sign out and account deletion, fenced off in red. */
-[data-slot="danger-zone"] {
+/* The profile's settings: a chunky panel of rows split by hairlines, like a
+   game pill grown into a card. The danger zone's (data-danger) is tinted red,
+   its ink ring and drop too. */
+[data-slot="settings-panel"] {
+  --panel-ink: var(--ink);
   display: grid;
-  gap: 1rem;
-  margin-top: 2rem;
-  padding: 1.25rem;
-  border: 2.5px solid color-mix(in oklab, var(--destructive) 55%, transparent);
-  border-radius: 1.5rem;
-  background: color-mix(in oklab, var(--destructive) 5%, transparent);
+  overflow: hidden;
+  border: 2.5px solid var(--panel-ink);
+  border-radius: 1.75rem;
+  background: var(--chunky-fill);
+  color: var(--ink);
+  box-shadow:
+    var(--chunky-bevel),
+    0 5px 0 var(--panel-ink),
+    var(--chunky-drop);
+
+  &[data-danger] {
+    --panel-ink: color-mix(in oklab, var(--destructive) 70%, var(--ink));
+    background: linear-gradient(
+      #fff,
+      color-mix(in oklab, #fff 90%, var(--destructive))
+    );
+    box-shadow:
+      0 2px 0 rgb(255 255 255 / 0.9) inset,
+      0 5px 0 var(--panel-ink),
+      0 12px 18px -6px color-mix(in oklab, var(--destructive) 40%, transparent);
+  }
+}
+
+[data-slot="settings-row"] {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  min-height: 4.5rem;
+  padding: 0.75rem 1rem;
+
+  & + & {
+    border-top: 2px solid color-mix(in oklab, var(--panel-ink) 12%, transparent);
+  }
+}
+
+/* The row's icon on the game buttons' disc: the brand's, or red in the
+   danger zone. */
+[data-slot="settings-row-icon"] {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--brand-mesh);
+  color: var(--brand-foreground);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.45) inset,
+    0 0 0 2px var(--ink);
+
+  & svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    stroke-width: 2.5;
+  }
+
+  [data-danger] & {
+    background: var(--destructive);
+    color: #fff;
+  }
 }
 
 /* A game button for what can't be undone: red, its icon disc too. */

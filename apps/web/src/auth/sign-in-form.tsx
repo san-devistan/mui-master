@@ -9,23 +9,25 @@ import {
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
 import { MailIcon, PackageOpenIcon, PencilIcon } from "lucide-react"
+import { usePostHog } from "posthog-js/react"
 import { useEffect, useId, useState, type ReactNode } from "react"
 
 const CODE_LENGTH = 6
 
 // One way in for everyone: an email, then the code Resend mails to it. A new
-// email makes an account, which then picks its username; a guest who already
-// played keeps their cards (convex/players.ts adoptGuest). Then the game.
+// email makes an account, which then picks its username. Then the game.
 export function SignInForm() {
   const navigate = useNavigate()
+  const posthog = usePostHog()
   const { data: session } = authClient.useSession()
-  const member = session?.user.isAnonymous ? null : session?.user
+  const member = session?.user
   const [email, setEmail] = useState("")
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
-  // Already in with a username: straight to the game.
+  // In with a username: to the game. Signing in and picking a username land here once the session
+  // has refreshed, so the game never sees the session from before.
   useEffect(() => {
     if (member?.username) void navigate({ to: "/play", replace: true })
   }, [member?.username, navigate])
@@ -49,18 +51,21 @@ export function SignInForm() {
     const { error: failed } = await request(() =>
       authClient.emailOtp.sendVerificationOtp({ email: to, type: "sign-in" })
     )
-    if (!failed) setSentTo(to)
+    if (!failed) {
+      posthog.capture("auth_code_requested")
+      setSentTo(to)
+    }
   }
 
-  // A returning player goes straight to the game; a new one picks a username
-  // first (the session now has no username, so the form shows that step).
+  // A returning player goes on to the game; a new one picks a username first
+  // (the session now has no username, so the form shows that step).
   async function verify(otp: string) {
     if (!sentTo) return
     const { data } = await request(() =>
       authClient.signIn.emailOtp({ email: sentTo, otp })
     )
     if (data && "username" in data.user && data.user.username) {
-      await navigate({ to: "/play" })
+      posthog.capture("user_signed_in")
     }
   }
 
@@ -72,7 +77,7 @@ export function SignInForm() {
         name: username,
       })
     )
-    if (!failed) await navigate({ to: "/play" })
+    if (!failed) posthog.capture("username_selected")
   }
 
   if (member && !member.username) {
@@ -120,11 +125,7 @@ export function SignInForm() {
   }
 
   return (
-    <Panel
-      title="Sign in to play"
-      lead="New or back, it's the same: enter your email and we'll send you a code. No password."
-      error={error}
-    >
+    <Panel title="Sign in to play" error={error}>
       <form
         action={() => sendCode(email.trim().toLowerCase())}
         className="gap-4 grid"
@@ -207,11 +208,7 @@ function UsernameStep({
 }) {
   const [username, setUsername] = useState("")
   return (
-    <Panel
-      title="Pick your username"
-      lead="It's how other players see you, on the market and on your profile."
-      error={error}
-    >
+    <Panel title="Pick your username" error={error}>
       <form action={() => onPick(username.trim())} className="gap-4 grid">
         <Field label="Username">
           {(id) => (
@@ -241,7 +238,7 @@ function Panel({
   children,
 }: {
   title: string
-  lead: ReactNode
+  lead?: ReactNode
   error: string | null
   children: ReactNode
 }) {
@@ -251,7 +248,7 @@ function Panel({
         <h1 className="text-3xl font-black sm:text-4xl tracking-tighter font-heading">
           {title}
         </h1>
-        <p className="text-pretty text-ink/70">{lead}</p>
+        {lead ? <p className="text-pretty text-ink/70">{lead}</p> : null}
       </div>
       {children}
       {error ? (

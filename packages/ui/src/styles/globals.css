@@ -419,6 +419,38 @@
   }
 }
 
+/* Heart sticker on a liked collection card: the NEW badge's foil as a disc
+   over the card's top-right corner. Under the copies badge when there's one
+   (data-stacked). Sized off the card (an @container). */
+@utility game-liked-badge {
+  position: absolute;
+  top: 8cqw;
+  right: 8cqw;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 13%;
+  aspect-ratio: 1;
+  border: 1cqw solid var(--ink);
+  border-radius: 999px;
+  background: var(--silver-foil, linear-gradient(#f7f7ff, #b3b8cc 50%, #f7f7ff))
+    center / 100% 100%;
+  box-shadow: 0 1.2cqw 2.5cqw rgb(18 16 22 / 0.35);
+  color: var(--ink);
+  rotate: 8deg;
+  pointer-events: none;
+
+  &[data-stacked] {
+    top: 20cqw;
+  }
+
+  & svg {
+    width: 60%;
+    height: 60%;
+    fill: currentColor;
+  }
+}
+
 /* The holo coin: the Holotrack icon's foil on a disc with an ink rim and an
    ink H. Sized by font-size (1em is the text beside it), so it fits a pill,
    a button or a sentence. */

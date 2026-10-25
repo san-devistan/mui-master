@@ -21,6 +21,7 @@ import {
 } from "@workspace/ui/components/toggle-group"
 import { useMutation } from "convex/react"
 import { GavelIcon, MinusIcon, PlusIcon } from "lucide-react"
+import { usePostHog } from "posthog-js/react"
 import { useState, type ReactNode } from "react"
 
 // How much −/+ moves the start price: finer when it's low, so any price is a few taps away.
@@ -106,6 +107,7 @@ function SellDialog({
   onSold: (count: number) => void
 }) {
   const sell = useMutation(api.market.sell)
+  const posthog = usePostHog()
   const [count, setCount] = useState(1)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -119,6 +121,11 @@ function SellDialog({
       setError(null)
       try {
         await sell({ cardId: song.id, count: chosen })
+        posthog.capture("card_sold", {
+          card_rarity: song.rarity,
+          card_count: chosen,
+          holo_value: price * chosen,
+        })
         onOpenChange(false)
         setCount(1)
         onSold(chosen)
@@ -202,6 +209,7 @@ function AuctionDialog({
 }) {
   const list = useMutation(api.market.list)
   const navigate = useNavigate()
+  const posthog = usePostHog()
   const wallet = useWallet()
   // Untouched, it's what the bank pays for the card, so an auction never asks less by default.
   const [typed, setTyped] = useState<string | null>(null)
@@ -230,6 +238,11 @@ function AuctionDialog({
       setError(null)
       try {
         await list({ cardId: song.id, startPrice, hours })
+        posthog.capture("auction_created", {
+          card_rarity: song.rarity,
+          start_price: startPrice,
+          duration_hours: hours,
+        })
         onOpenChange(false)
         onListed()
         void navigate({ to: "/market", search: { scope: "mine" } })

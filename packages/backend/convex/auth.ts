@@ -3,7 +3,6 @@ import { convex } from "@convex-dev/better-auth/plugins"
 import { requireRunMutationCtx } from "@convex-dev/better-auth/utils"
 import { Resend } from "@convex-dev/resend"
 import { betterAuth, type BetterAuthOptions } from "better-auth/minimal"
-import { anonymous } from "better-auth/plugins/anonymous"
 import { emailOTP } from "better-auth/plugins/email-otp"
 import { username } from "better-auth/plugins/username"
 
@@ -14,9 +13,8 @@ import authConfig from "./auth.config"
 
 declare const process: { env: Record<string, string | undefined> }
 
-// Players: Better Auth users, stored in its Convex component. A visitor plays as an anonymous
-// guest until they sign in with a code emailed to them (a new email makes an account, which then
-// picks a username); their guest progress moves to that account (players:adoptGuest).
+// Players: Better Auth users, stored in its Convex component. Everyone signs in with a code
+// emailed to them before playing; a new email makes an account, which then picks a username.
 export const authComponent = createClient<DataModel>(components.betterAuth)
 
 // Sends through Resend (RESEND_API_KEY), queued and retried by its Convex component.
@@ -63,22 +61,11 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
           })
         },
       }),
-      anonymous({
-        onLinkAccount: async ({ anonymousUser, newUser }) => {
-          await requireRunMutationCtx(ctx).runMutation(
-            internal.players.adoptGuest,
-            {
-              guestId: anonymousUser.user.id,
-              playerId: newUser.user.id,
-            }
-          )
-        },
-      }),
       username(),
       convex({ authConfig }),
     ],
   } satisfies BetterAuthOptions)
 
-// The signed-in player's id, or null for a visitor who hasn't started.
+// The signed-in player's id, or null when signed out.
 export const playerId = async (ctx: QueryCtx) =>
   (await ctx.auth.getUserIdentity())?.subject ?? null

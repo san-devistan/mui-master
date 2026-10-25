@@ -7,7 +7,8 @@ Source of truth for design across the repo.
   `apps/web`.
 - shadcn: use the shadcn MCP or CLI. The CLI runs from the web app
   (`--cwd apps/web`) and writes into this package.
-- Game visuals: `game-*`, `song-card`, `booster-pack`, `pack-opening`,
+- Game visuals: `game-*` (`game-settings`: the profile's settings panels and
+  rows), `song-card`, `booster-pack`, `pack-opening`,
   `scroll-pack` (the same opening, stepped by the caller, e.g. to film the
   landing's), `card-back`, `rarity-badge`, `holo-coin`, and `celebration` are the
   Musi Master primitives. The three.js and shader engine lives in

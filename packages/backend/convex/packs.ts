@@ -159,13 +159,8 @@ const pendingPack = (ctx: QueryCtx, player: string) =>
     .withIndex("by_playerId", (q) => q.eq("playerId", player))
     .unique()
 
-// Whether a collection card has an upgrade to play: its card is rarer now than when last seen
-// (unset counts as seen).
-export const isUpgraded = (
-  seenRarity: CardRarity | undefined,
-  rarity: CardRarity
-) =>
-  seenRarity !== undefined &&
+// Whether a collection card has an upgrade to play: its card is rarer now than when last seen.
+export const isUpgraded = (seenRarity: CardRarity, rarity: CardRarity) =>
   rarityOrder.indexOf(rarity) < rarityOrder.indexOf(seenRarity)
 
 // Keeps the player's pendingUpgrades row for the card in step: there when `pending`, else gone.
@@ -236,6 +231,7 @@ export const addCopy = async (
     cardId: card.id,
     copies: 1,
     pulledAt,
+    favorite: false,
     ...seen,
   })
   await countCards(ctx, player, 1)
@@ -365,9 +361,7 @@ const pendingUpgradesOf = async (ctx: QueryCtx, player: string) => {
         const owned = await ownedCard(ctx, player, cardId)
         const doc = owned ? await cardDoc(ctx, cardId) : null
         // A row gone stale (sold, or seen since) shows nothing.
-        return owned?.seenRarity &&
-          doc &&
-          isUpgraded(owned.seenRarity, doc.rarity)
+        return owned && doc && isUpgraded(owned.seenRarity, doc.rarity)
           ? [
               {
                 ...(await toCard(ctx, doc)),

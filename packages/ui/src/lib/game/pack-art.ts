@@ -83,7 +83,7 @@ function paintTitle(ctx: CanvasRenderingContext2D) {
   ctx.fillText("CLUB", PACK_W / 2, 291)
   ctx.font = "700 10px 'Space Mono'"
   ctx.letterSpacing = "0.8px"
-  ctx.fillText("5 CARDS · VOL. 1", PACK_W / 2, 318)
+  ctx.fillText("5 CARDS", PACK_W / 2, 318)
 }
 
 // Zigzag teeth on the cut seals (12px period, 6px deep, like the CSS mask).

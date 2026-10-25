@@ -45,6 +45,11 @@ export const ensurePlayer = async (ctx: MutationCtx, player: string) => {
     cards: 0,
     coins: startingCoins,
     freePacksSince: 0,
+    boughtPacks: 0,
+    proUntil: 0,
+    weeklyHolosAt: 0,
+    freePackPushAt: 0,
+    showcase: [],
   }
   return { _id: await ctx.db.insert("players", fields), ...fields }
 }
@@ -71,12 +76,13 @@ export const payForPack = async (ctx: MutationCtx, player: string) => {
     now,
     freePackPlan(isPro(row.proUntil, now))
   )
-  const bought = row.boughtPacks ?? 0
   if (free.count > 0) {
     await ctx.db.patch("players", row._id, { freePacksSince: free.usedSince })
     await scheduleFreePackPush(ctx, { ...row, freePacksSince: free.usedSince })
-  } else if (bought > 0) {
-    await ctx.db.patch("players", row._id, { boughtPacks: bought - 1 })
+  } else if (row.boughtPacks > 0) {
+    await ctx.db.patch("players", row._id, {
+      boughtPacks: row.boughtPacks - 1,
+    })
   } else throw new ConvexError("No pack left")
 }
 
@@ -95,7 +101,7 @@ export const buyPacks = mutation({
     if (row.coins < cost) throw new ConvexError("Not enough holos")
     await ctx.db.patch("players", row._id, {
       coins: row.coins - cost,
-      boughtPacks: (row.boughtPacks ?? 0) + count,
+      boughtPacks: row.boughtPacks + count,
     })
   },
 })
@@ -137,7 +143,7 @@ export const get = query({
       coins: row?.coins ?? startingCoins,
       freePacksSince: row?.freePacksSince ?? 0,
       boughtPacks: row?.boughtPacks ?? 0,
-      proUntil: row?.proUntil ?? null,
+      proUntil: row?.proUntil ?? 0,
       cards: row?.cards ?? 0,
       freePackHours: regular.hours,
       maxFreePacks: regular.max,
@@ -195,9 +201,7 @@ export const setPro = mutation({
   args: { pro: v.boolean() },
   handler: async (ctx, args) => {
     const row = await devPlayer(ctx)
-    const proUntil = args.pro
-      ? Date.now() + proMonthDays * 24 * 3_600_000
-      : undefined
+    const proUntil = args.pro ? Date.now() + proMonthDays * 24 * 3_600_000 : 0
     await ctx.db.patch("players", row._id, { proUntil })
     await scheduleFreePackPush(ctx, { ...row, proUntil })
   },

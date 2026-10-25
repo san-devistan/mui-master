@@ -91,22 +91,24 @@ export default defineSchema({
     // When it was first pulled, in ms.
     pulledAt: v.number(),
     // The rarity the player last saw the card at. Below the card's current rarity, it went up in
-    // a catalog refresh and the app plays its upgrade (packs:upgrades); unset counts as seen.
-    seenRarity: v.optional(cardRarity),
+    // a catalog refresh and the app plays its upgrade (packs:upgrades).
+    seenRarity: cardRarity,
     // What the collection is filtered and sorted by, copied from the card so a page of it is one
     // index read (packs:collection): its kind, its seen rarity as 0 (common) to 3 (legendary),
     // its title lowercased without accents or punctuation, and its streams when last seen.
-    kind: v.optional(cardKind),
-    rarityRank: v.optional(v.number()),
-    titleKey: v.optional(v.string()),
-    streams: v.optional(v.number()),
+    kind: cardKind,
+    rarityRank: v.number(),
+    titleKey: v.string(),
+    streams: v.number(),
     // The card's title and, for a song, its artists' names, for the collection search
     // (collection:search).
-    searchText: v.optional(v.string()),
+    searchText: v.string(),
+    // Marked a favorite from its showcase (collection:setFavorite); false when pulled.
+    favorite: v.boolean(),
   })
     .searchIndex("search_searchText", {
       searchField: "searchText",
-      filterFields: ["playerId", "kind", "rarityRank"],
+      filterFields: ["playerId", "kind", "rarityRank", "favorite"],
     })
     .index("by_playerId_and_cardId", ["playerId", "cardId"])
     // A card's owners, to mark their upgrade when its rarity rises (upgrades.ts).
@@ -156,11 +158,39 @@ export default defineSchema({
       "kind",
       "rarityRank",
       "titleKey",
+    ])
+    // The liked cards, with or without a rarity, in each sort.
+    .index("by_playerId_and_favorite_and_pulledAt", [
+      "playerId",
+      "favorite",
+      "pulledAt",
+    ])
+    .index("by_playerId_and_favorite_and_rarityRank_and_pulledAt", [
+      "playerId",
+      "favorite",
+      "rarityRank",
+      "pulledAt",
+    ])
+    .index("by_playerId_and_favorite_and_rarityRank_and_streams", [
+      "playerId",
+      "favorite",
+      "rarityRank",
+      "streams",
+    ])
+    .index("by_playerId_and_favorite_and_titleKey", [
+      "playerId",
+      "favorite",
+      "titleKey",
+    ])
+    .index("by_playerId_and_favorite_and_rarityRank_and_titleKey", [
+      "playerId",
+      "favorite",
+      "rarityRank",
+      "titleKey",
     ]),
   // Each player's tallies: how many different cards they own (packs.ts), their coins, and the
   // time their free packs count from, one per 8 hours (wallet.ts). Game state is keyed by the
-  // Better Auth user id rather than kept in its component, so a guest's progress can move to an
-  // account they link later.
+  // Better Auth user id (auth.ts playerId) and kept here, out of its component.
   players: defineTable({
     playerId: v.string(),
     cards: v.number(),
@@ -168,17 +198,17 @@ export default defineSchema({
     freePacksSince: v.number(),
     // Packs bought with coins and not opened yet (wallet:buyPacks); opened once the free ones are
     // gone, and they never run out.
-    boughtPacks: v.optional(v.number()),
-    // Pro until then (ms); unset or past, the free game. Paid monthly; no checkout yet, so for
-    // now only the dev switch sets it (wallet:setPro).
-    proUntil: v.optional(v.number()),
-    // When Pro's weekly holos were last given (wallet:claimWeekly).
-    weeklyHolosAt: v.optional(v.number()),
+    boughtPacks: v.number(),
+    // Pro until then (ms); past (0 for a player who never had it), the free game. Paid monthly;
+    // no checkout yet, so for now only the dev switch sets it (wallet:setPro).
+    proUntil: v.number(),
+    // When Pro's weekly holos were last given (wallet:claimWeekly); 0 before the first.
+    weeklyHolosAt: v.number(),
     // When the push for the next free pack is due (push:scheduleFreePackPush); an earlier one
-    // scheduled for another time does nothing.
-    freePackPushAt: v.optional(v.number()),
+    // scheduled for another time does nothing. 0 before the first is scheduled.
+    freePackPushAt: v.number(),
     // Up to 6 card ids the player shows on their profile, in order (profile.ts).
-    showcase: v.optional(v.array(v.string())),
+    showcase: v.array(v.string()),
   }).index("by_playerId", ["playerId"]),
   // One row per device a player turned notifications on from: its Web Push subscription
   // (push.ts), dropped once the push service says it's gone (notify.ts).
@@ -211,13 +241,12 @@ export default defineSchema({
     // Copied from the card, for the rarity filter.
     rarity: cardRarity,
     startPrice: v.number(),
+    // Unset until the first bid.
     topBid: v.optional(v.number()),
     topBidderId: v.optional(v.string()),
     endsAt: v.number(),
     // The card's title and, for a song, its artists' names, for the market search.
-    // shortcut: unset on auctions listed before the search, which don't show in it; they're all
-    // over within a day, so no backfill.
-    searchText: v.optional(v.string()),
+    searchText: v.string(),
     status: v.union(
       v.literal("open"),
       v.literal("sold"),

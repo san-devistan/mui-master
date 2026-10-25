@@ -19,14 +19,15 @@ flowchart LR
 ## AI Setup
 
 - Skills are scoped under each workspace's `.agents/skills` directory.
-- Configured MCPs cover Convex, Better Auth, Stripe, shadcn, and Cloudflare.
+- Configured MCPs cover Convex, Better Auth, Stripe, shadcn, Cloudflare, and
+  PostHog.
 
 ## Deploy
 
 The web app runs on Cloudflare Workers (`apps/web/wrangler.jsonc`), served at
 `https://holotrack.art`. Pushes to `main` build and deploy it through Workers
-Builds (root `apps/web`; the Convex URLs and `VITE_PUBLIC_POSTHOG_*` are its build
-variables).
+Builds (root `apps/web`, the Convex URLs and PostHog's `VITE_PUBLIC_POSTHOG_*`
+values set as its build variables).
 `pnpm deploy:web` deploys from this machine instead, with the Convex URLs from
 `apps/web/.env.local` (`pnpm --filter web exec wrangler login` once).
 

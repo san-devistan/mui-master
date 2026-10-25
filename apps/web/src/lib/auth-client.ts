@@ -1,9 +1,5 @@
 import { convexClient } from "@convex-dev/better-auth/client/plugins"
-import {
-  anonymousClient,
-  emailOTPClient,
-  usernameClient,
-} from "better-auth/client/plugins"
+import { emailOTPClient, usernameClient } from "better-auth/client/plugins"
 import { createAuthClient } from "better-auth/react"
 
 import { patientFetch } from "./patient-fetch"
@@ -13,10 +9,5 @@ import { patientFetch } from "./patient-fetch"
 export const authClient = createAuthClient({
   // Session, sign-in and Convex token calls wait out a flaky network rather than fail.
   fetchOptions: { customFetchImpl: patientFetch },
-  plugins: [
-    anonymousClient(),
-    emailOTPClient(),
-    usernameClient(),
-    convexClient(),
-  ],
+  plugins: [emailOTPClient(), usernameClient(), convexClient()],
 })

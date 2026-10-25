@@ -16,7 +16,7 @@ import { useState } from "react"
 function useHeaderWallet() {
   const { data } = useQuery({
     ...convexQuery(api.wallet.get, {}),
-    select: ({ coins, proUntil }) => ({ coins, proUntil: proUntil ?? 0 }),
+    select: ({ coins, proUntil }) => ({ coins, proUntil }),
   })
   const pro = useNow(30_000) < (data?.proUntil ?? 0)
   return data ? { coins: data.coins, pro } : null

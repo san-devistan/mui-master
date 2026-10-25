@@ -4,7 +4,12 @@ import { CollectionPage } from "@/game/_pages/collection-page"
 import { MarketPage } from "@/game/_pages/market-page"
 import { PacksPage } from "@/game/_pages/packs-page"
 import { authClient } from "@/lib/auth-client"
-import { Link, Outlet, useRouterState } from "@tanstack/react-router"
+import {
+  Link,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router"
 import { api } from "@workspace/backend/api"
 import {
   GameShell,
@@ -13,7 +18,7 @@ import {
 } from "@workspace/ui/components/game-shell"
 import { useMutation } from "convex/react"
 import { BoxIcon, GavelIcon, LayersIcon, UserIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 
 const TABS = [
   { to: "/play", label: "Packs", Icon: BoxIcon },
@@ -23,7 +28,7 @@ const TABS = [
 ] as const
 
 export function GameLayout() {
-  const ready = useGuestSession()
+  const ready = usePlayerSession()
   useWeeklyHolos(ready)
   const path = useRouterState({ select: (state) => state.location.pathname })
   const onPacks = path === "/play"
@@ -86,32 +91,18 @@ export function GameLayout() {
   )
 }
 
-// Everyone plays as an anonymous guest until accounts can be linked: a visitor without a session
-// gets one on arrival. True once a session exists.
-function useGuestSession() {
+// The game is for signed-in players with a username: anyone else goes to /sign-in, which signs
+// them in or has a new account pick its username first. True once the player can play.
+function usePlayerSession() {
   const { data: session, isPending } = authClient.useSession()
-  const requested = useRef(false)
-  const refusals = useRef(0)
+  const navigate = useNavigate()
+  const ready = Boolean(session?.user.username)
 
   useEffect(() => {
-    if (isPending || session || requested.current) return
-    requested.current = true
-    async function signIn() {
-      const { error } = await authClient.signIn.anonymous()
-      if (!error) return
-      // Refused, most often because the visitor has a session the last check didn't get back
-      // (Better Auth won't make a second guest): check again, which signs in again if there's
-      // still none. Waits longer each time, so a lasting refusal doesn't flood the server.
-      const wait = Math.min(1000 * 2 ** refusals.current++, 30_000)
-      setTimeout(() => {
-        requested.current = false
-        authClient.$store.notify("$sessionSignal")
-      }, wait)
-    }
-    void signIn()
-  }, [isPending, session])
+    if (!isPending && !ready) void navigate({ to: "/sign-in", replace: true })
+  }, [isPending, ready, navigate])
 
-  return Boolean(session)
+  return ready
 }
 
 // Pro's weekly holos, given once the session is ready, when a week has passed since the last.

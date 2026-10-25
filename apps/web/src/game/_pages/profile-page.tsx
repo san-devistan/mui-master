@@ -1,4 +1,7 @@
-import { AccountSettings } from "@/game/_components/account-settings"
+import {
+  AccountSettings,
+  DangerZone,
+} from "@/game/_components/account-settings"
 import { DevTools } from "@/game/_components/dev-tools"
 import { NotificationSettings } from "@/game/_components/notification-settings"
 import { PageHeader } from "@/game/_components/page-header"
@@ -34,17 +37,13 @@ function playingFor(since: Date) {
 
 // The player: their picture beside their name and stats (how long they've
 // played, how many different cards they own), then the cards they show off.
-// Guests play as "Anonymous".
 export function ProfilePage() {
   const { data: session } = authClient.useSession()
   const cards = useCardCount()
   const wallet = useWallet()
   const showcaseRef = useRef<HTMLDivElement>(null)
   const user = session?.user
-  const name =
-    user && !user.isAnonymous
-      ? user.displayUsername || user.username || user.name || "Anonymous"
-      : "Anonymous"
+  const name = user?.displayUsername || user?.username || user?.name || ""
   const stats = [
     {
       label: "Playing for",
@@ -114,8 +113,9 @@ export function ProfilePage() {
       <div ref={showcaseRef} className="contents">
         <ProfileShowcase />
       </div>
-      <NotificationSettings />
       <AccountSettings />
+      <NotificationSettings />
+      <DangerZone />
       <DevTools />
     </GameMain>
   )

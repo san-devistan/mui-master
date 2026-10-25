@@ -27,6 +27,7 @@ import type { CardSlot } from "@workspace/ui/lib/game/card-scene"
 import { useMutation } from "convex/react"
 import type { FunctionReturnType } from "convex/server"
 import { GavelIcon, MinusIcon, PlusIcon, UndoIcon } from "lucide-react"
+import { usePostHog } from "posthog-js/react"
 import { type ComponentProps, useState } from "react"
 
 // An auction as the market lists it.
@@ -231,6 +232,7 @@ function SellerActions({
   onTaken: () => void
 }) {
   const cancel = useMutation(api.market.cancel)
+  const posthog = usePostHog()
   if (auction.topBid !== null) {
     return (
       <p className="text-sm font-bold text-center">
@@ -242,7 +244,15 @@ function SellerActions({
     <Button
       variant="game"
       disabled={busy}
-      onClick={() => void run(() => cancel({ id: auction.id }), onTaken)}
+      onClick={() =>
+        void run(
+          () => cancel({ id: auction.id }),
+          () => {
+            posthog.capture("auction_cancelled")
+            onTaken()
+          }
+        )
+      }
     >
       <UndoIcon aria-hidden="true" />
       Take back
@@ -263,6 +273,7 @@ function BidForm({
 }) {
   const wallet = useWallet()
   const bid = useMutation(api.market.bid)
+  const posthog = usePostHog()
   // The prefill follows the price until the player types their own.
   const [typed, setTyped] = useState<string | null>(null)
   const amount = typed ?? String(suggestedBid(auction))
@@ -321,7 +332,10 @@ function BidForm({
           onClick={() =>
             void run(
               () => bid({ id: auction.id, amount: offer }),
-              () => setTyped(null)
+              () => {
+                posthog.capture("auction_bid_placed", { bid_amount: offer })
+                setTyped(null)
+              }
             )
           }
         >

@@ -1,6 +1,6 @@
 import { explainAuthError, USERNAME_INPUT } from "@/auth/account"
 import { authClient } from "@/lib/auth-client"
-import { Link, useNavigate } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -10,136 +10,153 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import {
+  GameSettings,
+  GameSettingsRow,
+} from "@workspace/ui/components/game-settings"
 import { Input } from "@workspace/ui/components/input"
-import { CheckIcon, LogOutIcon, Trash2Icon } from "lucide-react"
+import {
+  AtSignIcon,
+  CheckIcon,
+  LogOutIcon,
+  MailIcon,
+  PencilIcon,
+  Trash2Icon,
+} from "lucide-react"
+import { usePostHog } from "posthog-js/react"
 import { useId, useState } from "react"
 
-// The profile's account settings: the username (unique across players, any
-// case), then signing out and deleting the account. A guest gets a way to
-// sign in instead.
+// The profile's account settings: a panel with the player's email and their
+// username (unique across players, any case, changed in a dialog).
 export function AccountSettings() {
   const { data: session } = authClient.useSession()
   const user = session?.user
   if (!user) return null
-  if (user.isAnonymous) {
-    return (
-      <section aria-labelledby="account-title" className="mt-8 gap-3 grid">
-        <SectionTitle id="account-title">Account</SectionTitle>
-        <p className="text-sm text-ink/60">
-          You&apos;re playing as a guest. Sign in to keep your cards on every
-          device.
-        </p>
-        <Button
-          variant="game"
-          className="justify-self-start"
-          nativeButton={false}
-          render={<Link to="/sign-in" />}
-        >
-          <LogOutIcon aria-hidden="true" className="rotate-180" />
-          Sign in
-        </Button>
-      </section>
-    )
-  }
   return (
-    <>
-      <section aria-labelledby="account-title" className="mt-8 gap-3 grid">
-        <SectionTitle id="account-title">Account</SectionTitle>
-        <UsernameField current={user.displayUsername ?? user.username ?? ""} />
-        <p className="text-sm text-ink/60">Signed in as {user.email}</p>
-      </section>
-      <DangerZone />
-    </>
+    <GameSettings id="account-title" title="Account">
+      <GameSettingsRow Icon={MailIcon} label="Email" detail={user.email} />
+      <UsernameRow current={user.displayUsername ?? user.username ?? ""} />
+    </GameSettings>
   )
 }
 
-function SectionTitle({ id, children }: { id: string; children: string }) {
+// The username, with an edit button that opens a dialog to change it.
+function UsernameRow({ current }: { current: string }) {
+  const [editing, setEditing] = useState(false)
   return (
-    <h2 id={id} className="text-2xl font-black tracking-tighter font-heading">
-      {children}
-    </h2>
+    <GameSettingsRow Icon={AtSignIcon} label="Username" detail={current}>
+      <Button
+        variant="game"
+        size="icon-game"
+        className="shrink-0"
+        aria-label="Edit your username"
+        onClick={() => setEditing(true)}
+      >
+        <PencilIcon aria-hidden="true" />
+      </Button>
+      <Dialog open={editing} onOpenChange={setEditing}>
+        <DialogContent variant="game">
+          {/* Remounted each time it opens, so it starts from the saved name. */}
+          {editing ? (
+            <UsernameForm current={current} onSaved={() => setEditing(false)} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </GameSettingsRow>
   )
 }
 
-function UsernameField({ current }: { current: string }) {
-  // What the player typed; null shows the saved username.
+// The username dialog's field and Save button; closes once it's saved. It
+// shows the saved username until the player types.
+function UsernameForm({
+  current,
+  onSaved,
+}: {
+  current: string
+  onSaved: () => void
+}) {
+  const posthog = usePostHog()
   const [draft, setDraft] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState<{ text: string; ok: boolean } | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const id = useId()
   const username = draft ?? current
   const next = username.trim()
-  const changed = next !== current
 
   async function save() {
     setBusy(true)
-    setNote(null)
+    setError(null)
     try {
-      const { error } = await authClient.updateUser({
+      const { error: failed } = await authClient.updateUser({
         username: next,
         displayUsername: next,
         name: next,
       })
-      if (error) {
-        setNote({ text: explainAuthError(error), ok: false })
+      if (failed) {
+        setError(explainAuthError(failed))
         return
       }
-      setDraft(null)
-      setNote({ text: "Username saved.", ok: true })
+      posthog.capture("username_updated")
+      onSaved()
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form action={save} className="max-w-lg gap-2 grid">
-      <label htmlFor={id} className="font-bold">
+    <form action={save} className="gap-5 grid">
+      <DialogHeader>
+        <DialogTitle>Change your username</DialogTitle>
+      </DialogHeader>
+      <label htmlFor={id} className="sr-only">
         Username
       </label>
-      <div className="gap-2 flex">
-        <Input
-          variant="game"
-          id={id}
-          required
-          {...USERNAME_INPUT}
-          aria-invalid={note && !note.ok ? true : undefined}
-          value={username}
-          onChange={(event) => {
-            setDraft(event.target.value)
-            setNote(null)
-          }}
-        />
+      <Input
+        variant="game"
+        id={id}
+        required
+        {...USERNAME_INPUT}
+        aria-invalid={error ? true : undefined}
+        value={username}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setError(null)
+        }}
+      />
+      {error ? (
+        <p role="alert" className="text-sm font-bold text-destructive">
+          {error}
+        </p>
+      ) : null}
+      <DialogFooter variant="game">
         <Button
           variant="game"
           type="submit"
-          className="shrink-0"
-          disabled={busy || !changed}
+          className="flex-1"
+          disabled={busy || !next || next === current}
         >
           <CheckIcon aria-hidden="true" />
           Save
         </Button>
-      </div>
-      {note ? (
-        <output
-          className={`text-sm font-bold ${note.ok ? "text-ink/70" : "text-destructive"}`}
-        >
-          {note.text}
-        </output>
-      ) : null}
+      </DialogFooter>
     </form>
   )
 }
 
-// Signing out and deleting the account, apart at the page's end. Deleting
-// asks first, and needs a sign-in within the last day.
-function DangerZone() {
+// Signing out and deleting the account, apart at the end of the settings.
+// Deleting asks first, and needs a sign-in within the last day.
+export function DangerZone() {
   const navigate = useNavigate()
+  const posthog = usePostHog()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Back to the landing page: the game would sign a new guest in straight away.
-  async function leave(call: () => Promise<{ error: unknown }>) {
+  // Back to the landing page, out of the game.
+  async function leave(
+    call: () => Promise<{ error: unknown }>,
+    event: "account_signed_out" | "account_deleted"
+  ) {
     setBusy(true)
     setError(null)
     try {
@@ -153,6 +170,7 @@ function DangerZone() {
         )
         return
       }
+      posthog.capture(event)
       setConfirming(false)
       await navigate({ to: "/", replace: true })
     } finally {
@@ -161,32 +179,29 @@ function DangerZone() {
   }
 
   return (
-    <section aria-labelledby="danger-title" data-slot="danger-zone">
-      <SectionTitle id="danger-title">Danger zone</SectionTitle>
-      <div className="gap-3 flex items-center justify-between">
-        <div className="gap-1 grid">
-          <span className="font-bold">Sign out</span>
-          <span className="text-sm text-ink/60">
-            Your cards stay on your account. Sign in again with your email.
-          </span>
-        </div>
+    <GameSettings id="danger-title" title="Danger zone" danger>
+      <GameSettingsRow
+        Icon={LogOutIcon}
+        label="Sign out"
+        detail="Your cards stay on your account."
+      >
         <Button
           variant="game"
           className="shrink-0"
           disabled={busy}
-          onClick={() => void leave(() => authClient.signOut())}
+          onClick={() =>
+            void leave(() => authClient.signOut(), "account_signed_out")
+          }
         >
           <LogOutIcon aria-hidden="true" />
           Sign out
         </Button>
-      </div>
-      <div className="gap-3 flex items-center justify-between">
-        <div className="gap-1 grid">
-          <span className="font-bold">Delete account</span>
-          <span className="text-sm text-ink/60">
-            Your cards, holos and auctions are gone for good.
-          </span>
-        </div>
+      </GameSettingsRow>
+      <GameSettingsRow
+        Icon={Trash2Icon}
+        label="Delete account"
+        detail="Cards, holos and auctions, for good."
+      >
         <Button
           variant="game"
           data-danger
@@ -200,9 +215,11 @@ function DangerZone() {
           <Trash2Icon aria-hidden="true" />
           Delete
         </Button>
-      </div>
+      </GameSettingsRow>
       {error && !confirming ? (
-        <output className="text-sm font-bold text-destructive">{error}</output>
+        <output className="px-4 py-3 text-sm font-bold block text-destructive">
+          {error}
+        </output>
       ) : null}
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent variant="game">
@@ -225,7 +242,9 @@ function DangerZone() {
                 data-danger
                 className="flex-1"
                 disabled={busy}
-                onClick={() => void leave(() => authClient.deleteUser())}
+                onClick={() =>
+                  void leave(() => authClient.deleteUser(), "account_deleted")
+                }
               >
                 <Trash2Icon aria-hidden="true" />
                 Delete for good
@@ -234,6 +253,6 @@ function DangerZone() {
           </div>
         </DialogContent>
       </Dialog>
-    </section>
+    </GameSettings>
   )
 }

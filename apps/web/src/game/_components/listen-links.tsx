@@ -20,16 +20,9 @@ const SERVICES = [
   },
 ] as const
 
-// The song or artist on each streaming service it's on, opened in a new tab,
-// with `between` set between the first and the second.
-export function ListenLinks({
-  song,
-  between,
-}: {
-  song: GameCard
-  between?: ReactNode
-}) {
-  const [first, ...rest] = SERVICES.map(({ key, label, path, href }) => {
+// The song or artist on each streaming service it's on, opened in a new tab.
+export function ListenLinks({ song }: { song: GameCard }) {
+  return SERVICES.map(({ key, label, path, href }) => {
     const url = href(song)
     return url ? (
       <Button
@@ -48,29 +41,24 @@ export function ListenLinks({
       />
     ) : null
   })
-  return (
-    <>
-      {first}
-      {between}
-      {rest}
-    </>
-  )
 }
 
-// The showcase's row: the streaming links, and the share button between them.
+// The showcase's row: the share button, `extra` (e.g. the favorite button),
+// then the streaming links.
 export function ListenRow({
   song,
   picture,
+  extra,
 }: {
   song: GameCard
   picture: () => Blob | null
+  extra?: ReactNode
 }) {
   return (
     <div className="gap-3 flex items-center justify-center">
-      <ListenLinks
-        song={song}
-        between={<ShareCard song={song} picture={picture} />}
-      />
+      <ShareCard song={song} picture={picture} />
+      {extra}
+      <ListenLinks song={song} />
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { AnalyticsProvider } from "@/analytics/analytics-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 import { bootRecovery } from "@/lib/boot-recovery"
 import { registerServiceWorker } from "@/lib/service-worker"
@@ -76,9 +77,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="game-viewport overflow-hidden overscroll-none bg-lavender text-foreground antialiased">
-        <ThemeProvider defaultTheme="light" enableSystem={false}>
-          {children}
-        </ThemeProvider>
+        <AnalyticsProvider>
+          <ThemeProvider defaultTheme="light" enableSystem={false}>
+            {children}
+          </ThemeProvider>
+        </AnalyticsProvider>
         <Scripts />
       </body>
     </html>

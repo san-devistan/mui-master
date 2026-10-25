@@ -45,17 +45,31 @@ deleting the account (`src/game/_components/account-settings.tsx`).
 
 ## Auth
 
-Players are Better Auth users (`src/lib/auth-client.ts`). A visitor plays as an
-anonymous guest (the game layout signs them in on arrival) until they sign in at
-`/sign-in` (`src/auth/`): one flow for new and returning players, an email,
-then the 6-digit code emailed to it (Better Auth's email OTP, sent with Resend
-from `convex/auth.ts`). A new email makes an account, which picks its username
-before going to `/play`. The backend moves the guest's game to the account
-(`convex/players.ts`).
+Players are Better Auth users (`src/lib/auth-client.ts`); there are no guests.
+The landing's Play buttons go to `/sign-in` (`src/auth/`), and the game layout
+sends anyone without a session and a username there too. One flow for new and
+returning players: an email, then the 6-digit code emailed to it (Better Auth's
+email OTP, sent with Resend from `convex/auth.ts`). A new email makes an
+account, which picks its username before going to `/play`; a signed-in player
+goes straight to `/play`.
 Better Auth's endpoints are served at `/api/auth/*` (`routes/api.auth.$.ts`),
 forwarded to the Convex deployment with the request body buffered (Node's fetch
 fails a streamed body that gets a 401), so it needs `VITE_CONVEX_SITE_URL` (the
 `.convex.site` URL) in `.env.local`, inlined into the build.
+
+## Analytics
+
+PostHog (`src/analytics/analytics-provider.tsx`) records pageviews, clicks and
+errors, identifies signed-in players (visitors stay anonymous) and resets on
+sign out. Game actions capture their own events after the backend confirms them
+(`posthog.capture` from `usePostHog()`). It needs
+`VITE_PUBLIC_POSTHOG_PROJECT_TOKEN` and `VITE_PUBLIC_POSTHOG_HOST` in
+`.env.local` and the build; without them the app runs untracked.
+
+The landing's funnel (`src/landing/landing-analytics.ts`): `landing_section_viewed`
+(`card_reveal`, `all_cards`, `features`, each once a visit) and
+`landing_cta_clicked` (`play`, with its `header`, `hero` or `join`
+placement); the next pageview carries the landing's scroll depth.
 
 ## Effect
 

@@ -29,7 +29,7 @@ export function useWallet(tick = 30_000) {
   const { data } = useQuery(convexQuery(api.wallet.get, {}))
   const now = useNow(tick)
   if (!data) return null
-  const pro = (data.proUntil ?? 0) > now
+  const pro = data.proUntil > now
   const maxFreePacks = pro ? data.proMaxFreePacks : data.maxFreePacks
   const every = (pro ? data.proFreePackHours : data.freePackHours) * HOUR
   const from = Math.max(data.freePacksSince, now - maxFreePacks * every)

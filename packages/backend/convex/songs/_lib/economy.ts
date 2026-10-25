@@ -22,8 +22,7 @@ export const proMaxOpenAuctions = 30
 export const proMonthDays = 30
 
 // Pro while paid up: `proUntil` (players.proUntil) is still ahead.
-export const isPro = (proUntil: number | undefined, now: number) =>
-  (proUntil ?? 0) > now
+export const isPro = (proUntil: number, now: number) => proUntil > now
 
 // How fast free packs come and how many are held, for a Pro player or not.
 export const freePackPlan = (pro: boolean) =>
@@ -59,9 +58,10 @@ export const skipPrice = (
   plan = freePackPlan(false)
 ) => Math.max(1, Math.ceil((packPrice * (nextAt - now)) / (plan.hours * HOUR)))
 
-// Pro's weekly holos are due a week after the last were given, or straight away the first time.
-export const weeklyHolosDue = (lastAt: number | undefined, now: number) =>
-  lastAt === undefined || now - lastAt >= 7 * DAY
+// Pro's weekly holos are due a week after the last were given, or straight away the first time
+// (`lastAt` 0).
+export const weeklyHolosDue = (lastAt: number, now: number) =>
+  now - lastAt >= 7 * DAY
 
 // What the bank pays for a copy. A pack averages under half its price back, so buying packs
 // to sell them never pays.

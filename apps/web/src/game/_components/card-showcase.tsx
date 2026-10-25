@@ -1,4 +1,5 @@
 import { CardTrade } from "@/game/_components/card-trade"
+import { FavoriteButton } from "@/game/_components/favorite-button"
 import { ListenRow } from "@/game/_components/listen-links"
 import { RelatedCards } from "@/game/_components/related-cards"
 import { useSongPreview } from "@/game/_hooks/use-song-preview"
@@ -346,7 +347,11 @@ function CollectionActions({
 }: ShowcaseActionsProps) {
   return (
     <>
-      <ListenRow song={song} picture={picture} />
+      <ListenRow
+        song={song}
+        picture={picture}
+        extra={<FavoriteButton song={song} />}
+      />
       {/* Wrapped: the buttons' own transitions would override the row's. */}
       <CardTrade
         song={song}

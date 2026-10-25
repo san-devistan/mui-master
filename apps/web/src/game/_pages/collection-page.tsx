@@ -39,6 +39,7 @@ import {
   ArrowDownUpIcon,
   ClockIcon,
   GemIcon,
+  HeartIcon,
   LayersIcon,
   MicVocalIcon,
   Music2Icon,
@@ -49,6 +50,7 @@ const KINDS = {
   all: { label: "All cards", Icon: LayersIcon },
   song: { label: "Songs", Icon: Music2Icon },
   artist: { label: "Artists", Icon: MicVocalIcon },
+  liked: { label: "Liked", Icon: HeartIcon },
 } as const
 type KindFilter = keyof typeof KINDS
 const KIND_KEYS = Object.keys(KINDS).filter(
@@ -72,7 +74,13 @@ const SORT_KEYS = Object.keys(SORTS).filter(
 // About a phone screen of cards, drawn even while the page is hidden.
 const EAGER = 8
 
-// The backend's arguments for the chosen sort and filters; "all" is no filter.
+// The backend's arguments for the chosen sort and filters; "all" is no filter,
+// "liked" the player's favorites, songs and artists alike.
+const kindArg = (kind: KindFilter) => {
+  if (kind === "all") return {}
+  if (kind === "liked") return { liked: true }
+  return { kind }
+}
 const collectionQuery = (
   sort: SortKey,
   filter: RarityFilter,
@@ -80,7 +88,7 @@ const collectionQuery = (
 ) => ({
   sort,
   ...rarityArg(filter),
-  ...(kind === "all" ? {} : { kind }),
+  ...kindArg(kind),
 })
 // The text a search looks for: opening or closing an empty search changes nothing found, so it
 // keeps the grid's scroll; typing starts the results at the top.
@@ -255,8 +263,9 @@ function NoMatch({
   )
 }
 
-// Songs, artists or both: a round button floating over the tab bar's right
-// end, showing the chosen type's icon. Steps aside with the tab bar.
+// Songs, artists, both or the liked ones: a round button floating over the
+// tab bar's right end, showing the chosen type's icon. Steps aside with the
+// tab bar.
 function CardKindSelect({
   kind,
   onKind,

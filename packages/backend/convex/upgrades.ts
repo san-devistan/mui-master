@@ -65,9 +65,7 @@ export const backfillUpgrades = internalMutation({
       .paginate({ numItems: 200, cursor })
     for (const row of rows.page) {
       const doc =
-        row.seenRarity && row.seenRarity !== "legendary"
-          ? await cardDoc(ctx, row.cardId)
-          : null
+        row.seenRarity === "legendary" ? null : await cardDoc(ctx, row.cardId)
       await setPending(
         ctx,
         row.playerId,

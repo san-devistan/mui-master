@@ -46,12 +46,9 @@ function SiteHeader() {
       </Link>
       <nav
         aria-label="Main"
-        className="gap-6 text-sm font-bold ml-auto flex items-center"
+        className="text-sm font-bold ml-auto flex items-center"
       >
-        <Link to="/sign-in" className="sm:inline hidden hover:underline">
-          Sign in
-        </Link>
-        <PlayButton>Play free</PlayButton>
+        <PlayButton placement="header">Play free</PlayButton>
       </nav>
     </header>
   )

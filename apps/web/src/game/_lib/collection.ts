@@ -14,8 +14,13 @@ export const useCardCount = () =>
     select: (wallet) => wallet.cards,
   }).data
 
-// A card the player owns: its details, copies and first pull, all from the backend.
-export type CollectedSong = GameCard & { copies: number; pulledAt: number }
+// A card the player owns: its details, copies and first pull, all from the backend, and whether
+// it's a favorite (unknown on cards opened from elsewhere, like the market).
+export type CollectedSong = GameCard & {
+  copies: number
+  pulledAt: number
+  favorite?: boolean
+}
 
 // Which cards, in which order (see convex/collection.ts).
 export type CollectionQuery = Omit<
@@ -46,7 +51,11 @@ export function useCollection(
   search: string | null = null
 ) {
   const text = search?.trim()
-  const filters = { rarity: query.rarity, kind: query.kind }
+  const filters = {
+    rarity: query.rarity,
+    kind: query.kind,
+    liked: query.liked,
+  }
   const listed = usePaginatedQuery(api.collection.list, text ? "skip" : query, {
     initialNumItems: PAGE,
   })

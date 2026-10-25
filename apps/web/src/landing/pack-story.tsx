@@ -3,6 +3,7 @@ import {
   fadeOut,
   silentWhileHidden,
 } from "@/game/_hooks/use-song-preview"
+import { useSectionReached } from "@/landing/landing-analytics"
 import {
   cuesBetween,
   filmCardAt,
@@ -29,6 +30,14 @@ export function PackStory() {
   const filmRef = useRef<HTMLVideoElement>(null)
   const shown = useFilmScroll(storyRef, filmRef)
   usePreview(shown === null ? undefined : SHOWCASE[shown])
+  const reach = useSectionReached()
+
+  // A fling can skip straight past cards, so any card counts as the reveal.
+  useEffect(() => {
+    if (shown === null) return
+    reach("card_reveal")
+    if (shown === SHOWCASE.length - 1) reach("all_cards")
+  }, [shown, reach])
 
   return (
     // Pulled up under the hero (drawn above it): the top of the pack peeks out

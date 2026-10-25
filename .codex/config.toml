@@ -14,3 +14,7 @@ url = "https://mcp.stripe.com"
 
 [mcp_servers.cloudflare]
 url = "https://mcp.cloudflare.com/mcp"
+
+[mcp_servers.posthog]
+url = "https://mcp.posthog.com/mcp"
+startup_timeout_sec = 30

@@ -25,8 +25,8 @@ Logs live in the attached Zellij session whose name contains `<project-name>`.
 
 ## Providers and Tools
 
-External services (Convex, Cloudflare, Stripe, Better Auth, shadcn, App Store
-Connect) are reached through their MCP when configured (see
+External services (Convex, Cloudflare, Stripe, Better Auth, shadcn, PostHog,
+App Store Connect) are reached through their MCP when configured (see
 `.codex/config.toml`), otherwise through their CLI if installed. Check what is
 available rather than assuming it.
 

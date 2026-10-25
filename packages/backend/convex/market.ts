@@ -233,7 +233,8 @@ const auctionView = async (
 }
 
 // How a player shows in an auction's history: "You", or a name that stays the same for them
-// everywhere. shortcut: guests have no names yet; use the account's once accounts exist.
+// everywhere. shortcut: not their username, which lives in the auth component; look it up there
+// once the market shows names.
 const playerName = (id: string, player: string | null) =>
   id === player ? "You" : `Player ${id.slice(-4).toUpperCase()}`
 

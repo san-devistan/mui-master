@@ -5,6 +5,7 @@ import {
   songCardThumbSlot,
 } from "@workspace/ui/components/song-card"
 import type { CssVars } from "@workspace/ui/lib/game/theme"
+import { HeartIcon } from "lucide-react"
 import { memo, useEffect, useEffectEvent, useRef, type RefObject } from "react"
 
 // One card in the grid. Memoized: a page coming in renders only its own cards.
@@ -35,7 +36,7 @@ export const CollectionCard = memo(function CollectionCard({
       <button
         type="button"
         className="group/card @container relative block w-full rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-ring"
-        aria-label={`${song.kind === "artist" ? `${song.title}, artist` : `${song.title} by ${song.artist}`}, ${song.rarity}${isNew ? ", new" : ""}`}
+        aria-label={`${song.kind === "artist" ? `${song.title}, artist` : `${song.title} by ${song.artist}`}, ${song.rarity}${isNew ? ", new" : ""}${song.favorite ? ", liked" : ""}`}
         onClick={(event) => {
           openerRef.current = event.currentTarget
           onShowcase({
@@ -57,6 +58,15 @@ export const CollectionCard = memo(function CollectionCard({
             aria-hidden="true"
           >
             NEW
+          </span>
+        ) : null}
+        {song.favorite ? (
+          <span
+            data-stacked={song.copies > 1 || undefined}
+            className="group-hover/card:-translate-y-1 game-liked-badge transition-transform"
+            aria-hidden="true"
+          >
+            <HeartIcon />
           </span>
         ) : null}
       </button>

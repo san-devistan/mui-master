@@ -15,6 +15,7 @@ import {
 import { HoloCoin } from "@workspace/ui/components/holo-coin"
 import { useMutation } from "convex/react"
 import { CheckIcon, CrownIcon, XIcon } from "lucide-react"
+import { usePostHog } from "posthog-js/react"
 import { useState } from "react"
 
 const euros = (cents: number) =>
@@ -34,6 +35,7 @@ export function HoloShop({
 }) {
   const { data: shop } = useQuery(convexQuery(api.wallet.shop, {}))
   const wallet = useWallet()
+  const posthog = usePostHog()
   const addHolos = useMutation(api.wallet.addHolos)
   const setPro = useMutation(api.wallet.setPro)
   const [busy, setBusy] = useState(false)
@@ -45,12 +47,13 @@ export function HoloShop({
   const best = shop?.holoBundles.at(-1)?.id
 
   // The holos pill and the Pro card show what changed, so only a refusal says anything.
-  const buy = (give: () => Promise<unknown>) =>
+  const buy = (give: () => Promise<unknown>, onCompleted: () => void) =>
     once(async () => {
       setBusy(true)
       setNote(null)
       try {
         await give()
+        onCompleted()
       } catch {
         setNote("Checkout isn't open yet.")
       } finally {
@@ -124,7 +127,14 @@ export function HoloShop({
                     disabled={busy}
                     aria-label={`Buy ${holos(bundle.holos)} for ${euros(bundle.priceCents)}`}
                     onClick={() =>
-                      void buy(() => addHolos({ amount: bundle.holos }))
+                      void buy(
+                        () => addHolos({ amount: bundle.holos }),
+                        () =>
+                          posthog.capture("holo_bundle_added", {
+                            holo_amount: bundle.holos,
+                            price_cents: bundle.priceCents,
+                          })
+                      )
                     }
                   >
                     {euros(bundle.priceCents)}
@@ -172,7 +182,12 @@ export function HoloShop({
                   variant="game"
                   className="mt-5 w-full"
                   disabled={busy}
-                  onClick={() => void buy(() => setPro({ pro: true }))}
+                  onClick={() =>
+                    void buy(
+                      () => setPro({ pro: true }),
+                      () => posthog.capture("pro_enabled")
+                    )
+                  }
                 >
                   <CrownIcon aria-hidden="true" />
                   Go Pro

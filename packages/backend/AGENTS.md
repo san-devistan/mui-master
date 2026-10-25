@@ -91,10 +91,9 @@ platform.
   `--save` run. Keep the thresholds fixed once the game is live: rarities
   can't go down, so raising a threshold would mix old and new rules. Check:
   `node packages/backend/convex/songs/_lib/rarity.check.mjs`.
-- Players (`auth.ts`): Better Auth in its Convex component. Anonymous guests,
-  and accounts signed in with an emailed code (email OTP; a new email makes an
-  account, with a username), which take over the guest's game
-  (`players:adoptGuest`). A deleted account's game goes with it
+- Players (`auth.ts`): Better Auth in its Convex component, no guests: everyone
+  signs in with an emailed code before playing (email OTP; a new email makes an
+  account, which picks a username). A deleted account's game goes with it
   (`players:deletePlayer`; deleting needs a sign-in within the last day).
   `playerId(ctx)` is the signed-in user's id. Codes go
   out through the Resend component. Needs the Convex env vars
@@ -107,7 +106,9 @@ platform.
   `packs:seeUpgrade` so `collection:list` pages through any filter and sort
   with one index read. `players` keeps each player's card count for
   `collection:count`. `searchText` (title, plus a song's artists) backs
-  `collection:search`, with the same kind and rarity filters. `credits` has one row per song–artist credit, kept by
+  `collection:search`, with the same kind and rarity filters. Both also take
+  `liked`, the player's favorites (`favorite`, set by
+  `collection:setFavorite`), in place of a kind. `credits` has one row per song–artist credit, kept by
   `catalog:save` and `catalog:refresh` (`syncCredits`), so `related:*` reads
   an artist's songs and collaborators with an index for the showcase's related
   cards. `pendingPacks` holds
@@ -128,8 +129,8 @@ platform.
 - Economy (rules and numbers in `songs/_lib/economy.ts`; check:
   `node packages/backend/convex/songs/_lib/economy.check.mjs`): coins and
   free packs live on the `players` row (`wallet.ts`), keyed by the Better
-  Auth user id like all game state, not in the auth component, so a guest's
-  progress can move to a linked account. Free packs come back one per 8 hours,
+  Auth user id like all game state, not in the auth component. Free packs come
+  back one per 8 hours,
   3 held at most (`freePacks`, counted from `freePacksSince`). `wallet:buyPacks`
   buys packs with coins (100 each, up to 50 at once), kept in
   `players.boughtPacks` until opened. `wallet:skipFreePack` pays for the wait left
