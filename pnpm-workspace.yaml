@@ -6,3 +6,4 @@ packages:
 # any it wasn't told about).
 allowBuilds:
   esbuild: true
+  workerd: true
