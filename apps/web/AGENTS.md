@@ -58,6 +58,11 @@ Screen), sound effects and music (`@workspace/ui/lib/game/sound-settings`, kept
 in localStorage), and, in a phone's browser, the Home Screen install guide
 (`src/game/_components/install-prompt.tsx`, also shown once on its own); and the
 danger zone, signing out and deleting the account.
+A new account, once it has picked its username, lands on `/play?welcome=true`,
+which offers to turn notifications on
+(`src/game/_components/notifications-prompt.tsx`) instead of the install guide;
+skipped where the browser can't get them yet (iOS outside the Home Screen
+app), where they're on or blocked. Closing it drops `welcome` from the URL.
 
 Feature flags come from the backend (`convex/flags.ts`, read with `useFlags` in
 `src/game/_lib/flags.ts`), per player (a grant can turn them on for one email),

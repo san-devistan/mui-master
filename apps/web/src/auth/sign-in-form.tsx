@@ -25,12 +25,19 @@ export function SignInForm() {
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  // A new account picked its username here: the game welcomes it (notifications).
+  const [named, setNamed] = useState(false)
 
   // In with a username: to the game. Signing in and picking a username land here once the session
   // has refreshed, so the game never sees the session from before.
   useEffect(() => {
-    if (member?.username) void navigate({ to: "/play", replace: true })
-  }, [member?.username, navigate])
+    if (!member?.username) return
+    void navigate({
+      to: "/play",
+      search: named ? { welcome: true } : {},
+      replace: true,
+    })
+  }, [member?.username, named, navigate])
 
   // One auth call: the form waits on it, and shows its error if it fails.
   async function request<
@@ -77,7 +84,10 @@ export function SignInForm() {
         name: username,
       })
     )
-    if (!failed) posthog.capture("username_selected")
+    if (!failed) {
+      setNamed(true)
+      posthog.capture("username_selected")
+    }
   }
 
   if (member && !member.username) {

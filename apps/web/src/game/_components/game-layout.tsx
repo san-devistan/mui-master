@@ -1,6 +1,7 @@
 import { CardUpgrades } from "@/game/_components/card-upgrades"
 import { CheckoutReturn } from "@/game/_components/checkout-return"
 import { InstallPrompt } from "@/game/_components/install-prompt"
+import { NotificationsPrompt } from "@/game/_components/notifications-prompt"
 import { CollectionPage } from "@/game/_pages/collection-page"
 import { MarketPage } from "@/game/_pages/market-page"
 import { PacksPage } from "@/game/_pages/packs-page"
@@ -10,6 +11,7 @@ import {
   Outlet,
   useNavigate,
   useRouterState,
+  useSearch,
 } from "@tanstack/react-router"
 import { api } from "@workspace/backend/api"
 import {
@@ -70,7 +72,7 @@ export function GameLayout() {
       ) : null}
       {ready ? null : <div className="min-h-0 flex-1" />}
       {ready ? <CardUpgrades /> : null}
-      {ready ? <InstallPrompt /> : null}
+      {ready ? <FirstPrompt /> : null}
       {ready ? <CheckoutReturn /> : null}
       <GameTabBar aria-label="Main">
         {TABS.map(({ to, label, Icon }) => (
@@ -91,6 +93,16 @@ export function GameLayout() {
       </GameTabBar>
     </GameShell>
   )
+}
+
+// A new account's first stop (/play?welcome=true) offers notifications; any other visit the
+// install guide, once, so the two never show together.
+function FirstPrompt() {
+  const welcome = useSearch({
+    strict: false,
+    select: (search) => search.welcome === true,
+  })
+  return welcome ? <NotificationsPrompt /> : <InstallPrompt />
 }
 
 // The game is for signed-in players with a username: anyone else goes to /sign-in, which signs
