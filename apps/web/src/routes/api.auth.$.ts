@@ -9,6 +9,8 @@ const convexHost = URL.canParse(convexSite) ? new URL(convexSite).host : ""
 // signed with the AUTH_PROXY_SECRET it shares with the backend (a Worker secret here, a Convex env
 // var there). Without the secret (local dev), Convex counts the request against its sender's IP.
 const proxySecret = () => process.env.AUTH_PROXY_SECRET ?? ""
+const turnstileSecret = () => process.env.TURNSTILE_SECRET_KEY ?? ""
+const TURNSTILE_HEADER = "x-turnstile-token"
 
 const passClientIp = (request: Request, upstream: Headers) => {
   upstream.delete("x-holotrack-client-ip")
@@ -20,6 +22,43 @@ const passClientIp = (request: Request, upstream: Headers) => {
   upstream.set("x-holotrack-proxy-secret", secret)
 }
 
+const sendsCode = (request: Request) =>
+  request.method === "POST" &&
+  new URL(request.url).pathname === "/api/auth/email-otp/send-verification-otp"
+
+const validTurnstile = (result: unknown) =>
+  typeof result === "object" &&
+  result !== null &&
+  "success" in result &&
+  result.success === true &&
+  "action" in result &&
+  result.action === "send-code" &&
+  "hostname" in result &&
+  (result.hostname === "holotrack.art" ||
+    result.hostname === "www.holotrack.art")
+
+// Cloudflare Turnstile, checked here before a sign-in code is emailed: the browser can't skip it
+// by calling Convex directly, as only this Worker has the secret.
+async function humanSignIn(request: Request) {
+  const secret = turnstileSecret()
+  if (!secret || !sendsCode(request)) return true
+  const token = request.headers.get(TURNSTILE_HEADER)
+  if (!token || token.length > 2048) return false
+  const body = new URLSearchParams({ secret, response: token })
+  const ip = request.headers.get("cf-connecting-ip")
+  if (ip) body.set("remoteip", ip)
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      { method: "POST", body, signal: AbortSignal.timeout(10_000) }
+    )
+    if (!response.ok) return false
+    return validTurnstile(await response.json())
+  } catch {
+    return false
+  }
+}
+
 // Better Auth's endpoints, forwarded to the Convex deployment, as @convex-dev/better-auth's
 // handler does, but with the body read up front: Node's fetch (undici 7.21) fails a streamed
 // request body that gets a 401 back, such as a wrong password, with "expected non-null body
@@ -29,10 +68,24 @@ const forward = async (request: Request) => {
   if (!convexHost) {
     return new Response("VITE_CONVEX_SITE_URL is not set", { status: 500 })
   }
+  if (!(await humanSignIn(request))) {
+    return Response.json(
+      {
+        code: "TURNSTILE_FAILED",
+        message: "Security check failed. Try again.",
+      },
+      { status: 403 }
+    )
+  }
   const url = new URL(request.url)
   const proto = url.protocol.replace(/:$/, "")
   const upstream = new Headers(request.headers)
-  for (const name of ["transfer-encoding", "content-length", "connection"]) {
+  for (const name of [
+    "transfer-encoding",
+    "content-length",
+    "connection",
+    TURNSTILE_HEADER,
+  ]) {
     upstream.delete(name)
   }
   upstream.set("accept-encoding", "application/json")

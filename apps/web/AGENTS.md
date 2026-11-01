@@ -102,6 +102,10 @@ The route also passes the player's IP for the backend's rate limits, signed with
 the Worker secret `AUTH_PROXY_SECRET` (the same value as the Convex env var:
 `pnpm exec wrangler secret put AUTH_PROXY_SECRET`); without it every player on
 prod shares the Worker's IP, and so its limits.
+Before it forwards a request to email a sign-in code, it checks Cloudflare
+Turnstile (`src/auth/turnstile.tsx`): the browser gets a token with
+`VITE_TURNSTILE_SITE_KEY`, and the Worker verifies it with the secret
+`TURNSTILE_SECRET_KEY`. Without that secret, local dev skips the check.
 
 ## Analytics
 

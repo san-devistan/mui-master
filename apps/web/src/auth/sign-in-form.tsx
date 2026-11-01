@@ -1,4 +1,5 @@
 import { explainAuthError as explain, USERNAME_INPUT } from "@/auth/account"
+import { TurnstileCheck } from "@/auth/turnstile"
 import { authClient } from "@/lib/auth-client"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { api } from "@workspace/backend/api"
@@ -12,10 +13,11 @@ import {
 import { useMutation } from "convex/react"
 import { MailIcon, PackageOpenIcon, PencilIcon } from "lucide-react"
 import { usePostHog } from "posthog-js/react"
-import { useEffect, useId, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react"
 
 const CODE_LENGTH = 6
 const REFERRAL_KEY = "holotrack:referral"
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY
 
 // One way in for everyone: an email, then the code Resend mails to it. A new
 // email makes an account, which then picks its username. Then the game.
@@ -30,6 +32,12 @@ export function SignInForm() {
   const [sentTo, setSentTo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const [botToken, setBotToken] = useState<string | null>(null)
+  const [botReset, setBotReset] = useState(0)
+  const onBotToken = useCallback(
+    (token: string | null) => setBotToken(token),
+    []
+  )
   // A new account picked its username here: the game welcomes it (notifications).
   const [named, setNamed] = useState(false)
 
@@ -64,9 +72,17 @@ export function SignInForm() {
   }
 
   async function sendCode(to: string) {
+    if (TURNSTILE_SITE_KEY && !botToken) {
+      setError("Wait for the security check, then try again.")
+      return
+    }
     const { error: failed } = await request(() =>
-      authClient.emailOtp.sendVerificationOtp({ email: to, type: "sign-in" })
+      authClient.emailOtp.sendVerificationOtp(
+        { email: to, type: "sign-in" },
+        botToken ? { headers: { "x-turnstile-token": botToken } } : undefined
+      )
     )
+    if (TURNSTILE_SITE_KEY) setBotReset((count) => count + 1)
     if (!failed) {
       posthog.capture("auth_code_requested")
       setSentTo(to)
@@ -138,13 +154,20 @@ export function SignInForm() {
           </button>
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || Boolean(TURNSTILE_SITE_KEY && !botToken)}
             className="inline-flex items-center hover:underline disabled:opacity-50"
             onClick={() => void sendCode(sentTo)}
           >
             Send a new code
           </button>
         </div>
+        {TURNSTILE_SITE_KEY ? (
+          <TurnstileCheck
+            siteKey={TURNSTILE_SITE_KEY}
+            resetKey={botReset}
+            onToken={onBotToken}
+          />
+        ) : null}
       </Panel>
     )
   }
@@ -169,7 +192,18 @@ export function SignInForm() {
             />
           )}
         </Field>
-        <Button variant="game" type="submit" disabled={pending}>
+        {TURNSTILE_SITE_KEY ? (
+          <TurnstileCheck
+            siteKey={TURNSTILE_SITE_KEY}
+            resetKey={botReset}
+            onToken={onBotToken}
+          />
+        ) : null}
+        <Button
+          variant="game"
+          type="submit"
+          disabled={pending || Boolean(TURNSTILE_SITE_KEY && !botToken)}
+        >
           <MailIcon aria-hidden="true" />
           Send my code
         </Button>
