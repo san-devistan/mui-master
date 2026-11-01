@@ -19,6 +19,11 @@ export const deletePlayer = internalMutation({
       .withIndex("by_playerId", (q) => q.eq("playerId", playerId))
       .unique()
     if (row) await ctx.db.delete("players", row._id)
+    const referral = await ctx.db
+      .query("referrals")
+      .withIndex("by_referredId", (q) => q.eq("referredId", playerId))
+      .unique()
+    if (referral) await ctx.db.delete("referrals", referral._id)
     const pack = await ctx.db
       .query("pendingPacks")
       .withIndex("by_playerId", (q) => q.eq("playerId", playerId))

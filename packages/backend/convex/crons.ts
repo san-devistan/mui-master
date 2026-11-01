@@ -6,7 +6,7 @@ import { internalMutation } from "./_generated/server"
 import { isRateLimitRow } from "./throttle"
 
 // Housekeeping: sent emails hold sign-in codes, and rate limit rows the IPs and emails that asked
-// for them; neither is needed once it's old.
+// for them; neither is needed once it's old. Pro renewals are stopped while STOP_PRO_RENEWALS=1.
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -90,6 +90,12 @@ crons.interval(
   "clean up rate limits",
   { hours: 6 },
   internal.crons.cleanupRateLimits,
+  {}
+)
+crons.interval(
+  "stop Pro renewals",
+  { minutes: 5 },
+  internal.billing.stopProRenewals,
   {}
 )
 

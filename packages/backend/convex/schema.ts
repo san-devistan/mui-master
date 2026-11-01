@@ -203,6 +203,11 @@ export default defineSchema({
     // through Stripe (billing.ts keeps it at the subscription's period end), or set by the dev
     // switch (wallet:setPro). A free grant (`grants`) counts as Pro on top of it.
     proUntil: v.number(),
+    // Free Pro from referrals (referrals.ts), kept apart from paid Pro so Stripe can't overwrite
+    // it. The game counts Pro until the later of the two.
+    referralProUntil: v.optional(v.number()),
+    // The player's public invite code (referrals.ts), made the first time they ask for it.
+    referralCode: v.optional(v.string()),
     // When Pro's weekly holos were last given (wallet:claimWeekly); 0 before the first.
     weeklyHolosAt: v.number(),
     // When the push for the next free pack is due (push:scheduleFreePackPush); an earlier one
@@ -210,10 +215,23 @@ export default defineSchema({
     freePackPushAt: v.number(),
     // Up to 6 card ids the player shows on their profile, in order (profile.ts).
     showcase: v.array(v.string()),
-  }).index("by_playerId", ["playerId"]),
-  // Flags given by hand to one player, by email (grants.ts): `pro`, Pro for free and premium on
-  // for them alone; `dev`, the dev tools for them alone. Until revoked. Only internal functions
-  // write it, from the dashboard or `convex run`; the email is lowercased.
+    // The owned card whose cover or artist photo is the player's profile picture (profile.ts).
+    avatarCardId: v.optional(v.string()),
+  })
+    .index("by_playerId", ["playerId"])
+    .index("by_referralCode", ["referralCode"]),
+  // One row per completed referral (referrals.ts): each new account can be referred once, and
+  // both players get a week of Pro.
+  referrals: defineTable({
+    referrerId: v.string(),
+    referredId: v.string(),
+    rewardDays: v.number(),
+  })
+    .index("by_referredId", ["referredId"])
+    .index("by_referrerId", ["referrerId"]),
+  // Flags given by hand to one player, by email (grants.ts): `pro`, Pro for free and premium
+  // sales on for them alone; `dev`, the dev tools for them alone. Until revoked. Only internal
+  // functions write it, from the dashboard or `convex run`; the email is lowercased.
   grants: defineTable({
     email: v.string(),
     pro: v.boolean(),

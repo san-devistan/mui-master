@@ -1,13 +1,47 @@
 import { ConvexError, v } from "convex/values"
 
-import { mutation, query } from "./_generated/server"
+import { mutation, query, type QueryCtx } from "./_generated/server"
 import { playerId } from "./auth"
 import { cardById, ownedCard } from "./packs"
-import { ensurePlayer } from "./wallet"
+import { ensurePlayer, playerRow } from "./wallet"
 
 // The cards a player picks from their collection to show on their profile.
 
 export const showcaseSize = 6
+
+async function ownedImage(ctx: QueryCtx, player: string, cardId: string) {
+  if (!(await ownedCard(ctx, player, cardId))) return null
+  return (await cardById(ctx, cardId))?.imageUrl ?? null
+}
+
+// The signed-in player's profile picture: the cover or artist photo of a card they still own.
+export const avatar = query({
+  args: {},
+  handler: async (ctx) => {
+    const player = await playerId(ctx)
+    if (!player) return null
+    const cardId = (await playerRow(ctx, player))?.avatarCardId
+    if (!cardId) return null
+    const imageUrl = await ownedImage(ctx, player, cardId)
+    return imageUrl ? { cardId, imageUrl } : null
+  },
+})
+
+// Sets the signed-in player's profile picture to an owned card's image, or clears it with null.
+export const setAvatar = mutation({
+  args: { cardId: v.union(v.string(), v.null()) },
+  handler: async (ctx, { cardId }) => {
+    const player = await playerId(ctx)
+    if (!player) throw new ConvexError("Not signed in")
+    if (cardId && !(await ownedImage(ctx, player, cardId))) {
+      throw new ConvexError("Card not owned")
+    }
+    const row = await ensurePlayer(ctx, player)
+    await ctx.db.patch("players", row._id, {
+      avatarCardId: cardId ?? undefined,
+    })
+  },
+})
 
 // The signed-in player's showcase, in their order; empty for a visitor. A card they no longer own
 // (sold, or up for auction) drops out of it.

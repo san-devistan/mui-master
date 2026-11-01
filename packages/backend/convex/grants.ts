@@ -8,8 +8,8 @@ import {
 import { authComponent } from "./auth"
 
 // The flags (flags.ts) for one player, by their email (`grants`): `pro`, Holotrack Pro for free
-// and premium on for them alone, for yourself, friends and testers; `dev`, the dev tools for them
-// alone, to test on production. Only internal functions here, so no client can grant itself
+// and premium sales on for them alone, for yourself, friends and testers; `dev`, the dev tools for
+// them alone, to test on production. Only internal functions here, so no client can grant itself
 // anything; run them from the Convex dashboard or the CLI (`--prod` for production):
 //   pnpm exec convex run grants:give '{"email":"me@example.com","pro":true,"note":"founder"}'
 //   pnpm exec convex run grants:revoke '{"email":"me@example.com"}'

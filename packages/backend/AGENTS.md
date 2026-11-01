@@ -177,9 +177,20 @@ platform.
   `--prod` for production): dev mode (`DEV_TOOLS=1`, or a `dev` grant) allows
   the dev tools `wallet:setPro` and `wallet:addHolos` (`DEV_TOOLS` never on
   prod: anyone could mint holos and Pro; grant `dev` to yourself there);
-  premium (`PREMIUM=1`, or a `pro` grant) opens the shop. Who's Pro is
+  premium sales (`PREMIUM=1`, or a `pro` grant) open the shop and new checkouts;
+  turning them off keeps holos already bought and paid Pro until its period ends.
+  `STOP_PRO_RENEWALS=1` stops selling Pro and makes every Pro subscription end
+  at its paid period (`billing:stopProRenewals`, every 5 minutes from
+  `crons.ts`; run it by hand right after turning the flag on). Turning that flag
+  off doesn't resume subscriptions already stopped. Who's Pro is
   `proUntilOf`/`proAt`, which every perk asks: a `pro` grant forever, else
-  `players.proUntil` only while `PREMIUM=1`. Payments (`billing.ts`) go through
+  the later of paid `players.proUntil` and referral
+  `players.referralProUntil`. Referrals (`referrals.ts`) give a new account and
+  its inviter 7 days of Pro each, or 5 packs to either one with an active paid
+  Pro subscription or granted Pro, once per new account,
+  within a day of account
+  creation and before its first pack; an inviter gets at most 10 rewards per 30
+  days. They don't depend on `PREMIUM` or Stripe. Payments (`billing.ts`) go through
   the Stripe component: `billing:checkout` opens Stripe Checkout for a holo
   bundle (one-time) or Pro (monthly subscription), priced by Stripe from the
   lookup keys in `economy.ts` (`node scripts/stripe-prices.mjs [--live]` makes

@@ -6,7 +6,7 @@ import {
 } from "@/legal/legal-page"
 import { Link } from "@tanstack/react-router"
 
-const UPDATED = "October 25, 2026"
+const UPDATED = "November 1, 2026"
 
 // What the game collects, why, who helps run it, and how to get it deleted.
 export function PrivacyPage() {
@@ -51,6 +51,16 @@ export function PrivacyPage() {
                   to work out the VAT. We keep your Stripe customer id, what you
                   bought and your subscription status. Your card details go to
                   Stripe only, never to us.
+                </>
+              ),
+            },
+            {
+              key: "referrals",
+              text: (
+                <>
+                  <strong>Invites</strong>: your invite code, and which account
+                  invited which, so both players get their reward and rewards
+                  aren't claimed twice.
                 </>
               ),
             },

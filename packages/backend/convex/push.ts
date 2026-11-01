@@ -69,7 +69,10 @@ const isPushEndpoint = (endpoint: string) => {
 // The free packs the player holds now and when the next comes, at their plan's pace.
 const freePacksNow = async (
   ctx: QueryCtx,
-  row: Pick<Doc<"players">, "playerId" | "freePacksSince" | "proUntil">
+  row: Pick<
+    Doc<"players">,
+    "playerId" | "freePacksSince" | "proUntil" | "referralProUntil"
+  >
 ) => {
   const now = Date.now()
   return freePacks(
@@ -100,7 +103,12 @@ export const scheduleFreePackPush = async (
   ctx: MutationCtx,
   row: Pick<
     Doc<"players">,
-    "_id" | "playerId" | "freePacksSince" | "proUntil" | "freePackPushAt"
+    | "_id"
+    | "playerId"
+    | "freePacksSince"
+    | "proUntil"
+    | "referralProUntil"
+    | "freePackPushAt"
   >
 ) => {
   const { nextAt } = await freePacksNow(ctx, row)

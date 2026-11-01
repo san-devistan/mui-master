@@ -23,6 +23,7 @@ import type * as playback from "../playback.js";
 import type * as players from "../players.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
+import type * as referrals from "../referrals.js";
 import type * as related from "../related.js";
 import type * as songs__lib_dedupe from "../songs/_lib/dedupe.js";
 import type * as songs__lib_deezer from "../songs/_lib/deezer.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   players: typeof players;
   profile: typeof profile;
   push: typeof push;
+  referrals: typeof referrals;
   related: typeof related;
   "songs/_lib/dedupe": typeof songs__lib_dedupe;
   "songs/_lib/deezer": typeof songs__lib_deezer;

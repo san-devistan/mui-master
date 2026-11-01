@@ -24,11 +24,11 @@ function useHeaderWallet() {
 }
 
 // Every tab's title, sliding when too long for its line, with going Pro and the player's holos
-// always in the top-right corner. Both open the shop, with premium on (flags.ts); off, there's
-// no Pro and the holos are just shown.
+// always in the top-right corner. Both open the shop, with premium sales on (flags.ts); off, the
+// holos are just shown. Going Pro is hidden while Pro isn't sold.
 export function PageHeader({ title }: { title: string }) {
   const wallet = useHeaderWallet()
-  const { premium } = useFlags()
+  const { premium, proSales } = useFlags()
   const [shopping, setShopping] = useState(false)
   const coins = wallet?.coins ?? 0
   return (
@@ -36,7 +36,7 @@ export function PageHeader({ title }: { title: string }) {
       <h1 className="min-w-0 text-4xl font-black md:text-6xl tracking-tighter flex-1 font-heading">
         <Marquee>{title}</Marquee>
       </h1>
-      {premium && wallet && !wallet.pro ? (
+      {proSales && wallet && !wallet.pro ? (
         <Button
           variant="game"
           size="icon-game"

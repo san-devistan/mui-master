@@ -28,7 +28,8 @@ odds read from the backend's own draw constants
 the landing's rarity odds), so they can't drift from what the game rolls;
 `/terms`; and `/privacy`. Change what the game collects, who processes it, or
 how purchases work, and update those pages with their date. Players reach us
-at `hello@holotrack.art` (Cloudflare Email Routing forwards it).
+at `contact@holotrack.art` (Cloudflare Email Routing forwards it; `hello@`
+still works).
 
 ## UI
 
@@ -51,7 +52,10 @@ songs); owned ones open over it, the rest show grayed out. Cards are songs or ar
 open, `packs.upgrades` cards that went up a rarity climb one rarity per tap on
 their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
 shows the player and their showcase, then the account: the username (unique
-across players, any case; `src/game/_components/account-settings.tsx`); this
+across players, any case; `src/game/_components/account-settings.tsx`); their
+invite link (`src/game/_components/referral-settings.tsx`), which gives the
+inviter and a new player 7 days of Pro each, or 5 packs to a player with an
+active paid Pro subscription or granted Pro; this
 device's preferences (`src/game/_components/preference-settings.tsx`):
 notifications (`public/sw.js` shows them; iOS only once added to the Home
 Screen), sound effects and music (`@workspace/ui/lib/game/sound-settings`, kept
@@ -59,6 +63,7 @@ in localStorage), and, in a phone's browser, the Home Screen install guide
 (`src/game/_components/install-prompt.tsx`, also shown once on its own); and the
 danger zone, signing out and deleting the account.
 A new account, once it has picked its username, lands on `/play?welcome=true`,
+after claiming any `/sign-in?ref=...` invite code it arrived with,
 which offers to turn notifications on
 (`src/game/_components/notifications-prompt.tsx`) instead of the install guide;
 skipped where the browser can't get them yet (iOS outside the Home Screen
@@ -67,13 +72,17 @@ app), where they're on or blocked. Closing it drops `welcome` from the URL.
 Feature flags come from the backend (`convex/flags.ts`, read with `useFlags` in
 `src/game/_lib/flags.ts`), per player (a grant can turn them on for one email),
 and only hide UI; the backend enforces them. `premium` shows the holo shop
-(`src/game/_components/holo-shop.tsx`), the Go Pro button, the holos pill
-opening it, "Get holos" and the Pro badge; `dev` shows the dev tools on the
+(`src/game/_components/holo-shop.tsx`), the holos pill opening it and "Get
+holos"; `proSales` also shows the Go Pro button and the shop's Pro offer. Paid
+Pro's badge and perks follow `wallet.get`'s `proUntil`, not these flags. `dev`
+shows the dev tools on the
 profile page (`src/game/_components/dev-tools.tsx`). A shop buy goes to Stripe
 Checkout (`billing.checkout`) and comes back to `/play?checkout=done` (or
 `=cancelled`), said once by `src/game/_components/checkout-return.tsx`; the
-holos or Pro arrive through Stripe's webhook and show live. Once they've bought
-something, the profile's Billing row opens Stripe's billing portal
+holos or Pro arrive through Stripe's webhook and show live. The profile's
+Billing section is only for players with a real Stripe Pro subscription: it
+shows the end date once that subscription is cancelled, opens Stripe's billing
+portal, and has a pre-filled refund email to `contact@holotrack.art`
 (`src/game/_components/billing-settings.tsx`).
 
 ## Auth

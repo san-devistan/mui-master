@@ -96,6 +96,8 @@ export type ProfileShare = {
   stats: ReadonlyArray<{ label: string; value: string }>
   // Shows the Pro badge under the picture, as on the profile page.
   pro?: boolean
+  // The player's chosen profile picture: an owned card's cover or artist photo.
+  image?: HTMLImageElement | null
   // The showcase's drawn card thumbs, in order (SongCardThumb canvases).
   cards: ReadonlyArray<HTMLCanvasElement>
 }
@@ -110,11 +112,38 @@ const THUMB_CARD = {
   width: 240 / 280,
   height: 336 / 400,
 }
-// The player up top, the two rows of three 5:7 cards under them, the app's
-// name small at the bottom.
+// The player up top, up to two rows of three 5:7 cards under them, the app's
+// name small at the bottom. One or two cards show larger; a single row sits
+// centred in the space between the stats and the app's name.
 const HEAD = { avatar: 230, radius: 90, name: 420, label: 480, value: 535 }
 const GRID = { top: 720, width: 290, height: 406, gap: 30, columns: 3 }
+const LARGE_GRID = { width: 420, height: 588, gap: 44 }
 const BRAND = { top: SHARE_H - 130, height: 52 }
+const CARD_AREA = { top: 620, bottom: BRAND.top - 60 }
+
+type CardGrid = {
+  top: number
+  width: number
+  height: number
+  gap: number
+  rows: number
+}
+
+function cardGrid(count: number): CardGrid {
+  const size = count <= 2 ? LARGE_GRID : GRID
+  const rows = Math.max(1, Math.ceil(count / GRID.columns))
+  const total = rows * size.height + (rows - 1) * size.gap
+  return {
+    top:
+      rows === 1
+        ? CARD_AREA.top + (CARD_AREA.bottom - CARD_AREA.top - total) / 2
+        : GRID.top,
+    width: size.width,
+    height: size.height,
+    gap: size.gap,
+    rows,
+  }
+}
 
 // A seeded random in [0, 1): the same sparkles on every share picture.
 function seeded(seed: number) {
@@ -223,7 +252,13 @@ function twinkle(
 // it, out-of-focus lights and fine dust in the air, and a few camera
 // twinkles. Everything is blurred light, nothing has an edge. The same on
 // every picture.
-function backdrop(ctx: Ctx, width: number, height: number, keep: Area) {
+function backdrop(
+  ctx: Ctx,
+  width: number,
+  height: number,
+  keep: Area,
+  lightSource?: { x: number; y: number }
+) {
   const scale = width / SHARE_W
   const random = seeded(7)
   const base = ctx.createLinearGradient(0, 0, 0, height)
@@ -232,7 +267,7 @@ function backdrop(ctx: Ctx, width: number, height: number, keep: Area) {
   base.addColorStop(1, "#e6dcf6")
   ctx.fillStyle = base
   ctx.fillRect(0, 0, width, height)
-  const source = {
+  const source = lightSource ?? {
     x: keep.x + keep.width / 2,
     y: keep.y + keep.height * 0.55,
   }
@@ -351,18 +386,33 @@ export function withBrand(source: HTMLCanvasElement) {
   return canvas
 }
 
-function profileBackdrop(ctx: Ctx) {
-  backdrop(ctx, SHARE_W, SHARE_H, {
-    x: 40,
-    y: HEAD.avatar - HEAD.radius - 20,
-    width: SHARE_W - 80,
-    height: GRID.top + 2 * GRID.height + GRID.gap - HEAD.avatar + HEAD.radius,
-  })
+function profileBackdrop(ctx: Ctx, grid: CardGrid) {
+  const top = HEAD.avatar - HEAD.radius - 20
+  const bottom = grid.top + grid.rows * grid.height + (grid.rows - 1) * grid.gap
+  backdrop(
+    ctx,
+    SHARE_W,
+    SHARE_H,
+    {
+      x: 40,
+      y: top,
+      width: SHARE_W - 80,
+      height: bottom - top,
+    },
+    grid.rows === 1
+      ? { x: SHARE_W / 2, y: grid.top + grid.height / 2 }
+      : undefined
+  )
 }
 
-// shortcut: always the initial on the brand gradient, as players have no
-// picture yet (guests only); draw theirs once accounts can set one.
-function avatar(ctx: Ctx, name: string, x: number, y: number, radius: number) {
+function avatar(
+  ctx: Ctx,
+  name: string,
+  x: number,
+  y: number,
+  radius: number,
+  image: HTMLImageElement | null
+) {
   ctx.save()
   ctx.fillStyle = INK
   ctx.beginPath()
@@ -383,7 +433,28 @@ function avatar(ctx: Ctx, name: string, x: number, y: number, radius: number) {
   ctx.beginPath()
   ctx.arc(x, y, radius, 0, Math.PI * 2)
   ctx.fill()
+  if (image) {
+    ctx.save()
+    ctx.clip()
+    const side = Math.min(image.naturalWidth, image.naturalHeight)
+    ctx.drawImage(
+      image,
+      (image.naturalWidth - side) / 2,
+      (image.naturalHeight - side) / 2,
+      side,
+      side,
+      x - radius,
+      y - radius,
+      radius * 2,
+      radius * 2
+    )
+    ctx.restore()
+  }
   ctx.stroke()
+  if (image) {
+    ctx.restore()
+    return
+  }
   const initial = name.slice(0, 1).toUpperCase()
   ctx.font = `900 ${Math.round(radius * 1.15)}px ${HEADING}`
   ctx.fillStyle = "#fff"
@@ -466,11 +537,19 @@ function proBadge(ctx: Ctx, x: number, y: number) {
 
 // A player's profile as a portrait phone picture: their initial, name and
 // stats, their showcase's cards, and the app's name to find it by.
-export function drawProfileShare({ name, stats, pro, cards }: ProfileShare) {
+export function drawProfileShare({
+  name,
+  stats,
+  pro,
+  image,
+  cards,
+}: ProfileShare) {
   const { canvas, ctx } = blankCanvas(SHARE_W, SHARE_H, 1)
   const middle = SHARE_W / 2
-  profileBackdrop(ctx)
-  avatar(ctx, name, middle, HEAD.avatar, HEAD.radius)
+  const shown = cards.slice(0, GRID.columns * 2)
+  const grid = cardGrid(shown.length)
+  profileBackdrop(ctx, grid)
+  avatar(ctx, name, middle, HEAD.avatar, HEAD.radius, image ?? null)
   if (pro) {
     // Hanging off the picture's bottom, over its ring.
     proBadge(ctx, middle - badgeWidth(ctx) / 2, HEAD.avatar + HEAD.radius)
@@ -492,24 +571,23 @@ export function drawProfileShare({ name, stats, pro, cards }: ProfileShare) {
   ctx.shadowColor = "rgb(56 36 110 / 0.35)"
   ctx.shadowBlur = 30
   ctx.shadowOffsetY = 14
-  const shown = cards.slice(0, GRID.columns * 2)
   shown.forEach((thumb, index) => {
     const row = Math.floor(index / GRID.columns)
     const inRow = Math.min(GRID.columns, shown.length - row * GRID.columns)
-    const rowWidth = inRow * GRID.width + (inRow - 1) * GRID.gap
+    const rowWidth = inRow * grid.width + (inRow - 1) * grid.gap
     const x =
       (SHARE_W - rowWidth) / 2 +
-      (index % GRID.columns) * (GRID.width + GRID.gap)
-    const y = GRID.top + row * (GRID.height + GRID.gap)
+      (index % GRID.columns) * (grid.width + grid.gap)
+    const y = grid.top + row * (grid.height + grid.gap)
     // The whole thumb, placed so its card fills the slot: under perspective
     // the card's edge runs a little past that box, and a crop would cut it.
-    const scale = GRID.width / THUMB_CARD.width
+    const scale = grid.width / THUMB_CARD.width
     ctx.drawImage(
       thumb,
       x - THUMB_CARD.x * scale,
-      y - THUMB_CARD.y * (GRID.height / THUMB_CARD.height),
+      y - THUMB_CARD.y * (grid.height / THUMB_CARD.height),
       scale,
-      GRID.height / THUMB_CARD.height
+      grid.height / THUMB_CARD.height
     )
   })
   ctx.restore()

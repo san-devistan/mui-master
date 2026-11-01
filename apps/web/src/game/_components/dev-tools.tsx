@@ -8,7 +8,7 @@ import { useId } from "react"
 
 const AMOUNTS = [100, 1_000, 10_000] as const
 
-// Testing without a checkout: switch Pro on or off (with premium on) and add holos to yourself.
+// Testing without a checkout: switch Pro on or off and add holos to yourself.
 // Shown only in dev mode (flags.ts, DEV_TOOLS=1 on the dev deployment).
 export function DevTools() {
   const flags = useFlags()
@@ -26,18 +26,16 @@ export function DevTools() {
       >
         Dev
       </h2>
-      {flags.premium ? (
-        <div className="gap-3 flex items-center justify-between">
-          <label htmlFor={proId} className="font-bold">
-            Holotrack Pro
-          </label>
-          <Switch
-            id={proId}
-            checked={wallet.pro}
-            onCheckedChange={(pro) => void setPro({ pro })}
-          />
-        </div>
-      ) : null}
+      <div className="gap-3 flex items-center justify-between">
+        <label htmlFor={proId} className="font-bold">
+          Holotrack Pro
+        </label>
+        <Switch
+          id={proId}
+          checked={wallet.pro}
+          onCheckedChange={(pro) => void setPro({ pro })}
+        />
+      </div>
       <div className="gap-3 grid">
         <span className="font-bold">Add holos</span>
         <div className="gap-2 grid grid-cols-3">

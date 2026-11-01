@@ -1,6 +1,7 @@
 import { explainAuthError as explain, USERNAME_INPUT } from "@/auth/account"
 import { authClient } from "@/lib/auth-client"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useSearch } from "@tanstack/react-router"
+import { api } from "@workspace/backend/api"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import {
@@ -8,17 +9,21 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
+import { useMutation } from "convex/react"
 import { MailIcon, PackageOpenIcon, PencilIcon } from "lucide-react"
 import { usePostHog } from "posthog-js/react"
 import { useEffect, useId, useState, type ReactNode } from "react"
 
 const CODE_LENGTH = 6
+const REFERRAL_KEY = "holotrack:referral"
 
 // One way in for everyone: an email, then the code Resend mails to it. A new
 // email makes an account, which then picks its username. Then the game.
 export function SignInForm() {
   const navigate = useNavigate()
   const posthog = usePostHog()
+  const ref = useSearch({ from: "/sign-in", select: (search) => search.ref })
+  const claimReferral = useMutation(api.referrals.claim)
   const { data: session } = authClient.useSession()
   const member = session?.user
   const [email, setEmail] = useState("")
@@ -27,6 +32,10 @@ export function SignInForm() {
   const [pending, setPending] = useState(false)
   // A new account picked its username here: the game welcomes it (notifications).
   const [named, setNamed] = useState(false)
+
+  useEffect(() => {
+    if (ref) localStorage.setItem(REFERRAL_KEY, ref)
+  }, [ref])
 
   // In with a username: to the game. Signing in and picking a username land here once the session
   // has refreshed, so the game never sees the session from before.
@@ -85,6 +94,12 @@ export function SignInForm() {
       })
     )
     if (!failed) {
+      const code = localStorage.getItem(REFERRAL_KEY)
+      if (code) {
+        const referred = await claimReferral({ code }).catch(() => false)
+        localStorage.removeItem(REFERRAL_KEY)
+        if (referred) posthog.capture("referral_claimed")
+      }
       setNamed(true)
       posthog.capture("username_selected")
     }

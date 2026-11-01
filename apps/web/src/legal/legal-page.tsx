@@ -74,7 +74,7 @@ export function LegalList({
 }
 
 // Where players reach us, for privacy requests and anything else.
-export const CONTACT_EMAIL = "hello@holotrack.art"
+export const CONTACT_EMAIL = "contact@holotrack.art"
 
 export function ContactLink() {
   return (

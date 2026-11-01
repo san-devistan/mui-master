@@ -6,7 +6,7 @@ import {
 } from "@/legal/legal-page"
 import { Link } from "@tanstack/react-router"
 
-const UPDATED = "October 25, 2026"
+const UPDATED = "November 1, 2026"
 
 const linkClass = "font-bold text-ink underline"
 
@@ -77,7 +77,11 @@ export function TermsPage() {
             },
             {
               key: "pro",
-              text: "Holotrack Pro is a monthly subscription that renews until you cancel it. Cancel any time from your profile; Pro then lasts until the end of the month you paid for.",
+              text: "Holotrack Pro is a monthly subscription that renews until you or we stop it. Cancel any time from your profile; if we stop selling Pro, we stop future renewals. Either way, Pro lasts until the end of the month you paid for.",
+            },
+            {
+              key: "referrals",
+              text: "Invite rewards: when a new player creates their account from your invite link, you both get 7 days of Pro. A player with an active paid Pro subscription or granted Pro gets 5 packs instead. Each new account can be invited once, and each player can earn up to 10 invite rewards in 30 days. We may withhold rewards gained through fake or duplicate accounts.",
             },
             {
               key: "withdrawal",

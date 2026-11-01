@@ -12,7 +12,7 @@ import {
   query,
 } from "./_generated/server"
 import { authComponent, playerId } from "./auth"
-import { flagsFor } from "./flags"
+import { flagsFor, proRenewalsStopped, proUntilOf } from "./flags"
 import { holoBundles, pro } from "./songs/_lib/economy"
 import { ensurePlayer, playerRow, setProUntil } from "./wallet"
 
@@ -117,8 +117,8 @@ const withTax = {
 // What a checkout is for: a holo bundle by its id (economy.ts holoBundles), or "pro".
 const offer = v.string()
 
-// Starts a Stripe Checkout for the signed-in player, with premium on for them (flags.ts), and
-// returns the page to send them to. Back at /play?checkout=done (or =cancelled).
+// Starts a Stripe Checkout for the signed-in player, with premium sales on for them (flags.ts),
+// and returns the page to send them to. Back at /play?checkout=done (or =cancelled).
 export const checkout = action({
   args: { offer },
   returns: v.string(),
@@ -129,6 +129,7 @@ export const checkout = action({
     if (!status.premium) throw new ConvexError("The shop is closed")
     const bundle = holoBundles.find((one) => one.id === args.offer)
     if (!bundle && args.offer !== "pro") throw new ConvexError("No such offer")
+    if (!bundle && !status.proSales) throw new ConvexError("Pro isn't on sale")
     if (!bundle && status.pro) throw new ConvexError("You're already Pro")
     const stripe = stripeFor(status.account)
     const customer = await stripe.getOrCreateCustomer(ctx, {
@@ -200,30 +201,63 @@ export const portal = action({
   },
 })
 
-// Whether the signed-in player has bought anything (a Stripe customer in the account they pay
-// in), so the profile offers the billing portal.
-export const hasBilling = query({
+const subscriptionMetadata = (
+  value: unknown
+): value is Record<string, string> =>
+  typeof value === "object" &&
+  value !== null &&
+  Object.values(value).every((entry) => typeof entry === "string")
+
+// The signed-in player's billing section: only for a real Pro subscription in the Stripe account
+// they pay in. `endsAt` is set once that subscription won't renew.
+export const proBilling = query({
   args: {},
   handler: async (ctx) => {
     const player = await playerId(ctx)
-    if (!player) return false
+    if (!player) return null
     const { dev } = await flagsFor(ctx, player)
-    return (await customerIn(ctx, accountOf(dev), player)) !== null
+    const now = Date.now()
+    const subscriptions = await ctx.runQuery(
+      stripeAccounts[accountOf(dev)].component.public.listSubscriptionsByUserId,
+      { userId: player }
+    )
+    const subscription = subscriptions
+      .filter((candidate) => {
+        const metadata: unknown = candidate.metadata
+        return (
+          (candidate.status === "active" || candidate.status === "trialing") &&
+          candidate.currentPeriodEnd * 1000 > now &&
+          subscriptionMetadata(metadata) &&
+          metadata.offer === "pro" &&
+          paidHere(metadata)
+        )
+      })
+      .toSorted(
+        (left, right) => right.currentPeriodEnd - left.currentPeriodEnd
+      )[0]
+    if (!subscription) return null
+    return {
+      endsAt:
+        subscription.cancelAtPeriodEnd || subscription.cancelAt
+          ? (subscription.cancelAt ?? subscription.currentPeriodEnd) * 1000
+          : null,
+    }
   },
 })
 
-// Whether checkout is open to the player, the Stripe account they pay in, whether they're Pro
-// already (paid or granted), and their email for Stripe's receipts.
+// Whether checkout and Pro are open to the player, the Stripe account they pay in, whether
+// they're Pro already (paid or granted), and their email for Stripe's receipts.
 export const status = internalQuery({
   args: { player: v.string() },
   handler: async (ctx, { player }) => {
-    const { premium, granted, dev } = await flagsFor(ctx, player)
+    const { premium, proSales, dev } = await flagsFor(ctx, player)
     const row = await playerRow(ctx, player)
     const user = await authComponent.getAnyUserById(ctx, player)
     return {
       premium,
+      proSales,
       account: accountOf(dev),
-      pro: granted || (row !== null && row.proUntil > Date.now()),
+      pro: row !== null && (await proUntilOf(ctx, row)) > Date.now(),
       email: user?.email ?? null,
     }
   },
@@ -267,6 +301,44 @@ export const syncPro = internalMutation({
 
 // Subscriptions that still bill: everything Stripe hasn't ended for good.
 const billing = new Set(["active", "trialing", "past_due", "unpaid", "paused"])
+const paidPeriod = new Set(["active", "trialing"])
+const proSubscription = (metadata: Record<string, string>) =>
+  paidHere(metadata) && metadata.offer === "pro"
+
+// With STOP_PRO_RENEWALS=1 (flags.ts), every Pro subscription opened by this deployment stops
+// billing: a paid one at the end of its period, so its Pro lasts until then; an unpaid or paused
+// one right away, as it has no Pro to keep. Run by crons.ts, or by hand after turning the flag on:
+// `pnpm exec convex run --prod billing:stopProRenewals '{}'`.
+export const stopProRenewals = internalAction({
+  args: {},
+  returns: v.object({ atPeriodEnd: v.number(), now: v.number() }),
+  handler: async (ctx) => {
+    const stopped = { atPeriodEnd: 0, now: 0 }
+    if (!proRenewalsStopped()) return stopped
+    for (const account of ["live", "sandbox"] as const) {
+      if (!stripeKey(account)) continue
+      const stripe = stripeFor(account)
+      const client = new Stripe(stripe.apiKey)
+      for (const subscriptionStatus of billing) {
+        for await (const subscription of client.subscriptions.list({
+          status: subscriptionStatus,
+          limit: 100,
+        })) {
+          if (!proSubscription(subscription.metadata)) continue
+          const keepsPaidPeriod = paidPeriod.has(subscription.status)
+          if (keepsPaidPeriod && subscription.cancel_at_period_end) continue
+          await stripe.cancelSubscription(ctx, {
+            stripeSubscriptionId: subscription.id,
+            cancelAtPeriodEnd: keepsPaidPeriod,
+          })
+          if (keepsPaidPeriod) stopped.atPeriodEnd += 1
+          else stopped.now += 1
+        }
+      }
+    }
+    return stopped
+  },
+})
 
 // Cancels the player's subscriptions right away, in both accounts, before their account is
 // deleted (auth.ts): Stripe stops charging them, and Stripe's events then end their Pro. Throws

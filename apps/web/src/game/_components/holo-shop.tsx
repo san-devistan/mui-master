@@ -21,9 +21,9 @@ import { useState } from "react"
 const euros = (cents: number) =>
   (cents / 100).toLocaleString("en", { style: "currency", currency: "EUR" })
 
-// The shop, opened from the holos pill: three holo bundles, then Pro, billed
-// monthly. Styled in game.css. Only with premium on (flags.ts): wallet:shop is
-// null otherwise, and nothing opens it.
+// The shop, opened from the holos pill: three holo bundles, then Pro while it's
+// sold, billed monthly. Styled in game.css. Only with premium sales on
+// (flags.ts): wallet:shop is null otherwise, and nothing opens it.
 // A buy goes to Stripe Checkout (billing:checkout) and comes back to
 // /play?checkout=done; the holos or Pro arrive by Stripe's webhook, and the
 // holos pill and the Pro card show them as they land.
@@ -47,6 +47,7 @@ export function HoloShop({
   // Holos per cent at the smallest bundle: each bundle's bonus is over it.
   const rate = base ? base.holos / base.priceCents : 0
   const best = shop?.holoBundles.at(-1)?.id
+  const proOffer = shop?.pro
   if (shop === null) return null
 
   // Off to Stripe's checkout page; busy until it opens, so only a refusal says anything.
@@ -147,7 +148,7 @@ export function HoloShop({
             })}
           </ul>
 
-          {shop ? (
+          {proOffer ? (
             <section data-slot="holo-pro" aria-labelledby="holo-pro-title">
               <div className="gap-3 flex items-center">
                 <span data-slot="holo-pro-crown">
@@ -163,12 +164,12 @@ export function HoloShop({
                   <p className="text-sm font-bold opacity-90">
                     {wallet?.pro
                       ? "You're Pro"
-                      : `${euros(shop.pro.priceCents)}/month, cancel anytime`}
+                      : `${euros(proOffer.priceCents)}/month, cancel anytime`}
                   </p>
                 </div>
               </div>
               <ul className="mt-4 gap-2 grid">
-                {shop.pro.perks.map((perk) => (
+                {proOffer.perks.map((perk) => (
                   <li
                     key={perk.id}
                     className="gap-2 text-sm font-bold flex items-center"

@@ -79,6 +79,13 @@ export function timeLeft(at: number, now: number) {
 export const wonOn = (at: number) =>
   new Date(at).toLocaleDateString("en", { day: "numeric", month: "short" })
 
+// "Dec 1, 2026": the last day paid Pro is active, or null when it's off or granted forever.
+export const proUntilDay = (at: number) => {
+  if (at <= Date.now() || !Number.isFinite(new Date(at).getTime())) return null
+  if (new Date(at).getFullYear() > 9999) return null
+  return new Date(at).toLocaleDateString("en", { dateStyle: "medium" })
+}
+
 // "1 holo", "1,200 holos": an amount of the game currency.
 export const holos = (amount: number) =>
   `${amount.toLocaleString("en")} holo${amount === 1 ? "" : "s"}`

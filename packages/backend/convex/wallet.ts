@@ -45,6 +45,7 @@ export const ensurePlayer = async (ctx: MutationCtx, player: string) => {
     freePacksSince: 0,
     boughtPacks: 0,
     proUntil: 0,
+    referralProUntil: 0,
     weeklyHolosAt: 0,
     freePackPushAt: 0,
     showcase: [],
@@ -130,7 +131,7 @@ export const skipFreePack = mutation({
 // prices. A query doesn't re-run as time passes, so the client counts the free packs from
 // `freePacksSince` (see economy.ts freePacks), at Pro's pace while `proUntil` is ahead. `cards` is
 // collection:count's, read from the same row, so the app watches the row once. `proUntil` is Pro
-// as the game counts it (flags.ts proUntilOf): paid only while premium is on, granted forever.
+// as the game counts it (flags.ts proUntilOf): paid until its period ends, granted forever.
 export const get = query({
   args: {},
   handler: async (ctx) => {
@@ -157,12 +158,12 @@ export const get = query({
 })
 
 // What the shop offers: holo bundles and Pro, with their prices, bought through Stripe
-// (billing.ts); null with premium off for this player.
+// (billing.ts); null with premium sales off for this player, and no Pro while it isn't sold.
 export const shop = query({
   args: {},
   handler: async (ctx) => {
-    const { premium } = await flagsFor(ctx, await playerId(ctx))
-    return premium ? { holoBundles, pro } : null
+    const { premium, proSales } = await flagsFor(ctx, await playerId(ctx))
+    return premium ? { holoBundles, pro: proSales ? pro : null } : null
   },
 })
 
@@ -204,8 +205,8 @@ const devRow = async (ctx: MutationCtx) => {
   return await ensurePlayer(ctx, player)
 }
 
-// Dev tools, for testing without paying: paid Pro for a month from now or none (it counts
-// while premium is on, flags.ts), and holos added to yourself.
+// Dev tools, for testing without paying: paid Pro for a month from now or none, and holos added
+// to yourself.
 export const setPro = mutation({
   args: { pro: v.boolean() },
   handler: async (ctx, args) => {
