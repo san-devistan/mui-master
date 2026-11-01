@@ -54,8 +54,7 @@ their own screen (`src/game/_components/card-upgrades.tsx`). The profile page
 shows the player and their showcase, then the account: the username (unique
 across players, any case; `src/game/_components/account-settings.tsx`); their
 invite link (`src/game/_components/referral-settings.tsx`), which gives the
-inviter and a new player 7 days of Pro each, or 5 packs to a player with an
-active paid Pro subscription or granted Pro; this
+inviter and a new player 5 packs each; this
 device's preferences (`src/game/_components/preference-settings.tsx`):
 notifications (`public/sw.js` shows them; iOS only once added to the Home
 Screen), sound effects and music (`@workspace/ui/lib/game/sound-settings`, kept
@@ -98,10 +97,12 @@ Better Auth's endpoints are served at `/api/auth/*` (`routes/api.auth.$.ts`),
 forwarded to the Convex deployment with the request body buffered (Node's fetch
 fails a streamed body that gets a 401), so it needs `VITE_CONVEX_SITE_URL` (the
 `.convex.site` URL) in `.env.local`, inlined into the build.
-The route also passes the player's IP for the backend's rate limits, signed with
-the Worker secret `AUTH_PROXY_SECRET` (the same value as the Convex env var:
-`pnpm exec wrangler secret put AUTH_PROXY_SECRET`); without it every player on
-prod shares the Worker's IP, and so its limits.
+The route signs every request with the Worker secret `AUTH_PROXY_SECRET` (the
+same value as the Convex env var: `pnpm exec wrangler secret put
+AUTH_PROXY_SECRET`) and passes the player's IP for the backend's rate limits.
+With that Convex env var set, the backend refuses unsigned auth requests, so
+the browser can't call the `.convex.site` URL to skip this route. To set it on
+a dev deployment too, put the same value in `apps/web/.dev.vars`.
 Before it forwards a request to email a sign-in code, it checks Cloudflare
 Turnstile (`src/auth/turnstile.tsx`): the browser gets a token with
 `VITE_TURNSTILE_SITE_KEY`, and the Worker verifies it with the secret

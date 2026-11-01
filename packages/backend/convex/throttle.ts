@@ -19,6 +19,45 @@ declare const process: { env: Record<string, string | undefined> }
 const CLIENT_IP = "x-holotrack-client-ip"
 const PROXY_SECRET = "x-holotrack-proxy-secret"
 
+// The Better Auth endpoints the game uses, from the browser through the site's /api/auth route or
+// from Convex fetching its own keys. Everything else the plugins add (password reset, username and
+// password sign-in, email change) answers 404: players only ever sign in with an emailed code.
+const ALLOWED_PATHS = new Set([
+  "/ok",
+  "/get-session",
+  "/email-otp/send-verification-otp",
+  "/sign-in/email-otp",
+  "/update-user",
+  "/sign-out",
+  "/delete-user",
+  "/convex/token",
+  "/convex/jwks",
+  "/convex/.well-known/openid-configuration",
+])
+
+// Read by Convex's own servers to check a player's token, so they come without the proxy secret.
+const PUBLIC_PATHS = new Set([
+  "/ok",
+  "/convex/jwks",
+  "/convex/.well-known/openid-configuration",
+])
+
+// Better Auth calls each path through its endpoint, so a URL that only looks like one (a double
+// slash, an encoded character) never matches an allowed path and never reaches a refused one.
+export const allowedPaths = {
+  id: "allowed-paths",
+  hooks: {
+    before: [
+      {
+        matcher: (context) => !ALLOWED_PATHS.has(context.path ?? ""),
+        handler: createAuthMiddleware(async () => {
+          throw APIError.fromStatus("NOT_FOUND")
+        }),
+      },
+    ],
+  },
+} satisfies BetterAuthPlugin
+
 // Per IP and endpoint: 3 codes sent or tried a minute. The session and Convex token endpoints are
 // read on every app open and token refresh, so they're left alone; the rest keep the default.
 const strict = { window: 60, max: 3 }
@@ -43,6 +82,26 @@ const signedByProxy = (request: Request) => {
   const secret = process.env.AUTH_PROXY_SECRET
   return !!secret && request.headers.get(PROXY_SECRET) === secret
 }
+
+const authPath = (request: Request) =>
+  new URL(request.url).pathname.replace(/^\/api\/auth(?=\/|$)/, "") || "/"
+
+// With AUTH_PROXY_SECRET set (production), only the site's route reaches the auth endpoints: it
+// checks Turnstile and passes the player's IP, so calling Convex directly skips neither. Without it
+// (local dev) the browser's requests come straight through.
+export const proxyOnly = {
+  id: "proxy-only",
+  onRequest: async (request) => {
+    if (
+      !process.env.AUTH_PROXY_SECRET ||
+      signedByProxy(request) ||
+      PUBLIC_PATHS.has(authPath(request))
+    ) {
+      return { request }
+    }
+    return { response: new Response("Not Found", { status: 404 }) }
+  },
+} satisfies BetterAuthPlugin
 
 // Drops a client IP the site's route didn't sign, so nobody picks the IP they're counted against.
 export const trustedClientIp = {

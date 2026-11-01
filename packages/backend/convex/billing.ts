@@ -266,7 +266,13 @@ export const status = internalQuery({
 // A paid holo checkout (webhook: checkout.session.completed, or async_payment_succeeded for a
 // slow payment method): the bundle's holos, once per session whatever Stripe resends.
 export const fulfillHolos = internalMutation({
-  args: { sessionId: v.string(), player: v.string(), offer: v.string() },
+  args: {
+    sessionId: v.string(),
+    player: v.string(),
+    offer: v.string(),
+    paymentIntentId: v.optional(v.string()),
+    amountPaid: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const bundle = holoBundles.find((one) => one.id === args.offer)
     if (!bundle) throw new ConvexError(`No holo bundle "${args.offer}"`)
@@ -278,9 +284,50 @@ export const fulfillHolos = internalMutation({
     await ctx.db.insert("fulfilledCheckouts", {
       sessionId: args.sessionId,
       playerId: args.player,
+      paymentIntentId: args.paymentIntentId,
+      holos: bundle.holos,
+      amountPaid: args.amountPaid,
+      reversedHolos: 0,
     })
     const row = await ensurePlayer(ctx, args.player)
     await ctx.db.patch("players", row._id, { coins: row.coins + bundle.holos })
+  },
+})
+
+// The holos a holo checkout gave back off its buyer once it's refunded or charged back (webhook:
+// charge.refunded, charge.dispute.created), in proportion to the money returned: `amountBack` of
+// the `amountPaid`, as the event counts them, never more than the bundle in all, whatever Stripe
+// resends. Spent holos leave the balance below zero, so nothing can be spent until earnings bring
+// it back up. True when the payment was a holo checkout.
+// shortcut: a dispute won back isn't credited again; a player who wins one writes to us.
+export const reverseHolos = internalMutation({
+  args: {
+    paymentIntentId: v.string(),
+    amountBack: v.number(),
+    amountPaid: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const paid = await ctx.db
+      .query("fulfilledCheckouts")
+      .withIndex("by_paymentIntentId", (q) =>
+        q.eq("paymentIntentId", args.paymentIntentId)
+      )
+      .unique()
+    if (!paid?.holos) return false
+    if (args.amountPaid <= 0) return true
+    const share = Math.min(Math.max(args.amountBack / args.amountPaid, 0), 1)
+    const owed = Math.ceil(paid.holos * share)
+    const taken = paid.reversedHolos ?? 0
+    if (owed <= taken) return true
+    const row = await ensurePlayer(ctx, paid.playerId)
+    await ctx.db.patch("players", row._id, {
+      coins: row.coins - (owed - taken),
+    })
+    await ctx.db.patch("fulfilledCheckouts", paid._id, {
+      reversedHolos: owed,
+    })
+    return true
   },
 })
 
@@ -362,6 +409,54 @@ export const cancelSubscriptions = internalAction({
         })
       }
     }
+    return null
+  },
+})
+
+// A refunded or charged-back payment, from its webhook (http.ts), with the account it came through:
+// a holo checkout takes its holos back (reverseHolos); a Pro payment refunded in full or charged
+// back ends that subscription now, and Stripe's subscription event then ends its Pro. A partial
+// refund on Pro is goodwill and keeps it. Only payments opened by this deployment.
+export const reversePayment = internalAction({
+  args: {
+    account: v.union(v.literal("live"), v.literal("sandbox")),
+    paymentIntentId: v.string(),
+    amountBack: v.number(),
+    amountPaid: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const holos: boolean = await ctx.runMutation(
+      internal.billing.reverseHolos,
+      {
+        paymentIntentId: args.paymentIntentId,
+        amountBack: args.amountBack,
+        amountPaid: args.amountPaid,
+      }
+    )
+    if (holos || args.amountBack < args.amountPaid) return null
+    const key = stripeKey(args.account)
+    if (!key) return null
+    const client = new Stripe(key)
+    const payments = await client.invoicePayments.list({
+      payment: { type: "payment_intent", payment_intent: args.paymentIntentId },
+      expand: ["data.invoice"],
+      limit: 1,
+    })
+    const invoice = payments.data[0]?.invoice
+    if (!invoice || typeof invoice === "string" || invoice.deleted) return null
+    const details = invoice.parent?.subscription_details
+    if (!details?.metadata || !proSubscription(details.metadata)) return null
+    const subscription =
+      typeof details.subscription === "string"
+        ? details.subscription
+        : details.subscription.id
+    const current = await client.subscriptions.retrieve(subscription)
+    if (current.status === "canceled") return null
+    await stripeFor(args.account).cancelSubscription(ctx, {
+      stripeSubscriptionId: subscription,
+      cancelAtPeriodEnd: false,
+    })
     return null
   },
 })

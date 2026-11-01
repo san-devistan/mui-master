@@ -17,8 +17,11 @@ const http = httpRouter()
 
 authComponent.registerRoutes(http, createAuth)
 
-// The context Stripe's webhook handlers get: only its runMutation is used.
-type WebhookCtx = Pick<GenericActionCtx<never>, "runMutation">
+// The context Stripe's webhook handlers get: only its runAction and runMutation are used.
+type WebhookCtx = Pick<GenericActionCtx<never>, "runAction" | "runMutation">
+
+const objectId = (value: string | { id: string } | null) =>
+  typeof value === "string" ? value : (value?.id ?? null)
 
 // A paid checkout for holos (billing.ts fulfillHolos); a subscription's checkout gives Pro
 // through its own events instead. Only once paid: a slow payment method completes the session
@@ -34,6 +37,8 @@ const holosPaid = async (ctx: WebhookCtx, session: Stripe.Checkout.Session) => {
     sessionId: session.id,
     player,
     offer,
+    paymentIntentId: objectId(session.payment_intent) ?? undefined,
+    amountPaid: session.amount_total ?? undefined,
   })
 }
 
@@ -52,7 +57,31 @@ const proChanged = async (
   })
 }
 
-const events: StripeEventHandlers = {
+type Reversal = {
+  account: StripeAccount
+  paymentIntent: string | { id: string } | null
+  amountBack: number
+  amountPaid: number
+}
+
+// Money given back on a payment, refunded in full or in part, or charged back by the buyer's
+// bank: what it paid for is taken back (billing.ts reversePayment). Every Stripe account's webhook
+// gets these, so only a payment this deployment fulfilled or opened is touched.
+const paymentReversed = async (
+  ctx: WebhookCtx,
+  { account, paymentIntent, amountBack, amountPaid }: Reversal
+) => {
+  const paymentIntentId = objectId(paymentIntent)
+  if (!paymentIntentId || amountBack <= 0) return
+  await ctx.runAction(internal.billing.reversePayment, {
+    account,
+    paymentIntentId,
+    amountBack,
+    amountPaid,
+  })
+}
+
+const eventsFor = (account: StripeAccount): StripeEventHandlers => ({
   "checkout.session.completed": (ctx, event) =>
     holosPaid(ctx, event.data.object),
   "checkout.session.async_payment_succeeded": (ctx, event) =>
@@ -63,12 +92,33 @@ const events: StripeEventHandlers = {
     proChanged(ctx, event.data.object),
   "customer.subscription.deleted": (ctx, event) =>
     proChanged(ctx, event.data.object),
-}
+  "charge.refunded": (ctx, event) => {
+    const charge = event.data.object
+    return paymentReversed(ctx, {
+      account,
+      paymentIntent: charge.payment_intent,
+      amountBack: charge.amount_refunded,
+      amountPaid: charge.amount,
+    })
+  },
+  // A chargeback takes the whole payment back as soon as it's opened (its amount can differ from
+  // the charge's by currency conversion): a dispute the player loses never pays us back.
+  "charge.dispute.created": (ctx, event) => {
+    const dispute = event.data.object
+    return paymentReversed(ctx, {
+      account,
+      paymentIntent: dispute.payment_intent,
+      amountBack: 1,
+      amountPaid: 1,
+    })
+  },
+})
 
 // Each Stripe account's webhook (billing.ts): live at /stripe/webhook, the sandbox at
 // /stripe/sandbox/webhook. Its component checks the signature with the account's webhook secret
-// and mirrors the event into its tables, then these give what was paid for. The component reads
-// the secrets on each request (getters), so an env var set on the dashboard needs no redeploy.
+// and mirrors the event into its tables, then these give what was paid for and take back what was
+// refunded. Each endpoint must also send charge.refunded and charge.dispute.created. The component
+// reads the secrets on each request (getters), so an env var set on the dashboard needs no redeploy.
 const webhookPaths: Record<StripeAccount, string> = {
   live: "/stripe/webhook",
   sandbox: "/stripe/sandbox/webhook",
@@ -78,7 +128,7 @@ for (const account of ["live", "sandbox"] as const) {
   const { component, webhookSecret } = stripeAccounts[account]
   registerRoutes(http, component, {
     webhookPath: webhookPaths[account],
-    events,
+    events: eventsFor(account),
     get STRIPE_SECRET_KEY() {
       return stripeKey(account)
     },

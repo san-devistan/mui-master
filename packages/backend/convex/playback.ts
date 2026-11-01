@@ -1,8 +1,9 @@
-import { v } from "convex/values"
+import { ConvexError, v } from "convex/values"
 import { Effect } from "effect"
 
 import { internal } from "./_generated/api"
 import { action, internalQuery } from "./_generated/server"
+import { playerId } from "./auth"
 import { searchDeezerPreview } from "./songs/_lib/deezer"
 
 export const songSource = internalQuery({
@@ -27,11 +28,11 @@ export const songSource = internalQuery({
 // The stored Spotify preview, else Deezer's, found by exact title and lead
 // artist. Deezer URLs expire, so they're resolved at play time and never stored.
 // `skip`: a URL the player couldn't load; when it's the stored one, Deezer's is looked up instead.
-// shortcut: no ownership check while the web game runs on demo data; add one
-// once authenticated players have real collections.
+// Signed-in players only: a lookup costs a Convex action and a Deezer request.
 export const preview = action({
   args: { songId: v.string(), skip: v.optional(v.string()) },
   handler: async (ctx, { songId, skip }): Promise<{ url: string | null }> => {
+    if (!(await playerId(ctx))) throw new ConvexError("Not signed in")
     const source = await ctx.runQuery(internal.playback.songSource, { songId })
     if (!source) {
       return { url: null }

@@ -13,8 +13,7 @@ import { useEffect, useState } from "react"
 
 type Referral = FunctionReturnType<typeof api.referrals.mine>
 
-// A player's invite link, with the reward this player gets: 5 packs on paid or granted Pro, else
-// a week of Pro. The new player gets their own reward when they join.
+// A player's invite link: 5 packs for this player and for each new player who joins with it.
 export function ReferralSettings() {
   const load = useMutation(api.referrals.mine)
   const [referral, setReferral] = useState<Referral | null>(null)
@@ -37,10 +36,7 @@ export function ReferralSettings() {
   }, [load])
   if (!referral) return null
 
-  const reward =
-    referral.reward === "packs"
-      ? `${referral.proRewardPacks} packs`
-      : `${referral.rewardDays} days of Pro`
+  const reward = `${referral.rewardPacks} packs`
   const detail =
     error ??
     (referral.joined === 0
@@ -55,7 +51,7 @@ export function ReferralSettings() {
       if (navigator.share) {
         await navigator.share({
           title: "Holotrack",
-          text: `Join me on Holotrack and get ${referral.rewardDays} days of Pro.`,
+          text: `Join me on Holotrack and get ${referral.rewardPacks} free packs.`,
           url,
         })
       } else {

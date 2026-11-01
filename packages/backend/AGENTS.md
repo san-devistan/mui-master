@@ -124,12 +124,17 @@ platform.
   only turns them on for `NODE_ENV=production`, which Convex never sets), kept
   in the component's `rateLimit` table: per IP, 3 codes sent or tried a minute;
   per email, 3 codes per 10 minutes and 10 a day, whatever the IP. The web
-  app's `/api/auth` Worker passes the player's IP signed with
-  `AUTH_PROXY_SECRET`, the same random value as a Convex env var and a Worker
-  secret (`wrangler secret put AUTH_PROXY_SECRET`); unsigned, a request counts
-  against the IP in front of Convex, so on prod without it every player shares
-  the Worker's. `crons.ts` deletes sent emails (they hold the codes) a day
-  after they're done, and rate limit rows a day after their last request.
+  app's `/api/auth` Worker signs every request with `AUTH_PROXY_SECRET`, the
+  same random value as a Convex env var and a Worker secret (`wrangler secret
+put AUTH_PROXY_SECRET`), and passes the player's IP. With the Convex env var
+  set, an unsigned auth request gets a 404, except the token-checking keys
+  (`/ok`, `/convex/jwks`, its OpenID configuration), so nobody calls Convex to
+  skip the Worker's Turnstile check (`proxyOnly`). Only the routes the game uses
+  answer (`allowedPaths`): the session, sending and checking a sign-in code,
+  updating the username, signing out, deleting the account and the Convex
+  token. Password reset, username-and-password sign-in and email change are
+  404s. `crons.ts` deletes sent emails (they hold the codes) a day after
+  they're done, and rate limit rows a day after their last request.
 - Collection: `collection` holds one row per player and card (copies, first
   pull, and `seenRarity`, the rarity they last saw it at), plus the card's
   kind, rarity rank, title key and streams, copied in by `packs:claim` and
@@ -184,10 +189,10 @@ platform.
   `crons.ts`; run it by hand right after turning the flag on). Turning that flag
   off doesn't resume subscriptions already stopped. Who's Pro is
   `proUntilOf`/`proAt`, which every perk asks: a `pro` grant forever, else
-  the later of paid `players.proUntil` and referral
-  `players.referralProUntil`. Referrals (`referrals.ts`) give a new account and
-  its inviter 7 days of Pro each, or 5 packs to either one with an active paid
-  Pro subscription or granted Pro, once per new account,
+  the later of paid `players.proUntil` and `players.referralProUntil`, left only
+  by referrals from before they gave packs. Referrals (`referrals.ts`) give a
+  new account and its inviter 5 packs each (`boughtPacks`), never Pro, once per
+  new account,
   within a day of account
   creation and before its first pack; an inviter gets at most 10 rewards per 30
   days. They don't depend on `PREMIUM` or Stripe. Payments (`billing.ts`) go through
@@ -210,6 +215,12 @@ platform.
   client's word: each webhook (`http.ts`, signature checked by its component)
   gives the holos once per paid session (`fulfilledCheckouts`) and keeps
   `proUntil` at the subscription's period end (0 once cancelled or unpaid).
+  A refund or chargeback takes back what it paid for (`billing:reversePayment`,
+  from `charge.refunded` and `charge.dispute.created`, so each Stripe webhook
+  endpoint must send them): the holos, in proportion to the money returned and
+  even below zero, so a balance spent already blocks spending until earnings
+  bring it back up; or, for a Pro payment refunded in full or charged back,
+  the subscription, cancelled at once.
   `market.ts`: `sell` gives a
   copy to the bank (the last one too); `list`/`bid`/`cancel` run auctions, the listed copy
   and the top bid's coins held until `settle` (scheduled at `endsAt`, and again
@@ -230,6 +241,6 @@ platform.
   `VAPID_PRIVATE_KEY` (`pnpm exec web-push generate-vapid-keys`) plus
   `VAPID_SUBJECT`, a `mailto:` contact (Apple refuses a localhost URL); a
   device the push service says is gone is dropped.
-- Previews (`playback.ts`, takes a `songs` id): the stored Spotify `preview`
-  if present, otherwise a fresh Deezer link found by exact title and lead
-  artist. Deezer links expire, so don't store them.
+- Previews (`playback.ts`, takes a `songs` id, signed-in players only): the
+  stored Spotify `preview` if present, otherwise a fresh Deezer link found by
+  exact title and lead artist. Deezer links expire, so don't store them.

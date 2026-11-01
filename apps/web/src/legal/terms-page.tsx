@@ -81,7 +81,7 @@ export function TermsPage() {
             },
             {
               key: "referrals",
-              text: "Invite rewards: when a new player creates their account from your invite link, you both get 7 days of Pro. A player with an active paid Pro subscription or granted Pro gets 5 packs instead. Each new account can be invited once, and each player can earn up to 10 invite rewards in 30 days. We may withhold rewards gained through fake or duplicate accounts.",
+              text: "Invite rewards: when a new player creates their account from your invite link, you both get 5 packs. Each new account can be invited once, and each player can earn up to 10 invite rewards in 30 days. We may withhold rewards gained through fake or duplicate accounts.",
             },
             {
               key: "withdrawal",
@@ -90,6 +90,10 @@ export function TermsPage() {
             {
               key: "missing",
               text: "If something you paid for doesn't arrive, write to us and we'll fix it or refund you.",
+            },
+            {
+              key: "reversed",
+              text: "If a holo purchase is refunded or charged back, we remove those holos from your account, even if your balance goes below zero; you can't spend holos until it's back above zero. A Pro month refunded in full or charged back ends that Pro subscription straight away.",
             },
           ]}
         />

@@ -14,8 +14,10 @@ import type { DataModel } from "./_generated/dataModel"
 import type { QueryCtx } from "./_generated/server"
 import authConfig from "./auth.config"
 import {
+  allowedPaths,
   codesPerEmailLimit,
   ipAddress,
+  proxyOnly,
   rateLimit,
   trustedClientIp,
 } from "./throttle"
@@ -82,6 +84,9 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
         },
       }),
       username(),
+      // Only the site's route, and only the endpoints the game uses (throttle.ts).
+      proxyOnly,
+      allowedPaths,
       trustedClientIp,
       // Codes per email, whatever IP asked for them (throttle.ts).
       codesPerEmailLimit(ctx),

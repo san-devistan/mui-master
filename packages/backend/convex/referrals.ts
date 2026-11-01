@@ -1,74 +1,24 @@
 import { ConvexError, v } from "convex/values"
 
 import type { Doc } from "./_generated/dataModel"
-import { mutation, type MutationCtx, type QueryCtx } from "./_generated/server"
+import { mutation, type MutationCtx } from "./_generated/server"
 import { authComponent, playerId } from "./auth"
-import { paidHere, stripeAccounts } from "./billing"
-import { flagsFor } from "./flags"
-import { scheduleFreePackPush } from "./push"
 import { ensurePlayer, playerRow } from "./wallet"
 
 const DAY = 24 * 60 * 60 * 1000
-const rewardDays = 7
-const proRewardPacks = 5
+// Packs, never Pro: they open into cards, which give back less than they cost, and nothing tradeable
+// comes straight out of an invite.
+const rewardPacks = 5
 const claimWindow = DAY
 const monthlyRewards = 10
 const codeAlphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 const codeLength = 8
 
-const extend = (until: number | undefined, now: number) =>
-  Math.max(until ?? 0, now) + rewardDays * DAY
-
-const isMetadata = (value: unknown): value is Record<string, string> =>
-  typeof value === "object" &&
-  value !== null &&
-  Object.values(value).every((entry) => typeof entry === "string")
-
-async function hasActivePaidPro(ctx: QueryCtx, player: string, now: number) {
-  for (const account of ["live", "sandbox"] as const) {
-    const subscriptions = await ctx.runQuery(
-      stripeAccounts[account].component.public.listSubscriptionsByUserId,
-      { userId: player }
-    )
-    if (
-      subscriptions.some((subscription) => {
-        const metadata: unknown = subscription.metadata
-        return (
-          (subscription.status === "active" ||
-            subscription.status === "trialing") &&
-          subscription.currentPeriodEnd * 1000 > now &&
-          isMetadata(metadata) &&
-          metadata.offer === "pro" &&
-          paidHere(metadata)
-        )
-      })
-    ) {
-      return true
-    }
-  }
-  return false
-}
-
-// 5 packs to a player with an active paid Pro subscription or granted Pro; everyone else gets a
-// week of referral Pro.
-async function rewardFor(ctx: QueryCtx, player: string, now: number) {
-  const { granted } = await flagsFor(ctx, player)
-  return granted || (await hasActivePaidPro(ctx, player, now))
-    ? ("packs" as const)
-    : ("pro" as const)
-}
-
-async function giveReward(ctx: MutationCtx, player: string, now: number) {
+async function giveReward(ctx: MutationCtx, player: string) {
   const row = await ensurePlayer(ctx, player)
-  if ((await rewardFor(ctx, player, now)) === "packs") {
-    await ctx.db.patch("players", row._id, {
-      boughtPacks: row.boughtPacks + proRewardPacks,
-    })
-    return
-  }
-  const referralProUntil = extend(row.referralProUntil, now)
-  await ctx.db.patch("players", row._id, { referralProUntil })
-  await scheduleFreePackPush(ctx, { ...row, referralProUntil })
+  await ctx.db.patch("players", row._id, {
+    boughtPacks: row.boughtPacks + rewardPacks,
+  })
 }
 
 const randomCode = () =>
@@ -112,17 +62,14 @@ export const mine = mutation({
     return {
       code,
       joined: joined.length,
-      reward: await rewardFor(ctx, player, Date.now()),
-      rewardDays,
-      proRewardPacks,
+      rewardPacks,
     }
   },
 })
 
-// A brand-new account claims the link it signed up from. A player with an active paid Pro
-// subscription or granted Pro gets 5 packs; everyone else gets a week of referral Pro, kept
-// separately from paid Pro so it works with premium sales off. Returns false when the code is
-// unusable, already claimed, or the account isn't new; it never reveals why.
+// A brand-new account claims the link it signed up from: it and its inviter each get 5 packs.
+// Returns false when the code is unusable, already claimed, or the account isn't new; it never
+// reveals why.
 export const claim = mutation({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {
@@ -160,10 +107,10 @@ export const claim = mutation({
     await ctx.db.insert("referrals", {
       referrerId,
       referredId: referred,
-      rewardDays,
+      rewardPacks,
     })
-    await giveReward(ctx, referrerId, now)
-    await giveReward(ctx, referred, now)
+    await giveReward(ctx, referrerId)
+    await giveReward(ctx, referred)
     return true
   },
 })

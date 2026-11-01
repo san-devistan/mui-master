@@ -194,6 +194,8 @@ export default defineSchema({
   players: defineTable({
     playerId: v.string(),
     cards: v.number(),
+    // Below zero after a refunded or charged-back holo purchase that was already spent: nothing
+    // can be spent until earnings bring it back up.
     coins: v.number(),
     freePacksSince: v.number(),
     // Packs bought with coins and not opened yet (wallet:buyPacks); opened once the free ones are
@@ -203,8 +205,8 @@ export default defineSchema({
     // through Stripe (billing.ts keeps it at the subscription's period end), or set by the dev
     // switch (wallet:setPro). A free grant (`grants`) counts as Pro on top of it.
     proUntil: v.number(),
-    // Free Pro from referrals (referrals.ts), kept apart from paid Pro so Stripe can't overwrite
-    // it. The game counts Pro until the later of the two.
+    // Free Pro from the referrals made before they gave packs instead; never set any more, it
+    // only runs out. The game counts Pro until the later of it and paid Pro.
     referralProUntil: v.optional(v.number()),
     // The player's public invite code (referrals.ts), made the first time they ask for it.
     referralCode: v.optional(v.string()),
@@ -221,11 +223,12 @@ export default defineSchema({
     .index("by_playerId", ["playerId"])
     .index("by_referralCode", ["referralCode"]),
   // One row per completed referral (referrals.ts): each new account can be referred once, and
-  // both players get a week of Pro.
+  // both players get `rewardPacks` packs (`rewardDays` of Pro on the first ones, before packs).
   referrals: defineTable({
     referrerId: v.string(),
     referredId: v.string(),
-    rewardDays: v.number(),
+    rewardPacks: v.optional(v.number()),
+    rewardDays: v.optional(v.number()),
   })
     .index("by_referredId", ["referredId"])
     .index("by_referrerId", ["referrerId"]),
@@ -240,11 +243,18 @@ export default defineSchema({
     note: v.optional(v.string()),
   }).index("by_email", ["email"]),
   // Each Stripe checkout session already paid out (billing.ts), so a webhook Stripe sends again
-  // never gives the same holos twice.
+  // never gives the same holos twice. The payment and amount let a refund or chargeback find it
+  // and take back what was paid for (billing:reverseHolos), once: `reversedHolos` so far.
   fulfilledCheckouts: defineTable({
     sessionId: v.string(),
     playerId: v.string(),
-  }).index("by_sessionId", ["sessionId"]),
+    paymentIntentId: v.optional(v.string()),
+    holos: v.optional(v.number()),
+    amountPaid: v.optional(v.number()),
+    reversedHolos: v.optional(v.number()),
+  })
+    .index("by_sessionId", ["sessionId"])
+    .index("by_paymentIntentId", ["paymentIntentId"]),
   // One row per device a player turned notifications on from: its Web Push subscription
   // (push.ts), dropped once the push service says it's gone (notify.ts).
   pushSubscriptions: defineTable({

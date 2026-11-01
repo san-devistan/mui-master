@@ -122,7 +122,7 @@ function packChoices(wallet: ReturnType<typeof useWallet>, count: number) {
   }
   const most = Math.min(
     wallet.maxPacksBought,
-    Math.floor(wallet.coins / wallet.packPrice)
+    Math.max(0, Math.floor(wallet.coins / wallet.packPrice))
   )
   const chosen = Math.max(1, Math.min(count, most))
   const skip = wallet.skipPrice
