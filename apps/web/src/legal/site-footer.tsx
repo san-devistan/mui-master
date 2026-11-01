@@ -1,6 +1,7 @@
+import { CONTACT_EMAIL } from "@/legal/contact"
 import { Link } from "@tanstack/react-router"
 
-// The public pages' footer: the legal pages, then who we are and aren't.
+// The public pages' footer: the legal pages and contact, then who we are and aren't.
 export function SiteFooter() {
   return (
     <footer className="max-w-6xl px-4 pb-10 sm:px-6 md:px-8 gap-4 text-sm mx-auto flex flex-col text-ink/60">
@@ -17,6 +18,12 @@ export function SiteFooter() {
         <Link to="/privacy" className="hover:text-ink hover:underline">
           Privacy
         </Link>
+        <a
+          href={`mailto:${CONTACT_EMAIL}`}
+          className="hover:text-ink hover:underline"
+        >
+          Contact
+        </a>
       </nav>
       <div className="gap-2 sm:flex-row sm:justify-between flex flex-col">
         <p>© 2026 Holotrack</p>

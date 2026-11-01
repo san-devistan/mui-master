@@ -1,5 +1,5 @@
 import { errorText, proUntilDay } from "@/game/_lib/wallet"
-import { CONTACT_EMAIL } from "@/legal/legal-page"
+import { CONTACT_EMAIL } from "@/legal/contact"
 import { authClient } from "@/lib/auth-client"
 import { convexQuery } from "@convex-dev/react-query"
 import { useQuery } from "@tanstack/react-query"

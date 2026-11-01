@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from "@/legal/contact"
 import { SiteFooter } from "@/legal/site-footer"
 import { Link } from "@tanstack/react-router"
 import type { ReactNode } from "react"
@@ -72,9 +73,6 @@ export function LegalList({
     </ul>
   )
 }
-
-// Where players reach us, for privacy requests and anything else.
-export const CONTACT_EMAIL = "contact@holotrack.art"
 
 export function ContactLink() {
   return (
