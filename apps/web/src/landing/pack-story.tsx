@@ -174,7 +174,8 @@ function useFilmScroll(
       const time = filmTimeAt(chapter)
       for (const { cue, card } of cuesBetween(last, time)) sound(cue, card)
       last = time
-      seek(video, time)
+      // A seek hides the poster: none until a frame can take its place.
+      if (video.readyState >= video.HAVE_CURRENT_DATA) seek(video, time)
       setShown(filmCardAt(time))
     }
     const schedule = () => {
@@ -183,13 +184,14 @@ function useFilmScroll(
     update()
     scroller.addEventListener("scroll", schedule, { passive: true })
     addEventListener("resize", schedule)
-    // The first seek can come before the video knows its length.
-    video.addEventListener("loadedmetadata", schedule)
+    video.addEventListener("loadeddata", schedule)
+    const stopLoading = loadFilm(video, schedule)
     return () => {
       cancelAnimationFrame(frame)
+      stopLoading()
       scroller.removeEventListener("scroll", schedule)
       removeEventListener("resize", schedule)
-      video.removeEventListener("loadedmetadata", schedule)
+      video.removeEventListener("loadeddata", schedule)
     }
   }, [ref, film])
   return shown
@@ -213,6 +215,34 @@ function sound(cue: FilmCue["cue"], card?: number) {
 // A seek still in flight is overtaken by this one; tiny moves are skipped.
 function seek(video: HTMLVideoElement, time: number) {
   if (Math.abs(video.currentTime - time) > 1 / 60) video.currentTime = time
+}
+
+// Gets `video`'s frames loaded, then calls `loaded`. iOS Safari loads none for
+// a video that has never played, however it's preloaded, so seeks alone leave
+// it blank: one muted play, paused at once, loads them. Low Power Mode refuses
+// even that until a tap, so a refused play is tried again on the next one.
+// Returns a stop.
+function loadFilm(video: HTMLVideoElement, loaded: () => void) {
+  let stopped = false
+  const stop = () => {
+    stopped = true
+    for (const gesture of GESTURES) removeEventListener(gesture, attempt)
+  }
+  async function load() {
+    try {
+      await video.play()
+    } catch {
+      return
+    }
+    video.pause()
+    if (stopped) return
+    stop()
+    loaded()
+  }
+  const attempt = () => void load()
+  for (const gesture of GESTURES) addEventListener(gesture, attempt)
+  attempt()
+  return stop
 }
 
 // Plays `card`'s preview while it's on show, always, with the game's fades:
@@ -276,6 +306,6 @@ function usePreview(card: ShowcaseCard | undefined) {
   }, [url])
 }
 
-// The page events that let a browser start sound: until the visitor has made
-// one of them, play() is refused.
+// The page events that let a browser start sound (or, in iOS's Low Power Mode,
+// any video): until the visitor has made one of them, play() is refused.
 const GESTURES = ["pointerdown", "keydown", "touchend"] as const
