@@ -122,6 +122,10 @@ execFileSync("ffmpeg", [
   "libx264",
   "-preset",
   "veryslow",
+  // iPhones refuse H.264 above level 5.2, and the veryslow preset's reference
+  // frames would push a film this size to 6.0: 5.1 caps them to fit.
+  "-level",
+  "5.1",
   "-tune",
   "animation",
   "-crf",
